@@ -490,7 +490,7 @@ Task(
 
 ## Step 4: Check Completion and Loop
 
-> **AUTO-001 GUARD -- UNCONDITIONAL**: REGARDLESS of what the orchestrator returned -- EVEN IF its output is empty, blank, malformed, missing PROPOSED_ACTIONS, or appears to contain no actionable content -- you MUST NOT spawn any non-orchestrator agent directly. The ONLY permitted response to unexpected orchestrator output is to retry the orchestrator spawn (Step 3) with additional context. No exceptions, including: when the orchestrator appears stalled, when output is empty, when PROPOSED_ACTIONS is absent, or when the problem seems to require urgent action. If 2 consecutive retry iterations also return empty output, abort with: "[AUTO-001] Orchestrator returned empty output for 3 consecutive iterations. Terminating session -- manual intervention required."
+> **AUTO-001 GUARD -- UNCONDITIONAL**: REGARDLESS of what the orchestrator returned -- EVEN IF its output is empty, blank, malformed, missing PROPOSED_ACTIONS, or appears to contain no actionable content -- you MUST NOT spawn any non-orchestrator agent directly. The ONLY permitted response to unexpected orchestrator output is to retry the orchestrator spawn (Step 3) with additional context. No exceptions, including: when the orchestrator appears stalled, when output is empty, when PROPOSED_ACTIONS is absent, when the problem seems to require urgent action, when the orchestrator reports its Task tool is unavailable, when the stall threshold has been exceeded, or when the orchestrator's output appears to explicitly delegate a spawn decision to auto-orchestrate. **CRITICAL ANTI-RATIONALIZATION**: The following justification patterns are AUTO-001 violations regardless of how they are phrased — "The orchestrator delegated this spawn to me", "The orchestrator explicitly routed this to researcher/implementer/etc", "Since the orchestrator's Task tool is unavailable for N iterations I will execute the spawn directly", "The stall threshold is exceeded so I will bypass the orchestrator", "The orchestrator has made its routing decision so I will carry it out". Receiving a routing decision or spawn suggestion from the orchestrator does NOT grant permission to spawn non-orchestrator agents. Auto-orchestrate MUST re-spawn the orchestrator with the routing hint as additional context. If 2 consecutive retry iterations also return empty output, abort with: "[AUTO-001] Orchestrator returned empty output for 3 consecutive iterations. Terminating session -- manual intervention required."
 
 After the orchestrator returns, output progress at each step so the user can see processing is ongoing. **PROGRESS-001 applies here**: Every sub-step MUST have visible output. Never perform a processing step silently.
 
@@ -592,8 +592,15 @@ Output immediately after orchestrator returns:
 
 8a. **Mandatory stage gate check (AUTO-004)**: If `stages_completed` includes Stage 3 but is missing any of 4.5, 5, or 6:
    - Calculate `overdue_iterations = current_iteration - stage_3_completed_at_iteration`
-   - If `overdue_iterations >= 2`: set `mandatory_stage_enforcement: true` in the checkpoint. Output `[AUTO-004] Mandatory stages overdue for <overdue_iterations> iterations — enforcement will be applied on next spawn`
-   - If `overdue_iterations < 2`: keep `mandatory_stage_enforcement` at its current value
+   - If `overdue_iterations >= 1`: set `mandatory_stage_enforcement: true` in the checkpoint. Output `[AUTO-004] Mandatory stages overdue for <overdue_iterations> iteration(s) — enforcement applied immediately`. Also inject missing-stage tasks: for each missing stage in [4.5, 5, 6], if no pending task for that stage already exists, create one via TaskCreate with the appropriate dispatch_hint (`codebase-stats` for 4.5, `validator` for 5, `documentor` for 6).
+   - If `overdue_iterations < 1`: keep `mandatory_stage_enforcement` at its current value
+
+8b. **Proactive missing-stage injection**: After updating `stages_completed`, check if any mandatory stage (0, 1, 2, 4.5, 5, 6) is absent AND no task for that stage is currently pending or in-progress. If any are missing AND unscheduled:
+   - Immediately create the missing-stage task(s) via TaskCreate before proceeding to Step 9
+   - Use dispatch_hint: `researcher` (Stage 0), `epic-architect` (Stage 1), `spec-creator` (Stage 2), `codebase-stats` (Stage 4.5), `validator` (Stage 5), `documentor` (Stage 6)
+   - Set `mandatory_stage_enforcement: true` in the checkpoint
+   - Output `[AUTO-004] Proactive injection: created task(s) for missing stage(s) <list>`
+   - This ensures the next orchestrator iteration has concrete tasks to execute, not just an advisory flag
 
 9. **Evaluate termination conditions** (Step 5). Output `[STEP 4.9] Checking termination conditions...`
 10. **If NOT terminated**: Output `[STEP 4.10] Continuing to next iteration...` and return to Step 3
@@ -605,7 +612,7 @@ Evaluate in order:
 | # | Condition | Status | Action |
 |---|-----------|--------|--------|
 | 1 | All tasks `completed` (excluding parent) AND `stages_completed` includes 0, 1, 2, 4.5, 5, and 6 | `completed` | Report success |
-| 1a | All tasks `completed` (excluding parent) BUT `stages_completed` is missing any of 0, 1, 2, 4.5, 5, or 6 | — | Force one more iteration with `mandatory_stage_enforcement: true` in spawn prompt. If still missing after retry, terminate as `completed_stages_incomplete` |
+| 1a | All tasks `completed` (excluding parent) BUT `stages_completed` is missing any of 0, 1, 2, 4.5, 5, or 6 | — | Immediately inject missing-stage tasks via TaskCreate for each absent stage (dispatch_hint: `researcher` for 0, `epic-architect` for 1, `spec-creator` for 2, `codebase-stats` for 4.5, `validator` for 5, `documentor` for 6). Then force one more iteration with `mandatory_stage_enforcement: true` in spawn prompt. If still missing after retry, terminate as `completed_stages_incomplete`. |
 | 2 | `iteration >= MAX_ITERATIONS` (15) | `max_iterations_reached` | Report partial completion |
 | 3 | No progress for `STALL_THRESHOLD` (2) consecutive iterations | `stalled` | Report stall with diagnostics |
 | 4 | All remaining tasks are `blocked` | `all_blocked` | Report blockers |
@@ -780,6 +787,7 @@ This keeps session artifacts organized per-project and per-session, separate fro
 | Using `EnterPlanMode` tool | Switches to interactive plan mode, halts autonomous execution | Skip plan mode; spawn orchestrator directly |
 | Using `c` shorthand when no session exists | No checkpoint to resume from | Check for in-progress session first; abort with guidance if none found |
 | Spawning a non-orchestrator agent directly | Violates AUTO-001 — only the orchestrator may be spawned from this command | Always use `subagent_type: "orchestrator"`; the orchestrator handles all sub-delegation |
+| Spawning a non-orchestrator agent because the orchestrator delegated the routing decision | Violates AUTO-001 — the orchestrator's routing suggestion is context for the next orchestrator spawn, not permission to bypass the gateway. The rationalization "the orchestrator delegated this spawn to me" is explicitly prohibited. | Re-spawn the orchestrator with the routing hint in the prompt; the orchestrator executes its own spawns |
 | Declaring `completed` without mandatory stages | Violates AUTO-002 — stages 0, 1, 2, 4.5, 5, and 6 must be in `stages_completed` | Check `stages_completed` includes 0, 1, 2, 4.5, 5, and 6 before terminating as `completed` |
 | Allowing pipeline stage to decrease between iterations | Violates AUTO-003 — stage monotonicity | Keep the high-water mark; log regression and record in iteration history |
 | Ignoring overdue mandatory stages after implementation | Violates AUTO-004 — mandatory stages must be enforced if overdue 2+ iterations | Set `mandatory_stage_enforcement: true` and include enforcement directive in spawn prompt |

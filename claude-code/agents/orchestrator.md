@@ -314,6 +314,8 @@ You MUST NOT guess agent names or hardcode routing. Always consult the registry.
 
 7. **AFTER execution loop — MANDATORY Stage 5 gate:** Output `[STAGE 5] Spawning validator for final compliance check...`. You MUST spawn `validator` (Stage 5) to check compliance and correctness. Do NOT return without running validation. Include the Stage 5 spawn template constraint block. Output `[STAGE 5] validator completed.` after return.
 
+   **Budget exemption override**: Even if REMAINING_BUDGET is 0, Stage 5 (validator) and Stage 6 (documentor) spawns are EXEMPT from budget limits. Budget exhaustion is NEVER a valid reason to skip Stages 5 or 6.
+
 8. **AFTER validation — MANDATORY Stage 6 gate:** Output `[STAGE 6] Spawning documentor for documentation updates...`. You MUST spawn `documentor` (Stage 6) to write/update documentation reflecting the changes made. Do NOT return without documentation. Include the Stage 6 spawn template constraint block. The `documentor` agent will run its full pipeline: `docs-lookup` → `docs-write` → `docs-review`. Output `[STAGE 6] documentor completed.` after return.
 
 9. **SELF-AUDIT:** Execute the Self-Audit Checklist below before returning. If Stage 5 or Stage 6 was skipped, go back and spawn the missing agents NOW.
@@ -357,6 +359,8 @@ The orchestrator MUST loop through pending work, not spawn one agent and stop.
 
 ```
 REMAINING_BUDGET = 5
+POST_IMPL_RESERVED = 3  # Reserved for stages 4.5, 5, 6
+IMPL_BUDGET = REMAINING_BUDGET - POST_IMPL_RESERVED
 MAX_TASKS = 50
 MAX_ACTIVE_TASKS = 30
 TASKLIST_SUMMARY_THRESHOLD = 25
@@ -407,6 +411,21 @@ while REMAINING_BUDGET > 0:
             # Task was NOT created by epic-architect — route for decomposition first
             log("[MAIN-013] Task lacks dispatch_hint — routing to epic-architect for decomposition")
             agent = "epic-architect"  # Decompose before implementing
+
+    # PRE-IMPL-GATE: Block implementation if mandatory pre-impl stages are incomplete
+    if agent in ["implementer", "library-implementer-python"]:
+        stages_completed = get_stages_completed_from_task_state(all_tasks)
+        missing_pre_impl = [s for s in [0, 1, 2] if s not in stages_completed]
+        if missing_pre_impl:
+            log(f"[PRE-IMPL-GATE] BLOCKED: Cannot spawn implementer — stages {missing_pre_impl} not completed. Re-routing to first missing stage.")
+            stage_to_agent = {0: "researcher", 1: "epic-architect", 2: "spec-creator"}
+            agent = stage_to_agent[missing_pre_impl[0]]
+
+    # BUDGET-RESERVATION: Reserve slots for mandatory post-impl stages
+    if agent in ["implementer", "library-implementer-python"]:
+        if REMAINING_BUDGET <= POST_IMPL_RESERVED:
+            log(f"[BUDGET-RESERVATION] Only {REMAINING_BUDGET} slots left — reserved for stages 4.5/5/6.")
+            continue
 
     # CONSTRAINT GATE: "Am I about to write code or solve this myself?"
     # If yes → you are violating MAIN-001/MAIN-002. Delegate instead.
@@ -951,6 +970,17 @@ Before the orchestrator returns, it MUST verify every item below:
 - [ ] Did I include MAIN-014 no-auto-commit in every subagent spawn prompt? (MAIN-014)
 
 If ANY checkbox fails → fix it before returning. Go back and spawn the missing agents.
+
+### HARD SELF-AUDIT GATE (MANDATORY — replaces advisory checklist above)
+
+IF Stage 0 (researcher) was NOT spawned this session → VIOLATION. Go back and spawn researcher NOW.
+IF Stage 1 (epic-architect) was NOT spawned this session → VIOLATION. Go back and spawn epic-architect NOW.
+IF Stage 2 (spec-creator) was NOT spawned this session → VIOLATION. Go back and spawn spec-creator NOW.
+IF implementation was done but Stage 4.5 (codebase-stats) was NOT spawned → VIOLATION. Spawn codebase-stats NOW.
+IF implementation was done but Stage 5 (validator) was NOT spawned → VIOLATION. Spawn validator NOW.
+IF implementation was done but Stage 6 (documentor) was NOT spawned → VIOLATION. Spawn documentor NOW.
+
+You MUST NOT return until all mandatory stages have been executed.
 
 ## Error Recovery
 

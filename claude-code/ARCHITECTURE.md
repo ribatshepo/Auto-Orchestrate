@@ -2,7 +2,7 @@
 
 Comprehensive architecture documentation for the Claude Code plugins system.
 
-**Last Updated**: 2026-03-01
+**Last Updated**: 2026-03-03
 **Components**: 6 agents | 33 skills | 1 command | 4 protocols | 2 templates
 
 ---
@@ -67,7 +67,7 @@ claude-code/
 │   │   └── placeholders.json                  (327 lines)
 │   └── schemas/                               (canonical: manifest.schema.json — 2020-12, 352 lines)
 ├── agents/
-│   ├── orchestrator.md                        (817 lines)
+│   ├── orchestrator.md                        (1035 lines)
 │   ├── documentor.md                          (190 lines)
 │   ├── epic-architect.md                      (439 lines)
 │   ├── implementer.md                         (826 lines)
@@ -173,7 +173,7 @@ claude-code/
 
 **Purpose**: Coordinate complex workflows by delegating to subagents while protecting context.
 
-**Key Constraints (MAIN-001 to MAIN-013)**:
+**Key Constraints (MAIN-001 to MAIN-015)**:
 - Stay high-level (no implementation)
 - Delegate ALL work via Task tool
 - No full file reads (manifest summaries only)
@@ -187,6 +187,8 @@ claude-code/
 - max_turns on every Task tool spawn
 - Flow integrity (follow full pipeline, never skip stages)
 - Decomposition gate (verify dispatch_hint before spawning implementer)
+- No auto-commit (NEVER run git commit, git push, or any git write operation)
+- Always-visible processing (progress output before/after every subagent spawn)
 
 **Decision Flow**:
 ```
@@ -425,6 +427,64 @@ This directory is separate from `~/.claude/sessions/` (checkpoint storage). The 
 - `claude-code/commands/auto-orchestrate.md` — Task management proxy implementation
 
 ---
+
+### 4.3.2 Mandatory Stage Enforcement Guards
+
+**Updated**: 2026-03-03
+
+The orchestrator and auto-orchestrate command enforce mandatory pipeline stages through four interlocking guards that prevent implementation from proceeding when required stages are missing.
+
+#### PRE-IMPL-GATE
+
+Blocks implementation spawns if mandatory pre-implementation stages (0, 1, 2) are not completed. When this gate fires, the orchestrator re-routes to the first missing mandatory stage instead of proceeding to implementation.
+
+```
+# Located in: orchestrator.md - Execution Loop
+# PRE-IMPL-GATE: Block implementation if mandatory pre-impl stages are incomplete
+missing_pre_impl = [s for s in [0, 1, 2] if s not in stages_completed]
+if missing_pre_impl and agent in ["implementer", "library-implementer-python"]:
+    log("[PRE-IMPL-GATE] BLOCKED: Cannot spawn implementer -- stages missing.")
+    # Re-route to first missing stage
+```
+
+#### BUDGET-RESERVATION
+
+Reserves 3 budget slots for mandatory post-implementation stages (4.5, 5, 6). Prevents the orchestrator from exhausting its spawn budget on implementation tasks and then being unable to spawn the validator, codebase-stats, and documentor agents.
+
+```
+# Located in: orchestrator.md - Execution Loop
+POST_IMPL_RESERVED = 3  # Reserved for stages 4.5, 5, 6
+IMPL_BUDGET = REMAINING_BUDGET - POST_IMPL_RESERVED
+# BUDGET-RESERVATION: Reserve slots for mandatory post-impl stages
+if REMAINING_BUDGET <= POST_IMPL_RESERVED:
+    log("[BUDGET-RESERVATION] Only {n} slots left -- reserved for stages 4.5/5/6.")
+    # Exit implementation loop, force post-impl stages
+```
+
+#### POST-IMPL-EXIT-GATE (Budget Exemption)
+
+Budget exhaustion is NEVER a valid reason to skip Stages 5 or 6. Even if REMAINING_BUDGET reaches 0, the validator (Stage 5) and documentor (Stage 6) spawns are **exempt from budget limits**. This ensures the quality gate and documentation always run regardless of how many implementation iterations occurred.
+
+#### HARD SELF-AUDIT GATE
+
+Replaces the advisory self-audit checklist with a mandatory gate. Before the orchestrator can return, it must confirm all required stages were spawned. If any mandatory stage (0, 1, 2, 4.5, 5, 6) was skipped, the gate blocks return and forces spawning of the missing agent.
+
+The gate uses structured checklist evaluation with binary pass/fail per item, and requires zero skipped mandatory stages before completing.
+
+#### AUTO-004 Threshold Change (auto-orchestrate.md)
+
+The auto-orchestrate loop enforces that mandatory post-implementation stages cannot be deferred. The enforcement threshold was changed from `overdue_iterations >= 2` to `overdue_iterations >= 1` -- mandatory stages are enforced **immediately** after the first iteration where they are overdue, rather than waiting two iterations.
+
+Three sub-mechanisms support AUTO-004:
+
+1. **Step 8a -- Mandatory stage gate check**: If Stage 3 is complete but 4.5, 5, or 6 are missing, sets `mandatory_stage_enforcement: true` after just 1 overdue iteration. Also injects missing-stage tasks via TaskCreate with the appropriate dispatch_hint.
+
+2. **Step 8b -- Proactive missing-stage injection**: After updating `stages_completed`, proactively checks if any mandatory stage (0, 1, 2, 4.5, 5, 6) is absent AND unscheduled. Creates tasks immediately without waiting for enforcement to trigger. Output: `[AUTO-004] Proactive injection: created task(s) for missing stage(s)`.
+
+3. **Condition 1a**: When all tasks are completed but `stages_completed` is missing mandatory stages, immediately injects the missing-stage tasks via TaskCreate (dispatcher: `researcher` for 0, `epic-architect` for 1, `spec-creator` for 2, `codebase-stats` for 4.5, `validator` for 5, `documentor` for 6) and forces one more iteration with `mandatory_stage_enforcement: true`.
+
+**Impact**: These guards collectively close the loop on "never-skip" violations where the orchestrator would complete implementation but skip validation, technical debt measurement, or documentation due to budget exhaustion or iteration limits.
+
 
 ### 4.4 Implementer
 
