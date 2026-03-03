@@ -22,7 +22,7 @@ arguments:
   - name: max_iterations
     type: integer
     required: false
-    default: 15
+    default: 100
     description: Override the maximum number of orchestrator spawns.
   - name: stall_threshold
     type: integer
@@ -167,7 +167,7 @@ Step 1 (Enhance User Input) is performed INLINE by this command. Do NOT delegate
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `MAX_ITERATIONS` | 15 | Hard cap on orchestrator spawns |
+| `MAX_ITERATIONS` | 100 | Hard cap on orchestrator spawns |
 | `STALL_THRESHOLD` | 2 | Consecutive no-progress iterations before fail |
 | `SESSION_DIR` | `~/.claude/sessions` | Checkpoint directory |
 | `ORCHESTRATE_DIR` | `.orchestrate` | Per-project session output directory (relative to cwd) |
@@ -524,7 +524,7 @@ Write the initial checkpoint file to `~/.claude/sessions/<session-id>.json`:
   "updated_at": "<ISO-8601>",
   "status": "in_progress",
   "iteration": 0,
-  "max_iterations": 15,
+  "max_iterations": 100,
   "original_input": "<raw user input>",
   "scope": {
     "flag": "<F|B|S|null>",
@@ -923,7 +923,7 @@ Evaluate in order:
 |---|-----------|--------|--------|
 | 1 | All tasks `completed` (excluding parent) AND `stages_completed` includes 0, 1, 2, 4.5, 5, and 6 | `completed` | Report success |
 | 1a | All tasks `completed` (excluding parent) BUT `stages_completed` is missing any of 0, 1, 2, 4.5, 5, or 6 | — | Immediately inject missing-stage tasks via TaskCreate for each absent stage (dispatch_hint: `researcher` for 0, `epic-architect` for 1, `spec-creator` for 2, `codebase-stats` for 4.5, `validator` for 5, `documentor` for 6). Then force one more iteration with `mandatory_stage_enforcement: true` in spawn prompt. If still missing after retry, terminate as `completed_stages_incomplete`. |
-| 2 | `iteration >= MAX_ITERATIONS` (15) | `max_iterations_reached` | Report partial completion |
+| 2 | `iteration >= MAX_ITERATIONS` (100) | `max_iterations_reached` | Report partial completion |
 | 3 | No progress for `STALL_THRESHOLD` (2) consecutive iterations | `stalled` | Report stall with diagnostics |
 | 4 | All remaining tasks are `blocked` | `all_blocked` | Report blockers |
 
