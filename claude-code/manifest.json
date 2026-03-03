@@ -1,0 +1,959 @@
+{
+  "schema_version": "1.0.0",
+  "name": "plugins-ai-claude-code",
+  "description": "Claude Code plugin system with skills, agents, commands, and shared resources for autonomous AI-assisted software engineering.",
+  "updated_at": "2026-03-03",
+  "stats": {
+    "total_skills": 33,
+    "total_agents": 6,
+    "total_commands": 1,
+    "total_protocols": 4,
+    "total_templates": 2,
+    "total_style_guides": 1
+  },
+  "agents": [
+    {
+      "name": "documentor",
+      "description": "Documentation specialist orchestrating docs-lookup, docs-write, and docs-review skills. Enforces anti-duplication with maintain-don't-duplicate principle.",
+      "model": "sonnet",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Edit",
+        "Write",
+        "Task"
+      ],
+      "dispatch_triggers": [
+        "write documentation",
+        "create docs",
+        "review docs",
+        "update documentation",
+        "document this feature",
+        "fix the docs",
+        "sync docs with code",
+        "documentation is outdated",
+        "full docs workflow",
+        "end-to-end documentation"
+      ],
+      "capabilities": {
+        "skills_orchestrated": [
+          "docs-lookup",
+          "docs-write",
+          "docs-review"
+        ],
+        "outputs": [
+          "Documentation file (created or updated)",
+          "Manifest entry with changes summary",
+          "Review report"
+        ]
+      },
+      "path": "agents/documentor.md"
+    },
+    {
+      "name": "epic-architect",
+      "description": "Epic architecture agent for creating comprehensive epics with full task decomposition, dependency analysis, and Program planning.",
+      "model": "sonnet",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Task"
+      ],
+      "dispatch_triggers": [
+        "create epic",
+        "plan epic",
+        "decompose into tasks",
+        "architect the work",
+        "break down this project",
+        "epic planning",
+        "task breakdown",
+        "dependency analysis",
+        "Program planning",
+        "sprint planning",
+        "split oversized task",
+        "continuation task"
+      ],
+      "capabilities": {
+        "task_decomposition": true,
+        "dependency_analysis": true,
+        "program_planning": true,
+        "continuation_tasks": true,
+        "task_splitting": true,
+        "outputs": [
+          "Epic task created",
+          "Child tasks with dependencies",
+          "Manifest entry with Program analysis"
+        ]
+      },
+      "path": "agents/epic-architect.md"
+    },
+    {
+      "name": "implementer",
+      "description": "Fast implementation agent with enterprise quality pipeline. Implements, reviews, fixes, and runs mandatory quality + security gates in one pass.",
+      "model": "opus",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Task"
+      ],
+      "dispatch_triggers": [
+        "implement",
+        "fast implementation",
+        "one pass implementation",
+        "write code",
+        "build feature",
+        "coding task",
+        "implement feature",
+        "production code",
+        "enterprise implementation",
+        "quality pipeline"
+      ],
+      "capabilities": {
+        "production_code": true,
+        "self_review": true,
+        "quality_pipeline": true,
+        "security_gate": true,
+        "scope_classification": [
+          "SMALL",
+          "MEDIUM",
+          "LARGE"
+        ],
+        "outputs": [
+          "Production-ready code files",
+          "DONE block with quality metrics",
+          "Quality pipeline output files"
+        ]
+      },
+      "path": "agents/implementer.md"
+    },
+    {
+      "name": "orchestrator",
+      "description": "Coordinates complex workflows by delegating to subagents while protecting context. Enforces MAIN-001 through MAIN-013 constraints. Note: Task management tools (TaskCreate/TaskList) are NOT available at runtime \u2014 uses file-based protocol.",
+      "model": "sonnet",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Task"
+      ],
+      "dispatch_triggers": [
+        "orchestrate",
+        "orchestrator mode",
+        "run as orchestrator",
+        "delegate to subagents",
+        "coordinate agents",
+        "spawn subagents",
+        "multi-agent workflow",
+        "context-protected workflow",
+        "agent farm",
+        "HITL orchestration"
+      ],
+      "capabilities": {
+        "pipeline_stages": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "delegation": true,
+        "zero_error_gate": true,
+        "execution_tracker": true,
+        "outputs": [
+          "Task tool spawns for delegation",
+          "Manifest entries per subtask",
+          "Task status updates",
+          "Execution Tracker summary"
+        ]
+      },
+      "path": "agents/orchestrator.md"
+    },
+    {
+      "name": "researcher",
+      "description": "Dedicated research agent for internet-enabled investigation of topics, packages, CVEs, best practices, and technology evaluation. Spawned by the orchestrator at Stage 0 (mandatory) before implementation begins.",
+      "model": "sonnet",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "WebSearch",
+        "WebFetch"
+      ],
+      "dispatch_triggers": [
+        "research",
+        "investigate",
+        "gather information",
+        "look up",
+        "find best practices",
+        "analyze topic",
+        "explore options",
+        "survey alternatives",
+        "background research",
+        "discovery phase",
+        "CVE check",
+        "security research",
+        "package evaluation",
+        "docker image research",
+        "technology comparison",
+        "Stage 0",
+        "mandatory research"
+      ],
+      "capabilities": {
+        "internet_search": true,
+        "cve_lookup": true,
+        "package_analysis": true,
+        "docker_image_research": true,
+        "technology_evaluation": true,
+        "codebase_analysis": true,
+        "mandatory_stage": 0,
+        "outputs": [
+          "Research findings file (.orchestrate/<SESSION_ID>/research/<DATE>_<SLUG>.md)",
+          "Manifest entry with key_findings (3-7 sentences)",
+          "CVE findings list (if packages/images evaluated)"
+        ]
+      },
+      "path": "agents/researcher.md"
+    },
+    {
+      "name": "session-manager",
+      "description": "Coordinates work session lifecycle through workflow-* skills. Manages session state, task focus, and progress tracking.",
+      "model": "sonnet",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Task"
+      ],
+      "dispatch_triggers": [
+        "start session",
+        "work session",
+        "session management",
+        "coordinate tasks",
+        "manage workflow",
+        "track progress",
+        "workflow commands",
+        "task workflow",
+        "boot infrastructure",
+        "session bootstrap"
+      ],
+      "capabilities": {
+        "session_lifecycle": true,
+        "boot_infrastructure": true,
+        "manifest_rotation": true,
+        "skills_orchestrated": [
+          "workflow-start",
+          "workflow-end",
+          "workflow-dash",
+          "workflow-focus",
+          "workflow-next",
+          "workflow-plan"
+        ],
+        "outputs": [
+          "Session state transitions",
+          "Cached task snapshots",
+          "Progress metrics",
+          "Boot infrastructure JSON summary"
+        ]
+      },
+      "path": "agents/session-manager.md"
+    }
+  ],
+  "skills": [
+    {
+      "name": "cicd-workflow",
+      "description": "CI/CD pipeline creation, deployment automation, and troubleshooting for GitHub Actions and GitLab CI.",
+      "dispatch_triggers": [
+        "CI pipeline",
+        "CD pipeline",
+        "GitHub Actions",
+        "GitLab CI",
+        "deployment automation",
+        "pipeline debugging",
+        "deployment pipeline",
+        "workflow file"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "path": "skills/cicd-workflow/SKILL.md"
+    },
+    {
+      "name": "codebase-stats",
+      "description": "Codebase statistics and technical debt tracking agent.",
+      "dispatch_triggers": [
+        "codebase stats",
+        "technical debt report",
+        "code metrics",
+        "line count",
+        "complexity analysis"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/codebase-stats/SKILL.md"
+    },
+    {
+      "name": "dependency-analyzer",
+      "description": "Dependency analysis agent for detecting circular dependencies and validating architecture layers.",
+      "dispatch_triggers": [
+        "check dependencies",
+        "find circular imports",
+        "analyze layers",
+        "dependency graph"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "path": "skills/dependency-analyzer/SKILL.md"
+    },
+    {
+      "name": "dev-workflow",
+      "description": "Development workflow skill for atomic commits, conventional commits, and release management.",
+      "dispatch_triggers": [
+        "commit",
+        "release",
+        "run the workflow",
+        "prepare release",
+        "atomic commit",
+        "version bump"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/dev-workflow/SKILL.md"
+    },
+    {
+      "name": "docker-workflow",
+      "description": "Docker image building, container execution, and debugging patterns with security checklists.",
+      "dispatch_triggers": [
+        "Docker",
+        "Dockerfile",
+        "container",
+        "containerize",
+        "docker-compose",
+        "docker compose",
+        "image build",
+        "multi-stage build",
+        "container debug",
+        "container crash",
+        "docker run",
+        "docker build"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "path": "skills/docker-workflow/SKILL.md"
+    },
+    {
+      "name": "docker-validator",
+      "description": "Docker environment validation agent for Stage 5 compliance. Validates Docker availability, runs Compose build/deploy, tests HTTP endpoints, and restores state.",
+      "dispatch_triggers": [
+        "docker validate",
+        "docker test",
+        "validate containers",
+        "docker compliance",
+        "container validation",
+        "docker health check",
+        "docker endpoint test",
+        "compose validation",
+        "docker state audit",
+        "docker teardown"
+      ],
+      "capabilities": {
+        "environment_check": true,
+        "state_audit": true,
+        "compose_lifecycle": true,
+        "http_endpoint_testing": true,
+        "authenticated_testing": true,
+        "state_restoration": true,
+        "stage_5_sub_component": true,
+        "outputs": [
+          "Docker validation report (markdown)",
+          "Docker checkpoint (JSON state snapshot)",
+          "Manifest entry with phase results"
+        ]
+      },
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/docker-validator/SKILL.md"
+    },
+    {
+      "name": "docs-lookup",
+      "description": "Library and framework documentation lookup skill using Context7.",
+      "dispatch_triggers": [
+        "how do I configure",
+        "write code using",
+        "what are the methods",
+        "show me examples",
+        "library docs",
+        "framework setup",
+        "API reference"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/docs-lookup/SKILL.md"
+    },
+    {
+      "name": "docs-review",
+      "description": "Documentation review skill for checking style guide compliance.",
+      "dispatch_triggers": [
+        "review documentation",
+        "check docs style",
+        "review this markdown file",
+        "check style guide compliance",
+        "review PR documentation"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/docs-review/SKILL.md"
+    },
+    {
+      "name": "docs-write",
+      "description": "Documentation writing skill for creating and editing markdown files.",
+      "dispatch_triggers": [
+        "write docs",
+        "create documentation",
+        "edit the README",
+        "improve doc clarity",
+        "make docs more readable",
+        "follow the style guide"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/docs-write/SKILL.md"
+    },
+    {
+      "name": "error-standardizer",
+      "description": "Error handling standardization agent for converting inconsistent error patterns to emit_error().",
+      "dispatch_triggers": [
+        "standardize errors",
+        "fix error handling",
+        "error patterns",
+        "convert to emit_error"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "path": "skills/error-standardizer/SKILL.md"
+    },
+    {
+      "name": "hierarchy-unifier",
+      "description": "Hierarchy consolidation agent for unifying scattered parent-child task operations.",
+      "dispatch_triggers": [
+        "unify hierarchy",
+        "consolidate parent operations",
+        "hierarchy refactor"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/hierarchy-unifier/SKILL.md"
+    },
+    {
+      "name": "library-implementer-python",
+      "description": "Python library implementation skill for creating modules in lib/.",
+      "dispatch_triggers": [
+        "create library",
+        "implement module",
+        "add to lib/",
+        "python library",
+        "helper functions",
+        "utility module"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/library-implementer-python/SKILL.md"
+    },
+    {
+      "name": "production-code-workflow",
+      "description": "Multi-language production code patterns, detection scripts, and reference materials.",
+      "dispatch_triggers": [
+        "implement",
+        "production code",
+        "no placeholders",
+        "code review",
+        "review code",
+        "production ready",
+        "TODO removal",
+        "placeholder detection",
+        "build feature",
+        "write code",
+        "implement feature",
+        "coding standards"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "path": "skills/production-code-workflow/SKILL.md"
+    },
+    {
+      "name": "refactor-analyzer",
+      "description": "Interactive refactoring assistant for analyzing code structure and planning refactoring.",
+      "dispatch_triggers": [
+        "refactor",
+        "refactoring",
+        "improve code structure",
+        "code cleanup",
+        "restructure code",
+        "clean up code"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/refactor-analyzer/SKILL.md"
+    },
+    {
+      "name": "refactor-executor",
+      "description": "Script splitting and modularization executor for breaking large files into smaller modules.",
+      "dispatch_triggers": [
+        "split script",
+        "refactor large file",
+        "break up module",
+        "modularize",
+        "extract functions"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "path": "skills/refactor-executor/SKILL.md"
+    },
+    {
+      "name": "researcher",
+      "description": "Research and investigation skill for gathering information from multiple sources.",
+      "dispatch_triggers": [
+        "research",
+        "investigate",
+        "gather information",
+        "look up",
+        "find out about",
+        "analyze topic",
+        "explore options"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/researcher/SKILL.md"
+    },
+    {
+      "name": "schema-migrator",
+      "description": "Schema migration agent for upgrading JSON schema versions with data validation.",
+      "dispatch_triggers": [
+        "migrate schema",
+        "upgrade schema version",
+        "schema migration",
+        "bump schema"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/schema-migrator/SKILL.md"
+    },
+    {
+      "name": "security-auditor",
+      "description": "Security vulnerability scanning agent for shell scripts.",
+      "dispatch_triggers": [
+        "security audit",
+        "find vulnerabilities",
+        "check security",
+        "TOCTOU check"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "path": "skills/security-auditor/SKILL.md"
+    },
+    {
+      "name": "skill-creator",
+      "description": "Guide for creating effective skills that extend Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+      "dispatch_triggers": [
+        "create a new skill",
+        "update an existing skill",
+        "skill creation",
+        "extend Claude capabilities"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "path": "skills/skill-creator/SKILL.md"
+    },
+    {
+      "name": "skill-lookup",
+      "description": "Skill discovery and installation from prompts.chat marketplace.",
+      "dispatch_triggers": [
+        "find me a skill",
+        "search for skills",
+        "what skills are available",
+        "get skill",
+        "install a skill"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/skill-lookup/SKILL.md"
+    },
+    {
+      "name": "spec-analyzer",
+      "description": "Specification analysis, validation, and multi-phase implementation planning.",
+      "dispatch_triggers": [
+        "specification",
+        "spec analysis",
+        "analyze spec",
+        "validate spec",
+        "implementation plan",
+        "phase planning",
+        "requirements extraction",
+        "acceptance criteria",
+        "docs/specs",
+        "break down into phases",
+        "implementation roadmap"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "path": "skills/spec-analyzer/SKILL.md"
+    },
+    {
+      "name": "spec-creator",
+      "description": "Specification creation agent for creating technical specifications and protocol documents.",
+      "dispatch_triggers": [
+        "write a spec",
+        "create specification",
+        "define protocol",
+        "document requirements",
+        "RFC-style document"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/spec-creator/SKILL.md"
+    },
+    {
+      "name": "task-executor",
+      "description": "Generic task execution agent for completing implementation work.",
+      "dispatch_triggers": [
+        "execute task",
+        "implement",
+        "do the work",
+        "complete this task",
+        "carry out",
+        "perform task"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/task-executor/SKILL.md"
+    },
+    {
+      "name": "test-gap-analyzer",
+      "description": "Test coverage gap analysis agent for identifying gaps and generating missing tests.",
+      "dispatch_triggers": [
+        "check test coverage",
+        "find untested code",
+        "generate tests",
+        "coverage report"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/test-gap-analyzer/SKILL.md"
+    },
+    {
+      "name": "test-writer-pytest",
+      "description": "Python test writing skill using pytest framework.",
+      "dispatch_triggers": [
+        "write tests",
+        "create pytest tests",
+        "add unit tests",
+        "python tests",
+        "test coverage"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/test-writer-pytest/SKILL.md"
+    },
+    {
+      "name": "validator",
+      "description": "Compliance validation agent for verifying system, document, and code compliance.",
+      "dispatch_triggers": [
+        "validate",
+        "verify",
+        "check compliance",
+        "audit",
+        "compliance check"
+      ],
+      "has_scripts": true,
+      "has_references": false,
+      "path": "skills/validator/SKILL.md"
+    },
+    {
+      "name": "workflow-dash",
+      "description": "Show project task dashboard with comprehensive overview.",
+      "dispatch_triggers": [
+        "dash",
+        "dashboard",
+        "show tasks",
+        "project status",
+        "task overview",
+        "show dashboard"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/workflow-dash/SKILL.md"
+    },
+    {
+      "name": "workflow-end",
+      "description": "End current work session with status review and wrap-up.",
+      "dispatch_triggers": [
+        "end",
+        "end session",
+        "done for now",
+        "wrap up",
+        "finish session",
+        "stop working"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/workflow-end/SKILL.md"
+    },
+    {
+      "name": "workflow-focus",
+      "description": "Show or set task focus for single-task workflow discipline.",
+      "dispatch_triggers": [
+        "focus",
+        "set focus",
+        "focus on task",
+        "switch task",
+        "change focus"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/workflow-focus/SKILL.md"
+    },
+    {
+      "name": "workflow-next",
+      "description": "Get intelligent next task suggestion based on dependencies and state.",
+      "dispatch_triggers": [
+        "next",
+        "next task",
+        "what's next",
+        "suggest task",
+        "what should I work on",
+        "what to do next"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/workflow-next/SKILL.md"
+    },
+    {
+      "name": "workflow-plan",
+      "description": "Optimize prompts and manage plan mode with task tracking.",
+      "dispatch_triggers": [
+        "plan",
+        "create plan",
+        "plan mode",
+        "planning",
+        "design approach",
+        "make a plan"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/workflow-plan/SKILL.md"
+    },
+    {
+      "name": "workflow-start",
+      "description": "Start a work session with task overview.",
+      "dispatch_triggers": [
+        "start",
+        "begin session",
+        "start work",
+        "start working",
+        "begin work"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/workflow-start/SKILL.md"
+    },
+    {
+      "name": "python-venv-manager",
+      "description": "Python virtual environment management skill for creating venvs, installing packages, and running Python code.",
+      "dispatch_triggers": [
+        "create venv",
+        "python virtual environment",
+        "install packages in venv",
+        "run python code",
+        "compute with python",
+        "python environment",
+        "pip install",
+        "venv setup"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/python-venv-manager/SKILL.md"
+    }
+  ],
+  "commands": [
+    {
+      "name": "auto-orchestrate",
+      "description": "Autonomous orchestration loop. Enhances user input, spawns orchestrator repeatedly, loops until all tasks complete. Crash recovery via session checkpoints.",
+      "path": "commands/auto-orchestrate.md"
+    }
+  ],
+  "shared": {
+    "protocols": [
+      {
+        "name": "skill-chain-contracts",
+        "description": "Producer/consumer chain requirements (CHAIN-001 through CHAIN-011).",
+        "path": "_shared/protocols/skill-chain-contracts.md"
+      },
+      {
+        "name": "skill-chaining-patterns",
+        "description": "Single-level, skill chaining, and multi-level orchestration patterns.",
+        "path": "_shared/protocols/skill-chaining-patterns.md"
+      },
+      {
+        "name": "subagent-protocol-base",
+        "description": "Output requirements for subagents (OUT-001 through OUT-004).",
+        "path": "_shared/protocols/subagent-protocol-base.md"
+      },
+      {
+        "name": "task-system-integration",
+        "description": "TaskList, TaskGet, TaskCreate, TaskUpdate tool reference.",
+        "path": "_shared/protocols/task-system-integration.md"
+      }
+    ],
+    "templates": [
+      {
+        "name": "skill-boilerplate",
+        "description": "Standard boilerplate sections for skill definitions.",
+        "path": "_shared/templates/skill-boilerplate.md"
+      },
+      {
+        "name": "anti-patterns",
+        "description": "Output, research, implementation, testing, validation, and security anti-patterns.",
+        "path": "_shared/templates/anti-patterns.md"
+      }
+    ],
+    "style_guides": [
+      {
+        "name": "style-guide",
+        "description": "Writing style guide for documentation.",
+        "path": "_shared/style-guides/style-guide.md"
+      }
+    ],
+    "tokens": [
+      {
+        "name": "placeholders",
+        "description": "Placeholder token definitions.",
+        "path": "_shared/tokens/placeholders.json"
+      }
+    ],
+    "references": [
+      {
+        "name": "epic-architect/patterns",
+        "path": "_shared/references/epic-architect/patterns.md"
+      },
+      {
+        "name": "epic-architect/examples",
+        "path": "_shared/references/epic-architect/examples.md"
+      },
+      {
+        "name": "epic-architect/output-format",
+        "path": "_shared/references/epic-architect/output-format.md"
+      },
+      {
+        "name": "orchestrator/SUBAGENT-PROTOCOL-BLOCK",
+        "path": "_shared/references/orchestrator/SUBAGENT-PROTOCOL-BLOCK.md"
+      },
+      {
+        "name": "workflow-patterns",
+        "path": "_shared/references/workflow-patterns.md"
+      }
+    ],
+    "python_library": {
+      "base_path": "skills/_shared/python/",
+      "layers": [
+        "layer0",
+        "layer1",
+        "layer2",
+        "layer3"
+      ],
+      "test_directory": "skills/_shared/python/tests/",
+      "modules": [
+        {
+          "name": "heartbeat",
+          "layer": "layer1",
+          "path": "skills/_shared/python/layer1/heartbeat.py",
+          "test_path": "skills/_shared/python/tests/test_heartbeat.py",
+          "description": "Agent liveness monitoring via heartbeat files",
+          "exports": [
+            "write_heartbeat",
+            "check_heartbeat",
+            "cleanup_stale_heartbeats"
+          ]
+        },
+        {
+          "name": "memory",
+          "layer": "layer1",
+          "path": "skills/_shared/python/layer1/memory.py",
+          "test_path": "skills/_shared/python/tests/test_memory.py",
+          "description": "Persistent key-value memory store per agent",
+          "exports": [
+            "load_memory",
+            "save_memory",
+            "clear_memory",
+            "get_memory_path"
+          ]
+        },
+        {
+          "name": "hooks",
+          "layer": "layer2",
+          "path": "skills/_shared/python/layer2/hooks.py",
+          "test_path": "skills/_shared/python/tests/test_hooks.py",
+          "description": "Event hook framework for internal state changes",
+          "exports": [
+            "register_hook",
+            "unregister_hook",
+            "emit_event",
+            "get_registered_hooks",
+            "clear_all_hooks"
+          ]
+        },
+        {
+          "name": "messaging",
+          "layer": "layer2",
+          "path": "skills/_shared/python/layer2/messaging.py",
+          "test_path": "skills/_shared/python/tests/test_messaging.py",
+          "description": "File-based inter-agent message passing",
+          "exports": [
+            "send_message",
+            "receive_messages",
+            "broadcast_message",
+            "get_known_agents",
+            "peek_messages"
+          ]
+        },
+        {
+          "name": "token_budget",
+          "layer": "layer2",
+          "path": "skills/_shared/python/layer2/token_budget.py",
+          "test_path": "skills/_shared/python/tests/test_token_budget.py",
+          "description": "Token/context budget tracking and warnings",
+          "exports": [
+            "estimate_tokens",
+            "create_tracker",
+            "track_usage",
+            "get_usage_report",
+            "warn_if_approaching_limit",
+            "reset_tracker"
+          ]
+        },
+        {
+          "name": "webhooks",
+          "layer": "layer2",
+          "path": "skills/_shared/python/layer2/webhooks.py",
+          "test_path": "skills/_shared/python/tests/test_webhooks.py",
+          "description": "HTTP webhook dispatcher for external integrations",
+          "exports": [
+            "configure_endpoints",
+            "load_endpoints",
+            "send_webhook",
+            "dispatch_event",
+            "register_webhook_bridge"
+          ]
+        }
+      ]
+    }
+  }
+}
