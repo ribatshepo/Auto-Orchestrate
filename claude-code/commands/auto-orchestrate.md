@@ -229,6 +229,8 @@ If the resolved scope (from Step 0d) is NOT `custom`, inject the appropriate sco
 
 **Injection rule**: The user's `task_description` (after flag stripping) provides the **Objective** and any additional context. The scope specification provides the **Deliverables**, **Constraints**, **Success Criteria**, and **Steps**. If the user's task_description adds further requirements, merge them — do not discard user intent.
 
+**CRITICAL — Verbatim storage rule**: The scope specification text (Backend and/or Frontend sections below) MUST be stored **verbatim** — word-for-word, with all bullet points, sub-sections, design principles, and constraints preserved exactly as written. Do NOT summarize, paraphrase, condense, or restructure the scope specification into the Enhanced Prompt's generic fields (deliverables, constraints, etc.). The scope specification IS the enhanced prompt's core content when scope is not `custom`. Store the full verbatim text in the checkpoint's `enhanced_prompt.scope_specification` field and pass it to the orchestrator in full. Summarizing the scope specification causes downstream agents to receive incomplete instructions, resulting in limited implementation, shallow audits, and missing integrations.
+
 #### Backend Scope Specification (included when `layers` contains `"backend"`)
 
 ```markdown
@@ -542,7 +544,8 @@ Write the initial checkpoint file to `~/.claude/sessions/<session-id>.json`:
     "constraints": ["..."],
     "success_criteria": ["..."],
     "out_of_scope": ["..."],
-    "assumptions": ["..."]
+    "assumptions": ["..."],
+    "scope_specification": "<VERBATIM full text of the Backend and/or Frontend scope specification sections — stored word-for-word, not summarized. Empty string when scope is 'custom'.>"
   },
   "task_ids": [],
   "parent_task_id": "<TaskCreate ID>",
@@ -643,7 +646,23 @@ Task(
     **NEVER** call a tool and return without outputting what happened.
 
     ## Enhanced Prompt
-    <Include full enhanced prompt from Step 1>
+
+    **Objective**: <enhanced_prompt.objective from checkpoint>
+
+    **Context**: <enhanced_prompt.context from checkpoint>
+
+    **Assumptions**: <enhanced_prompt.assumptions from checkpoint>
+
+    **Out of Scope**: <enhanced_prompt.out_of_scope from checkpoint>
+
+    ## Scope Specification (VERBATIM — follow every bullet point precisely)
+
+    <Include the FULL VERBATIM text from enhanced_prompt.scope_specification in the checkpoint.
+     This is the complete Backend and/or Frontend specification with all steps, design principles,
+     constraints, and detailed instructions. Do NOT summarize or abbreviate — paste the entire
+     scope_specification field contents here word-for-word. If scope is "custom" and
+     scope_specification is empty, include enhanced_prompt.deliverables and
+     enhanced_prompt.constraints instead.>
 
     ## CRITICAL: Tool Availability
     TaskCreate, TaskList, TaskUpdate, and TaskGet are NOT available to you.
