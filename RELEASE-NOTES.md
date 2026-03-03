@@ -1,12 +1,171 @@
-# Release Notes: Auto-Orchestrate v1.0.0
+# Release Notes: Auto-Orchestrate
 
-**Release Date**: 2026-02-12  
-**License**: MIT  
-**Repository**: https://github.com/ribatshepo/Auto-Orchestrate 
+**Repository**: https://github.com/ribatshepo/Auto-Orchestrate
+**License**: MIT
 
 ---
 
-## Overview
+## Unreleased (Post-v1.0.0)
+
+**Changes since**: 2026-02-12 (v1.0.0)
+**Last updated**: 2026-03-03
+
+This section documents all changes made after v1.0.0 that are not yet tagged in a release. These changes represent significant improvements to pipeline reliability, session management, agent communication, and security posture.
+
+---
+
+### New Features
+
+#### Researcher Agent (6th Specialized Agent)
+
+A new dedicated `researcher` agent (`agents/researcher.md`, 312 lines) joins the system as the mandatory Stage 0 agent. The researcher uses `WebSearch` and `WebFetch` for internet-enabled investigation and enforces RES-001 through RES-007 constraints:
+
+- **RES-001**: Evidence-based findings — every claim cites a source
+- **RES-002**: Currency — prefers sources within 3 months–1 year
+- **RES-003**: Relevance — directly addresses the research question
+- **RES-004**: Actionable — every finding maps to an implementation decision
+- **RES-005**: Security-first — CVE lookup for packages and Docker images
+- **RES-006**: Structured output — standard output format with all required sections
+- **RES-007**: Manifest entry — writes key_findings (3–7 sentences) to manifest
+- **RES-008**: Mandatory internet research — WebSearch/WebFetch must be called in every session
+
+Capabilities: CVE lookup, package analysis, Docker image security research, best-practices investigation, and technology evaluation.
+
+#### Docker Validator Skill (Stage 5 Sub-Step)
+
+New `docker-validator` skill (`skills/docker-validator/SKILL.md`, 449 lines) added as a mandatory Stage 5 sub-step when Docker Engine is available. Executes 8 validation phases:
+
+1. Environment check — Docker Engine >= 27.1.1, Compose, daemon
+2. State audit — snapshot containers, images, volumes, networks
+3. Checkpoint creation — persists snapshot to `.orchestrate/<SESSION_ID>/logs/docker-checkpoint.json`
+4. Build and deploy — `docker compose build` + `docker compose up -d --wait`
+5. UX testing (unauthenticated) — public endpoints expect 200/302
+6. UX testing (authenticated) — protected endpoints expect 200 (GET) / 201 (POST/PUT)
+7. HTTP validation summary — aggregate results, flags 4xx/5xx
+8. State restoration — `docker compose down --volumes --remove-orphans`, verifies delta
+
+Registered in `manifest.json`, enforced in `orchestrator.md`, and wired into the auto-orchestrate pipeline.
+
+#### File-Based Task Proposal Protocol
+
+Subagents now communicate task proposals via `.orchestrate/<session-id>/proposed-tasks.json` files and `PROPOSED_ACTIONS` JSON blocks in return values. This enables reliable task management without requiring direct TaskCreate/TaskUpdate tool access from subagents.
+
+- Orchestrator proposes tasks in its return value using `PROPOSED_ACTIONS` JSON block
+- Auto-orchestrate reads the return value and executes TaskCreate on behalf of the orchestrator
+- GAP-CRIT-001 status: workaround implemented (was previously unworkarounded)
+
+#### `dispatch_hint` Routing Field
+
+Epic-architect now assigns a `dispatch_hint` field to every decomposed task, providing explicit routing keys for the orchestrator to route tasks to the correct subagent. This eliminates routing guesswork and enforces MAIN-013 (decomposition gate).
+
+#### `.orchestrate/` Session Folder Structure
+
+Each auto-orchestrate session creates a per-session directory at `.orchestrate/<session-id>/` with four subdirectories:
+
+```
+.orchestrate/
+└── <session-id>/
+    ├── research/          # Researcher output files
+    ├── architecture/      # Epic-architect decomposition plans
+    ├── specs/             # Spec-creator outputs
+    └── logs/              # Session logs, docker checkpoints
+```
+
+All session artifacts are co-located with the project, eliminating the need for global `~/.claude/` writes.
+
+#### No-Auto-Commit Policy
+
+`dev-workflow` phases G3 and G4 now generate conventional commit messages and display copy-pasteable `git add`/`git commit`/`git push` commands **without executing them**. The user reviews and runs commands manually. This eliminates surprise commits during autonomous orchestration sessions.
+
+---
+
+### Bug Fixes
+
+#### Session Management
+
+- **Checkpoint path isolation** — Session checkpoints are now written to project-local `.orchestrate/<session-id>/checkpoint.json` instead of `~/.claude/sessions/<id>.json`. Prevents cross-project interference and keeps all session artifacts co-located with the project.
+
+- **Cross-terminal supersession interference** — Supersession scan now scoped to `.orchestrate/*/checkpoint.json` (current project only) instead of `~/.claude/sessions/auto-orc-*.json` (global). Eliminates false-positive supersessions when multiple projects run auto-orchestrate concurrently.
+
+- **Crash recovery legacy support** — Crash recovery protocol reads `.orchestrate/` (primary) then falls back to `~/.claude/sessions/` (read-only legacy), so sessions started before the path change can still be recovered.
+
+- **Session supersession gap** — `auto-orchestrate.md` Step 2b now loops over ALL in-progress sessions (not just the first match) when a new session starts, adding `superseded_at` and `superseded_by` metadata to each, and creating `.stale` marker files in corresponding `.orchestrate/<session-id>/` directories.
+
+- **Crash recovery task state loss** — Checkpoint schema now includes a `task_snapshot` field (written every iteration in Step 4.7) containing full task state (id, subject, status, blockedBy, dispatch_hint). Crash Recovery Protocol reads `task_snapshot.tasks` and restores tasks via TaskCreate when the task system is empty after a crash.
+
+#### Pipeline Reliability
+
+- **PRE-IMPL-GATE** — Orchestrator now blocks implementer spawns if Stage 0 (researcher), Stage 1 (epic-architect), or Stage 2 (spec-creator) have not completed. Re-routes to the first missing stage automatically.
+
+- **BUDGET-RESERVATION** — Orchestrator reserves 3 budget slots for mandatory post-implementation stages (4.5, 5, 6). If only 3 slots remain and the next task is an implementer spawn, it is deferred so mandatory stages are never skipped due to budget exhaustion.
+
+- **Budget exemption for Stages 5 and 6** — Stage 5 (validator) and Stage 6 (documentor) spawns are EXEMPT from budget limits. Budget exhaustion is NEVER a valid reason to skip Stages 5 or 6.
+
+- **Proactive missing-stage injection** — After each iteration, `auto-orchestrate` checks if any mandatory stage (0, 1, 2, 4.5, 5, 6) is absent AND no task for that stage is pending or in-progress. Missing stages are immediately injected as new tasks before proceeding to the next orchestrator spawn.
+
+- **Termination condition 1a** — When all tasks appear complete but `stages_completed` is missing any mandatory stage, auto-orchestrate forces missing-stage task injection and one more iteration before declaring completion.
+
+#### Agent Communication
+
+- **spec-creator output path conflict** — Resolved conflict between `docs/specs/` (SKILL.md default) and `.orchestrate/<SESSION_ID>/specs/` (orchestrator directive). The orchestrator now passes an explicit `OUTPUT_DIR` parameter in the Stage 2 spawn template. The spec-creator SKILL.md supports `OUTPUT_DIR` override with `docs/specs/` fallback for standalone use.
+
+- **Epic-architect ↔ orchestrator task handoff** — Clarified that `dispatch_hint` is the routing key and that `PROPOSED_ACTIONS` in the orchestrator return value drives task creation. Documented in TOOL-AVAILABILITY.md.
+
+#### Security and Constraint Hardening
+
+- **AUTO-001 delegated-spawn rationalization bypass** — Strengthened the AUTO-001 GUARD in `auto-orchestrate.md` Step 4 to explicitly block the rationalization pattern where auto-orchestrate spawns a non-orchestrator agent because "the orchestrator delegated the routing decision". The GUARD now enumerates five concrete prohibited justifications:
+  1. "The orchestrator delegated this spawn to me"
+  2. "The orchestrator explicitly routed this to researcher/implementer/etc"
+  3. "Since the orchestrator's Task tool is unavailable for N iterations I will execute the spawn directly"
+  4. "The stall threshold is exceeded so I will bypass the orchestrator"
+  5. "The orchestrator has made its routing decision so I will carry it out"
+
+  A corresponding anti-pattern row was added to the Anti-Patterns table.
+
+- **HARD SELF-AUDIT GATE** — Orchestrator now includes a mandatory self-audit gate (replaces advisory checklist) that BLOCKS return unless all mandatory stages have been executed. If any mandatory stage was skipped, the orchestrator must go back and spawn the missing agent before returning.
+
+---
+
+### Changed
+
+| Component | Change |
+|-----------|--------|
+| Stage 0 | Now MANDATORY — researcher must run before epic-architect; previously optional |
+| Agent count | 5 → 6 (added researcher) |
+| dev-workflow G3/G4 | Message-generation-only — no longer auto-commits or auto-pushes |
+| Orchestrator communication | Receives task state via spawn prompt; proposes updates via PROPOSED_ACTIONS (not direct TaskCreate/TaskUpdate) |
+| Epic-architect task caps | Enforces LIMIT-001/LIMIT-002 (50-task ceiling); generates broader consolidated tasks |
+| TOOL-AVAILABILITY.md | Major overhaul clarifying tool availability for all subagents |
+| GAP-CRIT-001 | Status changed: workaround fully implemented via file-based proposal protocol |
+| ARCHITECTURE.md | Updated to reflect 6 agents, new skills, and revised session management |
+| README.md | Agent count corrected from 5 to 6; directory tree updated; manifest schema path fixed |
+
+---
+
+### Security
+
+- **Removed `Bash(rm *)` from `settings.json` allow list** — The `Bash(rm *)` permission was temporarily added for cleanup operations and has been removed to reduce the attack surface. `rm` is no longer an explicitly allowed permission in the default configuration.
+
+---
+
+### Documentation Updates
+
+- **ARCHITECTURE.md** — Updated to reflect 6 agents, added researcher agent documentation, revised session management section, updated mandatory stage descriptions
+- **README.md** — Agent count corrected (5 → 6), directory tree updated with `researcher.md`, manifest schema path fixed to `_shared/schemas/manifest.schema.json`
+- **agents/TOOL-AVAILABILITY.md** — Redirect notice added pointing to canonical `_shared/references/TOOL-AVAILABILITY.md`
+- **install-claude-config.sh** — Now copies documentation files (`ARCHITECTURE.md`, `INTEGRATION.md`, `PERMISSION-MODES.md`) to `~/.claude/` during installation
+
+---
+
+## v1.0.0 — 2026-02-12
+
+**Release Date**: 2026-02-12
+**License**: MIT
+**Repository**: https://github.com/ribatshepo/Auto-Orchestrate
+
+---
+
+### Overview
 
 Auto-Orchestrate v1.0.0 is the first public release of a multi-agent orchestration framework that extends Claude Code with autonomous software engineering workflows. This release provides a complete system for handing off complex engineering tasks to AI agents and getting production-ready results through a structured 7-stage pipeline.
 
@@ -14,9 +173,9 @@ The system coordinates specialized agents — from research and planning through
 
 ---
 
-## Key Features
+### Key Features
 
-### Autonomous Multi-Agent Orchestration
+#### Autonomous Multi-Agent Orchestration
 
 Launch a fully autonomous pipeline with a single command:
 
@@ -41,7 +200,7 @@ The system will:
 - **Context-efficient handoffs** — under 10K tokens per agent delegation via manifest summaries
 - **Single-file implementer pattern** — each implementer invocation targets exactly one file to prevent context exhaustion
 
-### 5 Specialized Agents
+#### 5 Specialized Agents
 
 | Agent | Role | Key Features |
 |-------|------|--------------|
@@ -51,7 +210,7 @@ The system will:
 | **documentor** | Creates docs | Maintain-don't-duplicate principle; 3-phase chain (lookup → write → review) |
 | **session-manager** | Manages sessions | Checkpoint persistence; crash recovery; workflow command orchestration |
 
-### 32 Task-Specific Skills
+#### 32 Task-Specific Skills
 
 **Quality and Validation**:
 - validator — compliance validation
@@ -99,7 +258,7 @@ The system will:
 - dev-workflow — atomic commits and release management
 - python-venv-manager — virtual environment management
 
-### Constraint System
+#### Constraint System
 
 The framework enforces three constraint sets to maintain quality and predictability:
 
@@ -127,9 +286,9 @@ The framework enforces three constraint sets to maintain quality and predictabil
 
 ---
 
-## Architecture
+### Architecture
 
-### Pipeline Stages
+#### Pipeline Stages
 
 | Stage | Component | Purpose | Mandatory |
 |-------|-----------|---------|-----------|
@@ -142,7 +301,7 @@ The framework enforces three constraint sets to maintain quality and predictabil
 | 5 | validator | Validate compliance and correctness | **Yes** |
 | 6 | documentor | Write/update documentation | **Yes** |
 
-### Layered Python Library
+#### Layered Python Library
 
 The `claude-code/skills/_shared/python/` directory provides a zero-dependency Python library with strict layered architecture:
 
@@ -153,7 +312,7 @@ The `claude-code/skills/_shared/python/` directory provides a zero-dependency Py
 
 **Key property**: Zero external dependencies — uses only Python 3 standard library.
 
-### Subagent Protocol
+#### Subagent Protocol
 
 All subagents follow RFC 2119 output requirements (OUT-001 to OUT-004):
 
@@ -164,19 +323,19 @@ All subagents follow RFC 2119 output requirements (OUT-001 to OUT-004):
 
 ---
 
-## Getting Started
+### Getting Started
 
-### Prerequisites
+#### Prerequisites
 
 - **Claude Code CLI** — [Anthropic's official CLI for Claude](https://docs.anthropic.com/en/docs/claude-code)
 - **Python 3** — Required for skill scripts (no pip dependencies needed)
 
-### Installation
+#### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/ribatshepo/Auto-Orchestrate .git
-cd Auto-Orchestrate 
+git clone https://github.com/ribatshepo/Auto-Orchestrate.git
+cd Auto-Orchestrate
 
 # Run the install script (auto-backs up existing ~/.claude/ config)
 chmod +x install-claude-config.sh
@@ -191,7 +350,7 @@ The install script copies:
 - `manifest.json` → `~/.claude/manifest.json` (component registry)
 - `settings.json` → `~/.claude/settings.json` (configuration)
 
-### Quick Start: Autonomous Orchestration
+#### Quick Start: Autonomous Orchestration
 
 ```
 /auto-orchestrate Implement user authentication with JWT tokens, tests, and documentation
@@ -201,9 +360,9 @@ The system will:
 1. Enhance your prompt into structured objectives with success criteria
 2. Spawn the orchestrator repeatedly (default: max 15 iterations)
 3. Loop until all tasks complete or a termination condition is met (success, stall, or max iterations)
-4. Create session checkpoint in `~/.claude/sessions/auto-orc-<date>-<slug>.json`
+4. Create session checkpoint in `.orchestrate/auto-orc-<date>-<slug>/checkpoint.json`
 
-### Quick Start: Session Management
+#### Quick Start: Session Management
 
 ```
 /workflow-start    # Initialize session, display task overview
@@ -214,7 +373,7 @@ The system will:
 /workflow-end      # Wrap up session with progress summary
 ```
 
-### Resuming Sessions
+#### Resuming Sessions
 
 Sessions are checkpointed automatically. If interrupted:
 
@@ -226,9 +385,9 @@ This resumes the most recent in-progress session from the last checkpoint.
 
 ---
 
-## Known Limitations
+### Known Limitations
 
-### GAP-CRIT-001: Task Tool Availability
+#### GAP-CRIT-001: Task Tool Availability
 
 The orchestrator agent may not have access to the Task tool in all permission modes. When this occurs:
 
@@ -240,7 +399,7 @@ The orchestrator agent may not have access to the Task tool in all permission mo
 
 **Status**: Architectural constraint under investigation. See `claude-code/agents/TOOL-AVAILABILITY.md` for details.
 
-### No Sandboxing
+#### No Sandboxing
 
 Skills and agents execute with the same permissions as the Claude Code process. There is no sandboxing or containerization. Users should:
 
@@ -248,15 +407,15 @@ Skills and agents execute with the same permissions as the Claude Code process. 
 - Run Claude Code with appropriate user-level permissions (do not run as root)
 - Monitor file changes in working directories during autonomous orchestration
 
-### Permission Mode Compatibility
+#### Permission Mode Compatibility
 
 Auto-orchestrate has undergone limited testing across all Claude Code permission modes. Compatibility may vary. If you encounter issues, try different permission modes or invoke agents directly.
 
 ---
 
-## Security Considerations
+### Security Considerations
 
-### Secure by Default
+#### Secure by Default
 
 - **Zero external dependencies** — Python library uses only Python 3 standard library
 - **Automatic backups** — install script backs up existing `~/.claude/` to `~/.claude/backup-<timestamp>/`
@@ -264,7 +423,7 @@ Auto-orchestrate has undergone limited testing across all Claude Code permission
 - **Input validation** — validation layer (layer2/validation.py) provides input sanitization
 - **Audit trail** — manifest entries provide full history of agent actions
 
-### User Responsibilities
+#### User Responsibilities
 
 - Review the install script before execution
 - Review generated code before running it, especially for security-sensitive tasks
@@ -276,7 +435,7 @@ For detailed security information, see [SECURITY.md](SECURITY.md).
 
 ---
 
-## Documentation
+### Documentation
 
 - **README.md** — Quick start, architecture overview, component catalog
 - **ARCHITECTURE.md** — Full system architecture (1,569 lines) with agent decision flows, skill catalog, cross-reference matrix
@@ -286,17 +445,17 @@ For detailed security information, see [SECURITY.md](SECURITY.md).
 - **CHANGELOG.md** — Keep a Changelog format with full v1.0.0 changes
 - **LICENSE** — MIT License
 
-Agent definitions: `claude-code/agents/*.md` (5 files)  
-Skill definitions: `claude-code/skills/*/SKILL.md` (32 files)  
+Agent definitions: `claude-code/agents/*.md` (5 files)
+Skill definitions: `claude-code/skills/*/SKILL.md` (32 files)
 Protocols: `claude-code/_shared/protocols/*.md` (4 files)
 
 ---
 
-## Contributing
+### Contributing
 
 Contributions are welcome. To get started:
 
-1. Open an issue to discuss the change you'd like to make
+1. Open an issue to discuss the change you would like to make
 2. Fork the repository and create a feature branch
 3. Submit a pull request with a clear description of the changes
 
@@ -304,7 +463,7 @@ Please keep changes focused and include relevant context in your PR description.
 
 ---
 
-## Roadmap (Post-v1.0.0)
+### Roadmap (Post-v1.0.0)
 
 Future releases may include:
 
@@ -317,7 +476,7 @@ Future releases may include:
 
 ---
 
-## Acknowledgments
+### Acknowledgments
 
 Built with Claude Opus 4.6 and Claude Code.
 
@@ -329,17 +488,17 @@ Special thanks to the open-source community for inspiration from:
 
 ---
 
-## License
+### License
 
 This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## Links
+### Links
 
-- **Repository**: https://github.com/ribatshepo/Auto-Orchestrate 
-- **Issues**: https://github.com/ribatshepo/Auto-Orchestrate /issues
-- **Security**: https://github.com/ribatshepo/Auto-Orchestrate /security/advisories
+- **Repository**: https://github.com/ribatshepo/Auto-Orchestrate
+- **Issues**: https://github.com/ribatshepo/Auto-Orchestrate/issues
+- **Security**: https://github.com/ribatshepo/Auto-Orchestrate/security/advisories
 - **Claude Code**: https://docs.anthropic.com/en/docs/claude-code
 
 ---
