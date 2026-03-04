@@ -2,100 +2,61 @@
 name: task-executor
 description: |
   Generic task execution agent for completing implementation work.
-  Use when user says "execute task", "implement", "do the work", "complete this task",
-  "carry out", "perform task", "run task", "work on", "implement feature",
-  "build component", "create implementation", "execute plan", "do implementation",
-  "complete implementation", "finish task", "execute instructions".
-triggers:
-  - execute task
-  - implement
-  - do the work
-  - complete this task
-  - carry out
-  - perform task
+  Triggers: "execute task", "implement", "do the work", "complete this task",
+  "carry out", "perform task", "build component", "create implementation",
+  "execute plan", "finish task".
 ---
 
 # Task Executor Skill
 
-You are a task executor agent. Your role is to complete assigned tasks by following their instructions and deliverables to produce concrete outputs.
-
-## Capabilities
-
-1. **Implementation** - Execute coding, configuration, and documentation tasks
-2. **Deliverable Production** - Create files, code, and artifacts as specified
-3. **Quality Verification** - Validate work against acceptance criteria
-4. **Progress Reporting** - Document completion via subagent protocol
+Complete assigned tasks by following instructions, producing deliverables, and verifying against acceptance criteria.
 
 ---
 
-## Parameters (Orchestrator-Provided)
+## Parameters
 
-| Parameter | Description | Required |
-|-----------|-------------|----------|
-| `{{TASK_ID}}` | Current task identifier | Yes |
-| `{{TASK_NAME}}` | Human-readable task name | Yes |
-| `{{TASK_INSTRUCTIONS}}` | Specific execution instructions | Yes |
-| `{{DELIVERABLES_LIST}}` | Expected outputs/artifacts | Yes |
-| `{{ACCEPTANCE_CRITERIA}}` | Completion verification criteria | Yes |
-| `{{SLUG}}` | URL-safe topic name for output | Yes |
-| `{{DATE}}` | Current date (YYYY-MM-DD) | Yes |
-| `{{EPIC_ID}}` | Parent epic identifier | No |
-| `{{SESSION_ID}}` | Session identifier | No |
-| `{{DEPENDS_LIST}}` | Dependencies completed | No |
-| `{{MANIFEST_SUMMARIES}}` | Context from previous agents | No |
-| `{{TOPICS_JSON}}` | JSON array of categorization tags | Yes |
-
----
-
-## Task System Integration
-
-@_shared/templates/skill-boilerplate.md#task-integration
-
-### Execution Sequence
-
-1. Read task: `{{TASK_SHOW}} {{TASK_ID}}`
-2. Focus already set by orchestrator (set if working standalone)
-3. Execute instructions (see Methodology below)
-4. Verify deliverables against acceptance criteria
-5. Write output: `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md`
-6. Append manifest: `{{MANIFEST_PATH}}`
-7. Complete task: `{{TASK_COMPLETE}} {{TASK_ID}}`
-8. Return summary message
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `{{TASK_ID}}` | Yes | Current task identifier |
+| `{{TASK_NAME}}` | Yes | Human-readable task name |
+| `{{TASK_INSTRUCTIONS}}` | Yes | Specific execution instructions |
+| `{{DELIVERABLES_LIST}}` | Yes | Expected outputs/artifacts |
+| `{{ACCEPTANCE_CRITERIA}}` | Yes | Completion verification criteria |
+| `{{SLUG}}` | Yes | URL-safe topic name for output |
+| `{{DATE}}` | Yes | Current date (YYYY-MM-DD) |
+| `{{TOPICS_JSON}}` | Yes | JSON array of categorization tags |
+| `{{EPIC_ID}}` | No | Parent epic identifier |
+| `{{SESSION_ID}}` | No | Session identifier |
+| `{{DEPENDS_LIST}}` | No | Dependencies completed |
+| `{{MANIFEST_SUMMARIES}}` | No | Context from previous agents |
 
 ---
 
-## Methodology
+## Execution Workflow
 
-### Pre-Execution
+### 1. Prepare
 
-1. **Read task details** - Understand full context from task system
-2. **Review dependencies** - Check manifest summaries from previous agents
-3. **Identify deliverables** - Know exactly what to produce
-4. **Understand acceptance criteria** - Know how success is measured
+- Read task via `{{TASK_SHOW}} {{TASK_ID}}` — understand full context.
+- Review `{{MANIFEST_SUMMARIES}}` from upstream agents.
+- Identify every item in `{{DELIVERABLES_LIST}}` and every criterion in `{{ACCEPTANCE_CRITERIA}}`.
 
-### Execution
+### 2. Execute
 
-1. **Follow instructions** - Execute `{{TASK_INSTRUCTIONS}}` step by step
-2. **Produce deliverables** - Create each item in `{{DELIVERABLES_LIST}}`
-3. **Document as you go** - Track progress for output file
-4. **Handle blockers** - Report if unable to proceed
+- Follow `{{TASK_INSTRUCTIONS}}` step by step. Don't skip steps.
+- Produce each deliverable. Document decisions as you go.
+- If blocked, report immediately — don't fail silently.
 
-### Post-Execution
+### 3. Verify & Complete
 
-1. **Verify against criteria** - Check each acceptance criterion
-2. **Document completion** - Write detailed output file
-3. **Update manifest** - Append summary entry
-4. **Complete task** - Mark task done in task system
-
----
-
-## Subagent Protocol
-
-@_shared/templates/skill-boilerplate.md#subagent-protocol
+- Check each acceptance criterion. Record PASS/FAIL with notes.
+- Write output file to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md`.
+- Append manifest entry to `{{MANIFEST_PATH}}`.
+- Mark done via `{{TASK_COMPLETE}} {{TASK_ID}}`.
+- Return summary message.
 
 ---
 
-## Output File Format
+## Output File Template
 
 Write to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md`:
 
@@ -110,22 +71,16 @@ Write to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md`:
 
 ### {{Deliverable 1}}
 
-{{Description of what was created/modified}}
+{{What was created/modified}}
 
 **Files affected:**
-- {{file path 1}}
-- {{file path 2}}
-
-### {{Deliverable 2}}
-
-{{Description of what was created/modified}}
+- {{file path}}
 
 ## Acceptance Criteria Verification
 
 | Criterion | Status | Notes |
 |-----------|--------|-------|
-| {{Criterion 1}} | PASS/FAIL | {{Verification notes}} |
-| {{Criterion 2}} | PASS/FAIL | {{Verification notes}} |
+| {{Criterion 1}} | PASS/FAIL | {{Details}} |
 
 ## Implementation Notes
 
@@ -140,85 +95,48 @@ Write to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md`:
 
 ---
 
-## Manifest Entry Format
+## Manifest Entry
 
-@_shared/templates/skill-boilerplate.md#manifest-entry
-
-### Field Guidelines
+Append to `{{MANIFEST_PATH}}` using the standard subagent manifest format.
 
 | Field | Guideline |
 |-------|-----------|
-| `key_findings` | 3-7 items: deliverables completed, key decisions made |
-| `actionable` | `false` if task complete, `true` if followup needed |
+| `key_findings` | 3–7 items: deliverables completed, key decisions |
+| `actionable` | `false` if complete; `true` if follow-up needed |
 | `needs_followup` | Task IDs for dependent work identified during execution |
-| `topics` | 2-5 categorization tags matching task labels |
-
----
-
-## Completion Checklist
-
-@_shared/templates/skill-boilerplate.md#completion-checklist
-
----
-
-## Error Handling
-
-@_shared/templates/skill-boilerplate.md#error-handling
-
----
-
-## Quality Standards
-
-### Deliverable Quality
-
-- **Complete** - All specified deliverables produced
-- **Correct** - Meets acceptance criteria
-- **Documented** - Changes are explained
-- **Tested** - Verified where applicable
-
-### Execution Quality
-
-- **Methodical** - Follow instructions in order
-- **Thorough** - Don't skip steps
-- **Transparent** - Document decisions
-- **Communicative** - Report blockers immediately
-
----
-
-## Anti-Patterns
-
-| Pattern | Problem | Solution |
-|---------|---------|----------|
-| Skipping acceptance check | Incomplete work | Verify every criterion |
-| Partial deliverables | Missing outputs | Complete all or report partial |
-| Undocumented changes | Lost context | Write detailed output file |
-| Silent failures | Orchestrator unaware | Report via manifest status |
+| `topics` | 2–5 categorization tags matching task labels |
 
 ---
 
 ## Skill Chaining
 
-@_shared/protocols/skill-chain-contracts.md
+| Direction | Skill | Pattern |
+|-----------|-------|---------|
+| Consumes from | `spec-analyzer` | Phase plans and detailed requirements |
+| Produces to | `validator` | Implementation artifacts + report for verification |
 
-### Produces
+**Produces:** implementation artifacts (as specified per task) and a markdown implementation report summarizing changes and files affected.
 
-| Output | Format | Description |
-|--------|--------|-------------|
-| `deliverables` | Various | Implementation artifacts as specified in task |
-| `implementation-report` | Markdown | Summary of changes made, files affected |
+**Consumes:** `phase-plan` and `requirements` from `spec-analyzer`.
 
-### Consumes
+---
 
-| Input | From Skill | Description |
-|-------|------------|-------------|
-| `phase-plan` | `spec-analyzer` | Implementation tasks and requirements |
-| `requirements` | `spec-analyzer` | Detailed requirements to implement |
+## Quality Checklist
 
-### Chain Relationships
+Before marking complete, confirm:
 
-| Direction | Skills | Pattern |
-|-----------|--------|---------|
-| Chains from | `spec-analyzer` | analyzer-executor |
-| Chains to | `validator` | quality-gate |
+- [ ] All deliverables in `{{DELIVERABLES_LIST}}` are produced
+- [ ] Every acceptance criterion verified with PASS/FAIL
+- [ ] Output file written to `{{OUTPUT_DIR}}`
+- [ ] Manifest entry appended
+- [ ] Task marked complete
+- [ ] No silent failures — blockers reported via manifest status
 
-The task-executor implements work defined by spec-analyzer's phase plans and produces deliverables for validator to verify.
+---
+
+## Anti-Patterns to Avoid
+
+- **Skipping acceptance checks** — verify every criterion before completing.
+- **Partial deliverables without reporting** — complete all items or explicitly document what's missing and why.
+- **Undocumented changes** — always write the output file; lost context breaks downstream agents.
+- **Silent failures** — the orchestrator can't help if it doesn't know. Report via manifest.

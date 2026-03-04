@@ -872,6 +872,102 @@
       "test_directory": "skills/_shared/python/tests/",
       "modules": [
         {
+          "name": "colors",
+          "layer": "layer0",
+          "path": "skills/_shared/python/layer0/colors.py",
+          "test_path": "skills/_shared/python/tests/test_colors.py",
+          "description": "ANSI color codes and utilities for colorizing terminal text output",
+          "exports": [
+            "colorize",
+            "strip_colors",
+            "RED",
+            "GREEN",
+            "YELLOW",
+            "BLUE",
+            "MAGENTA",
+            "CYAN",
+            "BOLD",
+            "RESET"
+          ]
+        },
+        {
+          "name": "constants",
+          "layer": "layer0",
+          "path": "skills/_shared/python/layer0/constants.py",
+          "test_path": "skills/_shared/python/tests/test_constants.py",
+          "description": "Application-wide constants with zero dependencies used across the Claude Code plugin system",
+          "exports": [
+            "DEFAULT_ENCODING",
+            "CLAUDE_DIR",
+            "DEFAULT_MANIFEST_PATH",
+            "DEFAULT_SESSION_DIR",
+            "DEFAULT_TASKS_FILE",
+            "DEFAULT_HISTORY_FILE",
+            "MANIFEST_ROTATION_THRESHOLD",
+            "MAX_TASK_DESCRIPTION_LENGTH",
+            "MAX_TASKS_PER_EPIC",
+            "DEFAULT_MAX_ITERATIONS",
+            "DEFAULT_STALL_THRESHOLD"
+          ]
+        },
+        {
+          "name": "exit_codes",
+          "layer": "layer0",
+          "path": "skills/_shared/python/layer0/exit_codes.py",
+          "test_path": "skills/_shared/python/tests/test_exit_codes.py",
+          "description": "Unix-convention exit codes for CLI scripts with message mapping",
+          "exports": [
+            "exit_code_to_message",
+            "EXIT_SUCCESS",
+            "EXIT_ERROR",
+            "EXIT_INVALID_ARGS"
+          ]
+        },
+        {
+          "name": "config",
+          "layer": "layer1",
+          "path": "skills/_shared/python/layer1/config.py",
+          "test_path": "skills/_shared/python/tests/test_config.py",
+          "description": "Configuration management utilities for loading and managing JSON config files with validation",
+          "exports": [
+            "ConfigError",
+            "ConfigNotFoundError",
+            "ConfigValidationError",
+            "load_config",
+            "save_config",
+            "merge_config"
+          ]
+        },
+        {
+          "name": "error_json",
+          "layer": "layer1",
+          "path": "skills/_shared/python/layer1/error_json.py",
+          "test_path": "skills/_shared/python/tests/test_error_json.py",
+          "description": "Standardized error JSON output utilities for consistent structured error messages across scripts",
+          "exports": [
+            "emit_error",
+            "emit_success",
+            "format_error_json"
+          ]
+        },
+        {
+          "name": "file_ops",
+          "layer": "layer1",
+          "path": "skills/_shared/python/layer1/file_ops.py",
+          "test_path": "skills/_shared/python/tests/test_file_ops.py",
+          "description": "Safe file operation utilities with proper error handling for CLI scripts",
+          "exports": [
+            "file_exists",
+            "is_directory",
+            "read_file",
+            "write_file",
+            "safe_write",
+            "ensure_directory",
+            "glob_files",
+            "match_globs"
+          ]
+        },
+        {
           "name": "heartbeat",
           "layer": "layer1",
           "path": "skills/_shared/python/layer1/heartbeat.py",
@@ -881,6 +977,20 @@
             "write_heartbeat",
             "check_heartbeat",
             "cleanup_stale_heartbeats"
+          ]
+        },
+        {
+          "name": "logging",
+          "layer": "layer1",
+          "path": "skills/_shared/python/layer1/logging.py",
+          "test_path": "skills/_shared/python/tests/test_logging.py",
+          "description": "Structured logging utilities with consistent formatting; outputs to stderr to keep stdout clean for JSON",
+          "exports": [
+            "setup_logging",
+            "get_logger",
+            "emit_error",
+            "emit_warning",
+            "emit_info"
           ]
         },
         {
@@ -894,6 +1004,20 @@
             "save_memory",
             "clear_memory",
             "get_memory_path"
+          ]
+        },
+        {
+          "name": "output_format",
+          "layer": "layer1",
+          "path": "skills/_shared/python/layer1/output_format.py",
+          "test_path": "skills/_shared/python/tests/test_output_format.py",
+          "description": "Output formatting utilities supporting JSON, human-readable, and table formats for CLI scripts",
+          "exports": [
+            "OutputFormat",
+            "output",
+            "format_human",
+            "format_table",
+            "CLIOutput"
           ]
         },
         {
@@ -925,6 +1049,25 @@
           ]
         },
         {
+          "name": "task_ops",
+          "layer": "layer2",
+          "path": "skills/_shared/python/layer2/task_ops.py",
+          "test_path": "skills/_shared/python/tests/test_task_ops.py",
+          "description": "Task operations utilities for working with Claude Code's native task system hierarchy",
+          "exports": [
+            "TaskOperationError",
+            "InvalidTaskIdError",
+            "InvalidTaskStatusError",
+            "TaskIdComponents",
+            "parse_task_id",
+            "validate_task_status",
+            "is_epic",
+            "get_parent_id",
+            "get_epic_id",
+            "format_task_reference"
+          ]
+        },
+        {
           "name": "token_budget",
           "layer": "layer2",
           "path": "skills/_shared/python/layer2/token_budget.py",
@@ -940,6 +1083,22 @@
           ]
         },
         {
+          "name": "validation",
+          "layer": "layer2",
+          "path": "skills/_shared/python/layer2/validation.py",
+          "test_path": "skills/_shared/python/tests/test_validation.py",
+          "description": "Input validation utilities with consistent error handling for CLI scripts",
+          "exports": [
+            "ValidationError",
+            "ValidationResult",
+            "validate_path",
+            "validate_file_exists",
+            "validate_directory_exists",
+            "validate_json_schema",
+            "validate_range"
+          ]
+        },
+        {
           "name": "webhooks",
           "layer": "layer2",
           "path": "skills/_shared/python/layer2/webhooks.py",
@@ -951,6 +1110,71 @@
             "send_webhook",
             "dispatch_event",
             "register_webhook_bridge"
+          ]
+        },
+        {
+          "name": "backup",
+          "layer": "layer3",
+          "path": "skills/_shared/python/layer3/backup.py",
+          "test_path": "skills/_shared/python/tests/test_backup.py",
+          "description": "File and directory backup management with checksum verification, listing, restoration, and pruning",
+          "exports": [
+            "BackupInfo",
+            "BackupResult",
+            "create_backup",
+            "list_backups",
+            "restore_backup",
+            "verify_backup",
+            "prune_backups"
+          ]
+        },
+        {
+          "name": "doctor",
+          "layer": "layer3",
+          "path": "skills/_shared/python/layer3/doctor.py",
+          "test_path": "skills/_shared/python/tests/test_doctor.py",
+          "description": "Diagnostic utilities for system health checks, validating Claude Code environment and dependencies",
+          "exports": [
+            "DiagnosticResult",
+            "SystemHealth",
+            "check_python_version",
+            "check_claude_directory",
+            "check_manifest",
+            "check_tasks_file",
+            "diagnose_system",
+            "check_environment"
+          ]
+        },
+        {
+          "name": "hierarchy_unified",
+          "layer": "layer3",
+          "path": "skills/_shared/python/layer3/hierarchy_unified.py",
+          "test_path": "skills/_shared/python/tests/test_hierarchy_unified.py",
+          "description": "Unified task hierarchy operations for parent-child relationships, replacing scattered hierarchy operations",
+          "exports": [
+            "get_task_children",
+            "get_task_descendants",
+            "get_task_ancestors",
+            "get_task_siblings",
+            "get_epic_tasks",
+            "count_task_tree",
+            "get_task_depth",
+            "find_task_by_id"
+          ]
+        },
+        {
+          "name": "migrate",
+          "layer": "layer3",
+          "path": "skills/_shared/python/layer3/migrate.py",
+          "test_path": "skills/_shared/python/tests/test_migrate.py",
+          "description": "Migration utilities for schema versioning, version detection, parsing, and migration path planning",
+          "exports": [
+            "VersionInfo",
+            "MigrationInfo",
+            "parse_version",
+            "compare_versions",
+            "detect_version",
+            "get_nested_key"
           ]
         }
       ]

@@ -139,7 +139,7 @@ claude-code/
            v                        v                        v
     ┌─────────────┐         ┌─────────────┐         ┌─────────────┐
     │   AGENTS    │         │   SKILLS    │         │  COMMANDS   │
-    │  (6 files)  │         │ (32 dirs)   │         │  (1 file)   │
+    │  (6 files)  │         │ (33 dirs)   │         │  (1 file)   │
     └──────┬──────┘         └──────┬──────┘         └─────────────┘
            │                       │
            │   ┌───────────────────┼───────────────────┐
@@ -1635,15 +1635,21 @@ claude-code/
             │   └── constants.py          # Application constants
             ├── layer1/
             │   ├── __init__.py
-            │   ├── logging.py            # Audit trail logging
-            │   ├── error_json.py         # Standardized error JSON output
             │   ├── config.py             # Configuration management
+            │   ├── error_json.py         # Standardized error JSON output
             │   ├── file_ops.py           # Atomic file operations
+            │   ├── heartbeat.py          # Heartbeat monitoring
+            │   ├── logging.py            # Audit trail logging
+            │   ├── memory.py             # Memory management utilities
             │   └── output_format.py      # JSON/human output formatting
             ├── layer2/
             │   ├── __init__.py
+            │   ├── hooks.py              # Lifecycle hook management
+            │   ├── messaging.py          # Inter-component messaging
+            │   ├── task_ops.py           # Task operations
+            │   ├── token_budget.py       # Token budget tracking
             │   ├── validation.py         # Input validation functions
-            │   └── task_ops.py           # Task operations
+            │   └── webhooks.py           # Webhook dispatch and management
             └── layer3/
                 ├── __init__.py
                 ├── migrate.py            # Schema migration
@@ -1682,14 +1688,15 @@ The `skills/_shared/python/` directory follows a strict layered architecture whe
 ├─────────────────────────────────────────────────────────────────┤
 │                  LAYER 2 - BUSINESS LOGIC                       │
 │                                                                 │
-│   validation.py │ task_ops.py                                   │
+│   hooks.py │ messaging.py │ task_ops.py │ token_budget.py       │
+│   validation.py │ webhooks.py                                   │
 │                                                                 │
 │   May import: Layer 0, 1                                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                  LAYER 1 - BASIC HELPERS                        │
 │                                                                 │
-│   logging.py │ error_json.py │ config.py │ file_ops.py         │
-│   output_format.py                                              │
+│   config.py │ error_json.py │ file_ops.py │ heartbeat.py       │
+│   logging.py │ memory.py │ output_format.py                    │
 │                                                                 │
 │   May import: Layer 0 only                                      │
 ├─────────────────────────────────────────────────────────────────┤
@@ -1731,14 +1738,20 @@ This table tracks which scripts are referenced in documentation vs actually crea
 | `colors.py` | Implemented | `skills/_shared/python/layer0/` | Color output utilities |
 | `constants.py` | Implemented | `skills/_shared/python/layer0/` | Application constants |
 | **Library Layer 1** |
-| `logging.py` | Implemented | `skills/_shared/python/layer1/` | Audit trail logging |
-| `error_json.py` | Implemented | `skills/_shared/python/layer1/` | Standardized error JSON |
 | `config.py` | Implemented | `skills/_shared/python/layer1/` | Configuration management |
+| `error_json.py` | Implemented | `skills/_shared/python/layer1/` | Standardized error JSON |
 | `file_ops.py` | Implemented | `skills/_shared/python/layer1/` | Atomic file operations |
+| `heartbeat.py` | Implemented | `skills/_shared/python/layer1/` | Heartbeat monitoring |
+| `logging.py` | Implemented | `skills/_shared/python/layer1/` | Audit trail logging |
+| `memory.py` | Implemented | `skills/_shared/python/layer1/` | Memory management utilities |
 | `output_format.py` | Implemented | `skills/_shared/python/layer1/` | JSON/human formatting |
 | **Library Layer 2** |
-| `validation.py` | Implemented | `skills/_shared/python/layer2/` | Input validation |
+| `hooks.py` | Implemented | `skills/_shared/python/layer2/` | Lifecycle hook management |
+| `messaging.py` | Implemented | `skills/_shared/python/layer2/` | Inter-component messaging |
 | `task_ops.py` | Implemented | `skills/_shared/python/layer2/` | Task operations |
+| `token_budget.py` | Implemented | `skills/_shared/python/layer2/` | Token budget tracking |
+| `validation.py` | Implemented | `skills/_shared/python/layer2/` | Input validation |
+| `webhooks.py` | Implemented | `skills/_shared/python/layer2/` | Webhook dispatch and management |
 | **Library Layer 3** |
 | `migrate.py` | Implemented | `skills/_shared/python/layer3/` | Schema migration |
 | `backup.py` | Implemented | `skills/_shared/python/layer3/` | Backup operations |

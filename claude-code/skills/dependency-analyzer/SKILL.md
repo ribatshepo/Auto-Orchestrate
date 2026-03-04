@@ -1,48 +1,35 @@
 ---
 name: dependency-analyzer
-description: |
-  Dependency analysis agent for detecting circular dependencies and validating architecture layers.
-  Use when user says "check dependencies", "find circular imports", "analyze layers",
-  "dependency graph", "source analysis", "architecture validation", "layer violations",
-  "import cycles", "dependency audit", "module coupling", "architecture check".
+description: Dependency analysis agent for detecting circular dependencies and validating architecture layers.
 triggers:
   - check dependencies
   - find circular imports
   - analyze layers
   - dependency graph
+  - layer violations
 ---
 
 # Dependency Analyzer Skill
 
-You are a dependency analysis specialist. Your role is to analyze source dependencies across shell scripts, detect circular dependencies, and validate adherence to layered architecture.
+Analyze source dependencies across shell and Python modules, detect circular imports, and validate layered architecture constraints.
 
 ## Capabilities
 
-1. **Dependency Parsing** - Extract `source` statements from all lib/*.sh files
-2. **Graph Building** - Construct dependency graph
-3. **Cycle Detection** - Find circular dependency paths
-4. **Layer Validation** - Verify layer constraints (Layer N depends only on Layer <N)
-5. **Coupling Analysis** - Identify tightly coupled modules
+- **Dependency Parsing** — Extract `source` statements (shell) and `import` statements (Python)
+- **Graph Building** — Construct adjacency-list dependency graphs
+- **Cycle Detection** — Find circular dependency paths via DFS
+- **Layer Validation** — Verify Layer N depends only on Layer < N
+- **Coupling Analysis** — Flag tightly coupled modules
 
 ---
 
-## Helper Scripts
-
-The following scripts in `scripts/` provide automated analysis:
-
-| Script | Purpose | CLI Example |
-|--------|---------|-------------|
-| `dependency_parser.py` | Parse package files for dependencies | `python scripts/dependency_parser.py -o json .` |
-| `graph_builder.py` | Build dependency graph from parsed data | `python scripts/graph_builder.py deps.json -o dot` |
-| `layer_validator.py` | Validate imports against layer rules | `python scripts/layer_validator.py --config layers.json src/` |
-
-### Usage
+## Quick Start
 
 ```bash
-# Parse dependencies from requirements.txt, package.json, etc.
+# Parse dependencies
 python scripts/dependency_parser.py -o json . > deps.json
 
-# Build and visualize dependency graph
+# Build + visualize graph
 python scripts/graph_builder.py deps.json -o dot > deps.dot
 dot -Tpng deps.dot -o deps.png
 
@@ -50,303 +37,192 @@ dot -Tpng deps.dot -o deps.png
 python scripts/layer_validator.py --config layers.json lib/
 ```
 
+| Script                  | Purpose                              |
+| ----------------------- | ------------------------------------ |
+| `dependency_parser.py`  | Parse package files for dependencies |
+| `graph_builder.py`      | Build dependency graph from parsed data |
+| `layer_validator.py`    | Validate imports against layer rules |
+
 ---
 
 ## Architecture Layers
 
-| Layer | Purpose | Dependencies Allowed |
-|-------|---------|---------------------|
-| **Layer 0** | Core utilities (no deps) | None |
-| **Layer 1** | Basic helpers | Layer 0 only |
-| **Layer 2** | Business logic | Layers 0-1 |
-| **Layer 3** | High-level orchestration | Layers 0-2 |
-
-### Layer Definitions
-
 ```
-Layer 0 (Foundation):
-  - exit-codes.sh
-  - colors.sh
-  - constants.sh
-
-Layer 1 (Basic Helpers):
-  - logging.sh
-  - error-json.sh
-  - config.sh
-  - file-ops.sh
-
-Layer 2 (Business Logic):
-  - validation.sh
-  - task-*.sh
-  - phase-*.sh
-  - session-*.sh
-
-Layer 3 (Orchestration):
-  - migrate.sh
-  - backup.sh
-  - doctor.sh
+Layer 3  Orchestration    → may import 0, 1, 2
+Layer 2  Business Logic   → may import 0, 1
+Layer 1  Basic Helpers    → may import 0
+Layer 0  Foundation       → stdlib only
 ```
 
-### Python Layer Definitions
+### Shell Modules
 
-```
-Layer 0 (Foundation):
-  - lib/layer0/exit_codes.py
-  - lib/layer0/colors.py
-  - lib/layer0/constants.py
+| Layer | Modules |
+| ----- | ------- |
+| 0 | `exit-codes.sh`, `colors.sh`, `constants.sh` |
+| 1 | `logging.sh`, `error-json.sh`, `config.sh`, `file-ops.sh` |
+| 2 | `validation.sh`, `task-*.sh`, `phase-*.sh`, `session-*.sh` |
+| 3 | `migrate.sh`, `backup.sh`, `doctor.sh` |
 
-Layer 1 (Basic Helpers):
-  - lib/layer1/logging.py
-  - lib/layer1/error_json.py
-  - lib/layer1/config.py
-  - lib/layer1/file_ops.py
-  - lib/layer1/output_format.py
+### Python Modules
 
-Layer 2 (Business Logic):
-  - lib/layer2/validation.py
-  - lib/layer2/task_ops.py
-
-Layer 3 (Orchestration):
-  - lib/layer3/migrate.py
-  - lib/layer3/backup.py
-  - lib/layer3/doctor.py
-  - lib/layer3/hierarchy_unified.py
-```
+| Layer | Modules |
+| ----- | ------- |
+| 0 | `layer0/exit_codes.py`, `layer0/colors.py`, `layer0/constants.py` |
+| 1 | `layer1/logging.py`, `layer1/error_json.py`, `layer1/config.py`, `layer1/file_ops.py`, `layer1/output_format.py` |
+| 2 | `layer2/validation.py`, `layer2/task_ops.py` |
+| 3 | `layer3/migrate.py`, `layer3/backup.py`, `layer3/doctor.py`, `layer3/hierarchy_unified.py` |
 
 ---
 
-## Analysis Methodology
+## Analysis Workflow
 
-### Phase 1: Extract Dependencies
+### 1. Extract Dependencies
 
-#### Shell Dependencies
+**Shell** — parse `source` / `.` statements:
 
 ```bash
-# Extract all source statements from a file
 grep -E "^[[:space:]]*(source|\\.)[[:space:]]+" "$FILE" | \
   sed -E 's/.*source[[:space:]]+["'\''"]?([^"'\''"]*)["'\''"]?.*/\1/' | \
-  sed 's|${LIB_DIR:-lib}/||' | \
-  sed 's|"${PROJECT_ROOT}"/lib/||'
+  sed 's|${LIB_DIR:-lib}/||; s|"${PROJECT_ROOT}"/lib/||'
 ```
 
-#### Python Dependencies
+**Python** — parse `from lib.` / `import lib.` / relative imports:
 
 ```bash
-# Extract Python imports from lib modules
-grep -rn "^from lib\." lib/layer*/**.py
-grep -rn "^import lib\." lib/layer*/**.py
-
-# Extract relative imports within layers
-grep -rn "^from \.\|^from \.\." lib/layer*/**.py
+grep -rn "^from lib\.\|^import lib\.\|^from \.\|^from \.\." lib/layer*/*.py
 ```
 
-**Python Import Patterns:**
-- Absolute: `from lib.layer1.error_json import emit_error`
-- Relative: `from ..layer1 import logging`
-- Direct: `import lib.layer0.exit_codes`
+### 2. Build Graph
 
-### Phase 2: Build Graph
+Construct an adjacency list mapping each file to its dependencies:
 
-Construct adjacency list:
-```
+```json
 {
   "validation.sh": ["logging.sh", "file-ops.sh", "error-json.sh"],
-  "task-ops.sh": ["validation.sh", "logging.sh"],
-  ...
+  "task-ops.sh": ["validation.sh", "logging.sh"]
 }
 ```
 
-### Phase 3: Detect Cycles
+### 3. Detect Cycles
 
-Use DFS with cycle detection:
-1. Start from each node
-2. Track visited nodes in current path
-3. If node visited twice in same path = cycle
-4. Record cycle path for reporting
+DFS from each node, tracking the current path. A node visited twice in the same path is a cycle.
 
-### Phase 4: Validate Layers
+### 4. Validate Layers
 
-For each source statement:
-1. Identify source file layer
-2. Identify dependency file layer
-3. If dependency layer >= source layer, flag violation
+For each dependency: if `dependency_layer >= source_layer`, flag as a violation.
 
 ---
 
-## Output Format
+## Validation Rules
 
-### Dependency Report
+| Rule | Severity | Condition |
+| ---- | -------- | --------- |
+| No circular dependencies | CRITICAL | Any cycle → FAIL |
+| Layer constraints | HIGH | Layer N sourcing Layer ≥ N → FAIL |
+| Max coupling | MEDIUM | > 7 dependents or > 7 dependencies → WARNING |
+| Orphan detection | LOW | 0 dependents → dead code candidate |
+
+---
+
+## Report Template
 
 ```markdown
 # Dependency Analysis Report
 
 ## Summary
 
-- **Total Files**: {N}
-- **Total Dependencies**: {N}
-- **Circular Dependencies**: {N}
-- **Layer Violations**: {N}
-- **Status**: PASS | FAIL
+| Metric                 | Value       |
+| ---------------------- | ----------- |
+| Total Files            | {N}         |
+| Total Dependencies     | {N}         |
+| Circular Dependencies  | {N}         |
+| Layer Violations       | {N}         |
+| **Status**             | PASS / FAIL |
 
 ## Dependency Graph
 
-```mermaid
+​```mermaid
 graph TD
   A[validation.sh] --> B[logging.sh]
   A --> C[file-ops.sh]
   B --> D[colors.sh]
-```
+​```
 
 ## Circular Dependencies
 
-### Cycle 1 (if any)
-```
-A.sh -> B.sh -> C.sh -> A.sh
-```
-
-**Resolution**: {recommendation}
+Cycle 1: `A.sh → B.sh → C.sh → A.sh`
+Resolution: {recommendation}
 
 ## Layer Violations
 
-| Source File | Layer | Depends On | Dep Layer | Violation |
-|-------------|-------|------------|-----------|-----------|
-| {file} | {N} | {dep} | {N} | Upward dependency |
+| Source File | Layer | Depends On | Dep Layer | Violation          |
+| ----------- | ----- | ---------- | --------- | ------------------ |
+| {file}      | {N}   | {dep}      | {N}       | Upward dependency  |
 
 ## Coupling Analysis
 
-### Highly Coupled Modules
 | Module | Dependents | Dependencies | Coupling Score |
-|--------|------------|--------------|----------------|
-| {file} | {N} | {N} | {score} |
+| ------ | ---------- | ------------ | -------------- |
+| {file} | {N}        | {N}          | {score}        |
 
 ## Recommendations
 
 1. {Specific recommendation with file names}
-2. {Specific recommendation with file names}
 ```
-
----
-
-## Task System Integration
-
-@_shared/templates/skill-boilerplate.md#task-integration
-
-### Skill-Specific Execution Steps
-
-1. Scan all lib/*.sh and lib/layer*/*.py files
-2. Extract dependencies (source statements for shell, imports for Python)
-3. Build dependency graph (separate or combined based on context)
-4. Detect cycles
-5. Validate layer constraints
-6. Write report to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md`
-
----
-
-## Subagent Protocol
-
-@_shared/templates/skill-boilerplate.md#subagent-protocol
-
-### Summary Message
-
-Return: "Dependency analysis complete. See MANIFEST.jsonl for summary."
-
----
-
-## Manifest Entry
-
-@_shared/templates/skill-boilerplate.md#manifest-entry
 
 ---
 
 ## Context Variables
 
-| Token | Description | Example |
-|-------|-------------|---------|
-| `{{TARGET_DIR}}` | Directory to analyze | `lib/` |
-| `{{LAYER_CONFIG}}` | Layer definitions | JSON object |
-| `{{EXCLUDE_PATTERNS}}` | Files to skip | `["*test*", "*mock*"]` |
-| `{{SLUG}}` | URL-safe topic name | `dependency-audit` |
-
----
-
-## Validation Rules
-
-### Rule 1: No Circular Dependencies
-- Severity: CRITICAL
-- Any cycle causes FAIL status
-
-### Rule 2: Layer Constraints
-- Severity: HIGH
-- Layer N can only source Layer <N files
-
-### Rule 3: Max Coupling
-- Severity: MEDIUM
-- Warning if file has >7 dependents or >7 dependencies
-
-### Rule 4: Orphan Detection
-- Severity: LOW
-- Info if file has 0 dependents (dead code candidate)
+| Token                | Description          | Example                    |
+| -------------------- | -------------------- | -------------------------- |
+| `{{TARGET_DIR}}`     | Directory to analyze | `lib/`                     |
+| `{{LAYER_CONFIG}}`   | Layer definitions    | JSON object                |
+| `{{EXCLUDE_PATTERNS}}`| Files to skip       | `["*test*", "*mock*"]`     |
+| `{{SLUG}}`           | URL-safe topic name  | `dependency-audit`         |
 
 ---
 
 ## Anti-Patterns
 
-| Pattern | Problem | Solution |
-|---------|---------|----------|
-| Mutual sourcing | A sources B, B sources A | Extract shared code to Layer 0 |
-| Layer skipping | Layer 3 sources Layer 0 directly | Source through intermediate layers |
-| God module | One file with 20+ dependents | Split responsibilities |
-| Deep chains | A->B->C->D->E->F | Flatten, consolidate layers |
-
----
-
-## Error Handling
-
-@_shared/templates/skill-boilerplate.md#error-handling
-
----
-
-## Completion Checklist
-
-@_shared/templates/skill-boilerplate.md#completion-checklist
-
-### Skill-Specific Checks
-
-- [ ] All lib/*.sh files scanned (shell)
-- [ ] All lib/layer*/*.py files scanned (Python)
-- [ ] Dependencies extracted (source for shell, import for Python)
-- [ ] Dependency graph constructed
-- [ ] Cycle detection completed
-- [ ] Layer validation completed
-- [ ] Coupling metrics calculated
-- [ ] Report written with recommendations
+| Pattern         | Problem                        | Fix                                    |
+| --------------- | ------------------------------ | -------------------------------------- |
+| Mutual sourcing | A sources B, B sources A       | Extract shared code to Layer 0         |
+| Layer skipping  | L3 sources L0 directly         | Source through intermediate layers     |
+| God module      | One file with 20+ dependents   | Split responsibilities                 |
+| Deep chains     | A→B→C→D→E→F                   | Flatten and consolidate                |
 
 ---
 
 ## Skill Chaining
 
-@_shared/protocols/skill-chain-contracts.md
+### Consumes
+
+| Input      | From Skill       | Description                        |
+| ---------- | ---------------- | ---------------------------------- |
+| `metrics`  | `codebase-stats` | File metrics for prioritization    |
+| `hotspots` | `codebase-stats` | High-change files to focus on      |
 
 ### Produces
 
-| Output | Format | Description |
-|--------|--------|-------------|
-| `coupling-analysis` | JSON/Markdown | Module coupling metrics and recommendations |
-| `layer-violations` | JSON array | List of architecture constraint violations |
-| `dependency-graph` | DOT/Mermaid | Visual dependency graph |
+| Output              | Format        | Description                              |
+| ------------------- | ------------- | ---------------------------------------- |
+| `coupling-analysis` | JSON/Markdown | Module coupling metrics                  |
+| `layer-violations`  | JSON array    | Architecture constraint violations       |
+| `dependency-graph`  | DOT/Mermaid   | Visual dependency graph                  |
 
-### Consumes
+### Downstream
 
-| Input | From Skill | Description |
-|-------|------------|-------------|
-| `metrics` | `codebase-stats` | File metrics for prioritization |
-| `hotspots` | `codebase-stats` | High-change files to focus on |
+`hierarchy-unifier` — consumes violations to consolidate and fix architecture issues.
 
-### Chain Relationships
+---
 
-| Direction | Skills | Pattern |
-|-----------|--------|---------|
-| Chains from | `codebase-stats` | producer-consumer |
-| Chains to | `hierarchy-unifier` | analyzer-executor |
+## Checklist
 
-The dependency-analyzer identifies architecture issues that hierarchy-unifier can consolidate and fix.
+- [ ] All `lib/layer*/*.py` files scanned
+- [ ] Dependencies extracted (source + import)
+- [ ] Dependency graph constructed
+- [ ] Cycle detection completed
+- [ ] Layer validation completed
+- [ ] Coupling metrics calculated
+- [ ] Report written with recommendations

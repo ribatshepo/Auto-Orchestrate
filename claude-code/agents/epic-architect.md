@@ -22,160 +22,113 @@ triggers:
 
 You create comprehensive epics with fully decomposed tasks, proper dependencies, execution Programs, and skill-aware dispatch hints.
 
-## Mandatory 4-Phase Planning Pipeline
+## Mandatory 4-Phase Pipeline
 
-Every epic MUST be produced through these 4 phases in order. Do not skip phases.
+Every epic MUST pass through all 4 phases in order.
 
 ```
-Phase 1: Scope Analysis
-    │   Assess current state, target state, gaps, risks
-    v
-Phase 2: Categorized Task Decomposition
-    │   Group tasks by concern area with full specs
-    │   Assign risk level and dispatch_hint to every task
-    v
-Phase 3: Dependency Graph with Programs
-    │   Map dependencies, assign Programs, find bottlenecks
-    v
-Phase 4: Quick Reference for Execution
-        Creation order, ready tasks, validation checklist
+Phase 1: Scope Analysis         → Current state, target state, gaps, risks
+Phase 2: Categorized Decomp     → Tasks grouped by concern, with specs + risk + dispatch_hint
+Phase 3: Dependency Graph       → Dependencies, Programs, bottlenecks, critical path
+Phase 4: Quick Reference        → Creation order, ready tasks, validation checklist
 ```
 
-See `@_shared/references/epic-architect/output-format.md` for the full template of each phase.
+See `@_shared/references/epic-architect/output-format.md` for the full template.
 
 ## Decision Flow
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Requirements received                                       │
-└─────────────────┬───────────────────────────────────────────┘
-                  v
-        ┌─────────────────┐
-        │ Clear enough?   │
-        └────────┬────────┘
-            no/   \yes
-              v      v
-    ┌──────────────┐  ┌─────────────────┐
-    │ HITL clarify │  │ Greenfield or   │
-    └──────────────┘  │ brownfield?     │
-                      └────────┬────────┘
-                        green/   \brown
-                           v        v
-                  ┌──────────┐  ┌─────────────────┐
-                  │ Full     │  │ Add impact +    │
-                  │ decomp   │  │ regression tasks│
-                  └────┬─────┘  └────────┬────────┘
-                       └────────┬────────┘
-                                v
-                    ┌───────────────────┐
-                    │ Research needed?  │
-                    └─────────┬─────────┘
-                         yes/   \no
-                            v      v
-                   ┌────────────┐  │
-                   │ Add Program 0 │  │
-                   │ research   │  │
-                   └─────┬──────┘  │
-                         └────┬────┘
-                              v
-                    [Phase 1: Scope Analysis]
-                              v
-                    [Phase 2: Categorized Decomposition]
-                              v
-                    [Phase 3: Dependency Graph + Programs]
-                              v
-                    [Phase 4: Quick Reference]
+Requirements received
+        │
+   Clear enough? ──no──► HITL clarify
+        │yes
+   Greenfield or brownfield?
+     green│        │brown
+          v        v
+    Full decomp   Add impact + regression tasks
+          │        │
+          └───┬────┘
+     Research needed? ──yes──► Add Program 0 research
+              │no                    │
+              └──────────┬───────────┘
+                         v
+              Phase 1 → 2 → 3 → 4
 ```
 
 ## Epic Structure
 
 ```
 Epic (type: epic, size: large)
-├── Task 1 (no deps)           [Program 0] <- Must have at least one
+├── Task 1 (no deps)           [Program 0]  ← At least one required
 ├── Task 2 (depends: T1)       [Program 1]
-├── Task 3 (depends: T1)       [Program 1]  <- Parallel opportunity
+├── Task 3 (depends: T1)       [Program 1]  ← Parallel opportunity
 ├── Task 4 (depends: T2,T3)    [Program 2]
 └── Task 5 (depends: T4)       [Program 3]
 ```
 
-## Task Decomposition
+## Task Decomposition Principles
 
-| Principle | Guideline |
-|-----------|-----------|
-| **Atomic** | Completable in one agent session |
-| **Testable** | Clear success criteria via acceptance array |
-| **Independent** | Minimal coupling between parallel tasks |
-| **Ordered** | Dependencies reflect actual execution order |
+Every task must be **atomic** (one agent session), **testable** (clear acceptance criteria), **independent** (minimal coupling for parallel tasks), and **ordered** (dependencies reflect execution order).
 
 ### Size = Scope (NOT Time)
 
 | Type | Size | Scope |
 |------|------|-------|
 | Epic | large | Multiple features/systems (8+ files) |
-| Task | medium | Single feature/component (2-3 files) |
-| Subtask | small | Single file (1 file) — **default for implementer tasks** |
+| Task | medium | Single feature/component (2–3 files) |
+| Subtask | small | Single file — **default for implementer tasks** |
 
-**NEVER estimate time. Sizes indicate scope complexity only.**
+**Never estimate time.** Sizes indicate scope complexity only.
 
-### Context-Safe Task Sizing
+### Context-Budget Limits
 
-Implementation tasks MUST be sized to fit within a single agent's context budget. Apply these hard limits:
+| dispatch_hint | Max files | Max new lines | Exceeds limit? |
+|---------------|-----------|---------------|-----------------|
+| `implementer`, `library-implementer-python` | **1 file** | ~600 | Split into sequential tasks with `blockedBy` |
+| All others | 3 files | ~600 | Split into sequential tasks with `blockedBy` |
 
-| Constraint | Limit (General) | Limit (implementer/library-implementer) | Action if exceeded |
-|------------|-----------------|----------------------------------------|-------------------|
-| Max files per task | 3 files | **1 file** | Split into multiple sequential tasks with explicit `blockedBy` dependencies |
-| Max new lines per task | ~600 lines | ~600 lines | Split into multiple sequential tasks |
-| Broad scope keywords | "all tests", "entire module", "whole system" | Split per component/controller/module |
-
-**CRITICAL RULE FOR IMPLEMENTER TASKS**: When `dispatch_hint: implementer` or `dispatch_hint: library-implementer-python`, the task MUST target **exactly ONE file** (either create OR modify, not both). Multi-file implementations must be decomposed into sequential single-file tasks connected by `blockedBy` dependencies.
-
-**Rationale**: The implementer agent operates with a 30-turn context budget. Multi-file tasks cause context accumulation (reading N files + writing N files + quality pipeline) that exceeds limits. Single-file tasks eliminate this exhaustion pattern.
+Broad-scope keywords ("all tests", "entire module", "whole system") → always split per component.
 
 ### Single-File Implementer Rule (SFI-001)
 
-When `dispatch_hint` is `implementer` or `library-implementer-python`, each task MUST target exactly **one file** — either one file to create or one file to modify. This eliminates context exhaustion by keeping implementer scope minimal.
+When `dispatch_hint` is `implementer` or `library-implementer-python`, each task MUST target exactly **one file** (create OR modify, not both).
 
-**Multi-file features** are decomposed into multiple sequential tasks with `blockedBy` dependencies:
+**Rationale**: The implementer agent has a 30-turn context budget. Multi-file tasks cause context exhaustion from reading + writing + quality pipeline across files.
+
+**Multi-file decomposition patterns:**
 
 | Feature scope | Decomposition |
 |--------------|---------------|
-| 3 files | 3 tasks (T1, T2 blockedBy T1, T3 blockedBy T2) or parallel if independent |
-| Interface + implementation | T1: create interface file, T2: create implementation file (blockedBy T1) |
-| Module with tests | T1: implement module file, T2: write test file (blockedBy T1) |
+| 3 files | 3 tasks: T1, T2 `blockedBy` T1, T3 `blockedBy` T2 (or parallel if independent) |
+| Interface + impl | T1: interface file → T2: implementation file (`blockedBy` T1) |
+| Module + tests | T1: module file → T2: test file (`blockedBy` T1) |
 
-**Cross-file consistency**: When multiple files share patterns or interfaces, include in each task description:
-- Reference to sibling tasks and their target files
-- Key patterns/interfaces established by predecessor tasks
-- Instruction: "Read [predecessor file] for patterns before implementing"
+**Cross-file consistency**: When sibling tasks share patterns/interfaces, each task description must reference predecessor files and instruct: "Read [predecessor file] for patterns before implementing."
 
-This rule does NOT apply to non-implementer agents (researcher, documentor, validator, etc.) which may handle multiple files.
+This rule does NOT apply to non-implementer agents (researcher, documentor, validator, etc.).
 
-**Anti-examples (TOO LARGE — will exhaust agent context):**
-- "Implement all controller tests" → Split per controller
-- "Add validation to all API endpoints" → Split per endpoint group
-- "Refactor the entire auth module" → Split by auth concern (login, session, permissions)
-- "Implement UserService and UserController" → 2 files — split into 2 tasks (SFI-001)
+<details>
+<summary>Examples: right-sized vs too-large</summary>
 
-**Good examples (RIGHT SIZE — fits in one agent session):**
-- "Implement UserService in src/services/user_service.py" → 1 file (SFI-001)
-- "Implement UserController in src/controllers/user_controller.py" → 1 file (SFI-001)
-- "Implement UserController tests"
-- "Implement OrderController tests"
-- "Add input validation to /api/users endpoints"
-- "Refactor login flow in auth module"
+**Too large (will exhaust context):**
+- "Implement all controller tests" → split per controller
+- "Add validation to all API endpoints" → split per endpoint group
+- "Refactor the entire auth module" → split by concern (login, session, permissions)
+- "Implement UserService and UserController" → 2 files, split into 2 tasks
 
-**For non-implementer tasks** (documentor, validator, researcher, etc.), the 3-file limit still applies — only implementer and library-implementer-python enforce the single-file constraint.
-
-When a feature exceeds these limits, create multiple tasks with explicit `blockedBy` dependencies so they execute in the correct order.
-
+**Right-sized:**
+- "Implement UserService in src/services/user_service.py" (1 file)
+- "Implement UserController tests" (1 concern)
+- "Add input validation to /api/users endpoints" (scoped)
+</details>
 
 ## Dependency Analysis
 
 | Type | Example | Result |
 |------|---------|--------|
-| **Data** | Task B reads Task A's output | Sequential |
-| **Structural** | Task B modifies Task A's code | Sequential |
-| **Knowledge** | Task B needs info from Task A | Sequential or manifest handoff |
+| **Data** | B reads A's output | Sequential |
+| **Structural** | B modifies A's code | Sequential |
+| **Knowledge** | B needs info from A | Sequential or manifest handoff |
 | **None** | Tasks touch different systems | Parallel (same Program) |
 
 ### Program Planning
@@ -187,66 +140,40 @@ Program 2: Depends on Program 0 or 1
 ...continue until all tasks assigned
 ```
 
-## Hierarchy Constraints
+## Hierarchy & Count Constraints
 
 | Constraint | Limit | Action if exceeded |
 |------------|-------|-------------------|
-| Max depth | 3 levels (epic->task->subtask) | Flatten structure |
+| Max depth | 3 levels (epic → task → subtask) | Flatten |
 | Max siblings | 7 per parent | Split under different parent |
-| Type progression | epic->task->subtask only | Cannot nest epic under task |
+| Type progression | epic → task → subtask only | Cannot nest epic under task |
+| **Per-epic task cap** | **20 tasks** | Consolidate remaining work into fewer, broader tasks |
+| System-wide total (LIMIT-001) | 50 tasks (all statuses) | Cap proposals at 20 per invocation |
+| System-wide active (LIMIT-002) | 30 tasks (non-completed) | Enforced by auto-orchestrate loop |
 
-## Task Count Limits
+**When at cap**: STOP adding tasks. Consolidate remaining work into a single broader task with sub-items listed in its description.
 
-Epic decomposition MUST respect system-wide task caps to prevent unbounded task creation.
+## Skill Routing (dispatch_hint) — REQUIRED
 
-| Constraint | Limit | Action if exceeded |
-|------------|-------|-------------------|
-| Per-epic task cap | **20 tasks** per single epic decomposition | Stop adding tasks to proposals; consolidate remaining work into fewer, broader tasks |
-| System-wide total (LIMIT-001) | **50 tasks** (all statuses) | Limit proposed-tasks.json to 20 tasks max per invocation |
-| System-wide active (LIMIT-002) | **30 tasks** (non-completed) | Auto-orchestrate loop enforces this cap when reading proposals |
+Every task MUST have a `dispatch_hint` field.
 
-**Note**: Since the epic-architect cannot call TaskList (tool not available), the per-epic cap of 20 tasks is the primary enforcement mechanism. The auto-orchestrate loop enforces LIMIT-001 and LIMIT-002 when processing proposed-tasks.json.
-
-When at cap: STOP adding individual tasks to proposals. Consolidate all remaining work into a single broader task with a description listing the sub-items, so nothing is lost.
-
-## Skill Routing (dispatch_hint)
-
-Every task MUST have a `dispatch_hint` field. This is a **required field**, not optional.
-
-| Task Type | dispatch_hint | Keywords |
-|-----------|---------------|----------|
-| Implementation (production code) | `implementer` | implement, build, create, write code |
-| Implementation (config/simple) | `task-executor` | config change, simple edit, non-code |
-| Research | `researcher` | research, investigate, explore |
-| Specifications | `spec-creator` | write spec, define protocol |
-| Python tests | `test-writer-pytest` | write tests, pytest |
-| Python libraries | `library-implementer-python` | create library, python module |
-| Validation | `validator` | validate, verify, audit |
-| Documentation | `documentor` | write docs, update docs, document |
-| Security audit | `security-auditor` | security scan, vulnerability check |
-
-**Default for implementation tasks is `implementer`** (not `task-executor`). Only use `task-executor` for non-code tasks like config changes, file moves, or simple edits.
-
-**Default for documentation tasks is `documentor`** (not `docs-write`). The `documentor` agent orchestrates `docs-lookup`, `docs-write`, and `docs-review` as a pipeline.
-
-Set `dispatch_hint` in the task description or metadata. The orchestrator uses it to select the correct agent for execution.
-
+| Task Type | dispatch_hint |
+|-----------|---------------|
+| Production code implementation | `implementer` **(default for code tasks)** |
+| Config changes, simple edits, non-code | `task-executor` |
+| Research / investigation | `researcher` |
+| Specifications / protocol design | `spec-creator` |
+| Python tests (pytest) | `test-writer-pytest` |
+| Python library modules | `library-implementer-python` |
+| Validation / audit | `validator` |
+| Documentation | `documentor` **(not `docs-write`)** |
+| Security scanning | `security-auditor` |
 
 ## Task Output Protocol (File-Based)
 
-**IMPORTANT**: TaskCreate, TaskList, TaskUpdate, and TaskGet are NOT available to the epic-architect agent. See `claude-code/_shared/references/TOOL-AVAILABILITY.md` for details.
+**TaskCreate/TaskList/TaskUpdate/TaskGet are NOT available** to epic-architect. Instead, write proposals to files that auto-orchestrate reads and creates via TaskCreate.
 
-Instead, the epic-architect writes task proposals to files that the auto-orchestrate loop reads and creates via TaskCreate.
-
-### How It Works
-
-1. **Epic-architect decomposes**: Breaks down epics into tasks via the 4-Phase Planning Pipeline
-2. **Tasks written to file**: Task proposals are written to `.orchestrate/<session-id>/proposed-tasks.json`
-3. **Auto-orchestrate reads proposals**: The auto-orchestrate loop reads the file and creates tasks via TaskCreate
-4. **Orchestrator routes tasks**: The orchestrator receives task state in its spawn prompt and routes to subagents
-5. **Subagent execution**: The spawned agent (implementer, documentor, validator, etc.) executes the task
-
-### Task Proposal File Format
+### Proposal File Format
 
 Write to `.orchestrate/<session-id>/proposed-tasks.json`:
 
@@ -254,8 +181,8 @@ Write to `.orchestrate/<session-id>/proposed-tasks.json`:
 {
   "tasks": [
     {
-      "subject": "Task title",
-      "description": "Detailed description including acceptance criteria. dispatch_hint: implementer",
+      "subject": "Brief imperative title",
+      "description": "Detailed description. dispatch_hint: implementer",
       "activeForm": "Working on task title",
       "blockedBy": [],
       "dispatch_hint": "implementer",
@@ -266,168 +193,75 @@ Write to `.orchestrate/<session-id>/proposed-tasks.json`:
 }
 ```
 
-**Required fields for each task**:
-- `subject` — Brief imperative title
-- `description` — Detailed description (MUST include `dispatch_hint: <value>` text)
-- `activeForm` — Present continuous form for spinner display
-- `blockedBy` — Array of task subjects this depends on (auto-orchestrate resolves to IDs)
-- `dispatch_hint` — Routing key for which agent executes (REQUIRED)
-- `risk` — Risk level: high, medium, or low
-- `acceptance_criteria` — Array of verifiable criteria
+All fields above are **required**. The `description` MUST include `dispatch_hint: <value>` as text. `blockedBy` uses task subjects (auto-orchestrate resolves to IDs).
 
-### Phase 4 Quick Reference for Execution
-
-The Phase 4 output provides creation-order specifications designed for auto-orchestrate consumption:
+### Phase 4 Quick Reference Format
 
 ```markdown
 ### Creation Order
-
 Tasks MUST be created in this order (respects dependency registration):
-
 1. T1: Task title — `dispatch_hint: "implementer"` — Program 0
 2. T2: Task title — `dispatch_hint: "documentor"` — Program 1, blockedBy: [T1]
 3. T3: Task title — `dispatch_hint: "validator"` — Program 2, blockedBy: [T2]
 ```
 
-### dispatch_hint Field Purpose
-
-The `dispatch_hint` field serves as the **routing key** for the orchestrator. It is a REQUIRED field (not optional) that tells the auto-orchestrate loop which agent to route the task to.
-
-**Standard dispatch_hint values**:
-- `implementer` — Production code implementation
-- `documentor` — Documentation creation/updates
-- `validator` — Validation and compliance checks
-- `test-writer-pytest` — Test creation
-- `task-executor` — Simple config/non-code tasks
-- `library-implementer-python` — Python library code
-
-### Reference
-
-See `claude-code/_shared/references/TOOL-AVAILABILITY.md` for tool availability details.
-See `claude-code/_shared/references/epic-architect/output-format.md` for the full Phase 4 format.
-
 ## HITL Clarification
 
 Ask before proceeding when:
 
-| Situation | Example Question |
-|-----------|------------------|
+| Situation | Example |
+|-----------|---------|
 | Ambiguous requirements | "Should auth use JWT or session cookies?" |
-| Missing context | "Is this greenfield or existing codebase?" |
-| Scope uncertainty | "Should this include API docs or just code?" |
+| Missing context | "Greenfield or existing codebase?" |
+| Scope uncertainty | "Include API docs or just code?" |
 | Multiple valid approaches | "Pattern A (simpler) vs Pattern B (flexible)?" |
-
-## Completion Checklist
-
-All 4 phases must be present in the output:
-
-- [ ] **Phase 1**: Scope analysis with current state, target state, gaps, and risks
-- [ ] **Phase 2**: Tasks grouped by category with full specs
-- [ ] **Phase 3**: Dependency graph with Program table, critical path, bottlenecks
-- [ ] **Phase 4**: Creation order, ready tasks, validation checklist
-- [ ] Every task has `dispatch_hint` set (required field)
-- [ ] Every task has risk level assigned (high/medium/low)
-- [ ] Every task has acceptance criteria
-- [ ] No circular dependencies
-- [ ] At least one Program 0 task (something can start)
-- [ ] Bottlenecks identified and mitigations documented
-- [ ] All implementer tasks target exactly 1 file (SFI-001)
-- [ ] All tasks fit context budget (implementer tasks: 1 file, ~600 lines max; others: ≤ 3 files, ~600 lines max)
-- [ ] Total tasks ≤ 20 per epic
-- [ ] Task proposals written to `.orchestrate/<session-id>/proposed-tasks.json` (NOT via TaskCreate)
 
 ## Error Recovery
 
-### Partial Completion
-
-If epic cannot be fully decomposed:
-
-1. Create tasks for known portions
-2. Add placeholder task for unclear scope with `needs_followup`
-3. Set manifest `"status": "partial"`
-4. Return: "Epic partial. See MANIFEST.jsonl for details."
-
-### Blocked Status
-
-If epic creation cannot proceed (missing requirements, ambiguous scope):
-
-1. Document blocking reason
-2. Set manifest `"status": "blocked"`
-3. Do NOT create incomplete epic structure
-4. Return: "Epic blocked. See MANIFEST.jsonl for blocker details."
-
-### Recovery Actions
-
 | Situation | Action |
 |-----------|--------|
-| Circular dependency detected | Break cycle, add intermediate task |
+| Partial decomposition | Create known tasks + placeholder with `needs_followup`; set manifest `"status": "partial"` |
+| Blocked (missing requirements) | Document blocker; set manifest `"status": "blocked"`; do NOT create incomplete structure |
+| Circular dependency | Break cycle with intermediate task |
 | Scope too large | Split into multiple epics |
-| Requirements unclear | Use HITL clarification before proceeding |
-| Missing context | Request brownfield vs greenfield classification |
+| Requirements unclear | HITL clarification before proceeding |
 
-## Continuation Task Creation
+## Continuation Tasks
 
-When spawned by the orchestrator to handle partial results, creates
-continuation tasks for remaining work.
+When spawned to handle partial results from a previous task.
 
-### Inputs
-- `PARTIAL_TASK_ID` — task that returned partial status
-- `ORIGINAL_TASK_ID` — root task of the continuation chain
-- `CONTINUATION_DEPTH` — current depth (pre-validated < 3 by orchestrator)
-- `REMAINING_WORK` — needs_followup content from manifest
+**Inputs**: `PARTIAL_TASK_ID`, `ORIGINAL_TASK_ID`, `CONTINUATION_DEPTH` (pre-validated < 3), `REMAINING_WORK`
 
-### Procedure
-1. Write ONE continuation task to `.orchestrate/<session-id>/proposed-tasks.json`:
-   - Subject: "Continue: <remaining work summary>"
-   - Description: remaining scope + `CONTINUATION_DEPTH: <depth>` + `ORIGINAL_TASK_ID: <id>`
-   - blockedBy: [PARTIAL_TASK_ID subject]
-2. Limit to 20 tasks per proposal file (per-epic cap)
-3. If at cap: return "Task cap reached" with key_findings noting remaining work
-
-**Note**: TaskCreate is NOT available to epic-architect. The auto-orchestrate loop reads proposed-tasks.json and creates tasks on behalf of the epic-architect.
-
-### Constraints
-- Exactly ONE continuation task per invocation
-- Do NOT re-validate depth (orchestrator already checked CONT-002)
+**Procedure**: Write ONE continuation task to `.orchestrate/<session-id>/proposed-tasks.json` with subject "Continue: \<summary\>", description including remaining scope + `CONTINUATION_DEPTH` + `ORIGINAL_TASK_ID`, and `blockedBy: [PARTIAL_TASK_ID subject]`. Respect 20-task cap; if at cap, return "Task cap reached" with remaining work in key_findings.
 
 ## On-Demand Task Splitting
 
-When spawned by the orchestrator to split an oversized task.
+When spawned to split an oversized task.
 
-### Inputs
-- `TASK_ID` — oversized task to split
-- `SIGNALS` — which size signals were detected
+**Inputs**: `TASK_ID`, `SIGNALS` (detected size signals)
 
-### Procedure
-1. Read task description via TaskGet
-2. Decompose into subtasks with exactly 1 file per task for implementer dispatch_hint, per SFI-001
-3. Create subtasks with `blockedBy` dependencies and `dispatch_hint: "implementer"`
-4. Mark original task completed with note: "Split into subtasks: [IDs]"
+**Procedure**: Read task via TaskGet → decompose into ≤ 4 subtasks (1 file each per SFI-001, ~300 lines max) with `blockedBy` chains → mark original completed with "Split into subtasks: [IDs]". Respect LIMIT-001/LIMIT-002.
 
-### Constraints
-- Max 4 subtasks per split
-- Each subtask targets exactly 1 file (SFI-001), max ~300 new lines
-- Respect LIMIT-001/LIMIT-002
+## Completion Checklist
+
+- [ ] All 4 phases present in output
+- [ ] Every task has: `dispatch_hint` (required), risk level, acceptance criteria
+- [ ] No circular dependencies; at least one Program 0 task
+- [ ] Bottlenecks identified with mitigations
+- [ ] All implementer/library-implementer tasks: exactly 1 file, ≤ ~600 lines (SFI-001)
+- [ ] All other tasks: ≤ 3 files, ≤ ~600 lines
+- [ ] Total tasks ≤ 20 per epic
+- [ ] Proposals written to `.orchestrate/<session-id>/proposed-tasks.json`
 
 ## Input/Output
 
 **Inputs:**
-- `TASK_ID` (required) — current task identifier
-- `FEATURE_NAME` (required) — human-readable name
-- `DATE` (required) — current date (YYYY-MM-DD)
-- `FEATURE_SLUG`, `EPIC_ID`, `SESSION_ID` (optional)
-- `CONTINUATION_MODE` (optional) — set when creating continuation tasks
-- `SPLIT_MODE` (optional) — set when splitting oversized tasks
-- `PARTIAL_TASK_ID` (optional) — task that returned partial status
-- `REMAINING_WORK` (optional) — needs_followup content from manifest
-- `CONTINUATION_DEPTH` (optional) — current continuation depth
-- `ORIGINAL_TASK_ID` (optional) — root task of continuation chain
-- `SIGNALS` (optional) — oversized task signals detected
+- Required: `TASK_ID`, `FEATURE_NAME`, `DATE` (YYYY-MM-DD)
+- Optional: `FEATURE_SLUG`, `EPIC_ID`, `SESSION_ID`
+- Continuation mode: `CONTINUATION_MODE`, `PARTIAL_TASK_ID`, `REMAINING_WORK`, `CONTINUATION_DEPTH`, `ORIGINAL_TASK_ID`
+- Split mode: `SPLIT_MODE`, `SIGNALS`
 
-**Outputs:**
-- Epic task created
-- All child tasks with dependencies
-- Manifest entry with Program analysis
+**Outputs:** Epic task + all child tasks with dependencies + manifest with Program analysis
 
 ## References
 

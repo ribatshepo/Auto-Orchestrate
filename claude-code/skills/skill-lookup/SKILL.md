@@ -1,6 +1,10 @@
 ---
 name: skill-lookup
-description: This skill should be used when the user asks to "find me a skill", "search for skills", "what skills are available", "get skill XYZ", "install a skill", "extend Claude's capabilities with skills", or mentions Agent Skills, prompts.chat, or reusable AI agent components.
+description: >
+  Search, retrieve, and install Agent Skills from prompts.chat to extend Claude's capabilities.
+  Use when user says "find me a skill", "search for skills", "what skills are available",
+  "get skill XYZ", "install a skill", or mentions Agent Skills, prompts.chat, or reusable
+  AI agent components.
 triggers:
   - find me a skill
   - search for skills
@@ -9,74 +13,34 @@ triggers:
   - install a skill
 ---
 
-When the user needs Agent Skills, wants to extend Claude's capabilities, or is looking for reusable AI agent components, use the prompts.chat MCP server.
+# Skill Lookup
 
-## When to Use This Skill
+Search, retrieve, and install Agent Skills from the prompts.chat MCP server. Always search before suggesting the user create their own skill.
 
-Activate this skill when the user:
+## Tools
 
-- Asks for Agent Skills ("Find me a code review skill")
-- Wants to search for skills ("What skills are available for testing?")
-- Needs to retrieve a specific skill ("Get skill XYZ")
-- Wants to install a skill ("Install the documentation skill")
-- Mentions extending Claude's capabilities with skills
+### `search_skills`
 
-## Available Tools
+Search for skills by keyword.
 
-Use these prompts.chat MCP tools:
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `query` | Search keywords from user's request | — |
+| `limit` | Number of results (max 50) | 10 |
+| `category` | Filter by category slug (e.g., `coding`, `automation`) | — |
+| `tag` | Filter by tag slug | — |
 
-- `search_skills` - Search for skills by keyword
-- `get_skill` - Get a specific skill by ID with all its files
+Present results showing title, description, author, file list, category/tags, and link.
 
-## How to Search for Skills
+### `get_skill`
 
-Call `search_skills` with:
+Retrieve a specific skill by `id`. Returns metadata and all file contents (SKILL.md, reference docs, scripts, configs).
 
-- `query`: The search keywords from the user's request
-- `limit`: Number of results (default 10, max 50)
-- `category`: Filter by category slug (e.g., "coding", "automation")
-- `tag`: Filter by tag slug
-
-Present results showing:
-- Title and description
-- Author name
-- File list (SKILL.md, reference docs, scripts)
-- Category and tags
-- Link to the skill
-
-## How to Get a Skill
-
-Call `get_skill` with:
-
-- `id`: The skill ID
-
-Returns the skill metadata and all file contents:
-- SKILL.md (main instructions)
-- Reference documentation
-- Helper scripts
-- Configuration files
-
-## How to Install a Skill
+## Installation
 
 When the user asks to install a skill:
 
 1. Call `get_skill` to retrieve all files
-2. Create the directory `.claude/skills/{slug}/`
-3. Save each file to the appropriate location:
-   - `SKILL.md` -> `.claude/skills/{slug}/SKILL.md`
-   - Other files -> `.claude/skills/{slug}/{filename}`
-
-## Skill Structure
-
-Skills contain:
-- **SKILL.md** (required) - Main instructions with frontmatter
-- **Reference docs** - Additional documentation files
-- **Scripts** - Helper scripts (Python, shell, etc.)
-- **Config files** - JSON, YAML configurations
-
-## Guidelines
-
-- Always search before suggesting the user create their own skill
-- Present search results in a readable format with file counts
-- When installing, confirm the skill was saved successfully
-- Explain what the skill does and when it activates
+2. Create `.claude/skills/{slug}/`
+3. Save each file to `.claude/skills/{slug}/{filename}`
+4. Confirm installation and explain what the skill does and when it activates
