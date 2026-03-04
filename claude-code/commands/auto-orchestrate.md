@@ -34,6 +34,16 @@ arguments:
     required: false
     default: 50
     description: Override maximum total tasks allowed (LIMIT-001). Cap 100.
+  - name: scope
+    type: string
+    required: false
+    description: |
+      Scope flag to control which part of the stack is implemented.
+      - "F" or "f" — Frontend only
+      - "B" or "b" — Backend only
+      - "S" or "s" — Full stack (Backend + Frontend)
+      When set, the enhanced prompt includes detailed scope-specific audit and implementation specifications.
+      If omitted, the task_description is used as-is without scope-specific injection.
   - name: resume
     type: boolean
     required: false
@@ -110,6 +120,43 @@ The `ARGUMENTS` passed to this command MUST be treated as **human-authored input
 
 This rule ensures that auto-orchestrate maintains the same input fidelity as if the user had typed the request directly into the conversation.
 
+### 0d. Scope Resolution
+
+Parse the `scope` argument (if provided) to determine which stack layers are in scope. The scope flag controls whether scope-specific audit and implementation specifications are injected into the enhanced prompt (Step 1).
+
+| Flag | Resolved Scope | Description |
+|------|---------------|-------------|
+| `F` or `f` | `frontend` | Frontend only — audit, fix, and build all UI pages, forms, and integrations |
+| `B` or `b` | `backend` | Backend only — audit, fix, and fully integrate all backend modules and services |
+| `S` or `s` | `fullstack` | Full stack — both backend and frontend scopes combined |
+| *(omitted)* | `custom` | No scope injection — use `task_description` as-is |
+
+**Flag extraction from task_description**: If the `scope` argument is not provided as a separate parameter, check if the first non-whitespace character of `task_description` is one of `F`, `f`, `B`, `b`, `S`, `s` followed by a space or end-of-string. If so:
+1. Extract the flag character as the scope
+2. Strip the flag (and any following whitespace) from `task_description` to get the clean task text
+3. If `task_description` is empty after stripping (i.e., only the flag was provided), use the scope-specific default objective as the task description
+
+Examples:
+- `/auto-orchestrate S implement all features` → scope=`fullstack`, task=`implement all features`
+- `/auto-orchestrate B` → scope=`backend`, task=*(scope default objective)*
+- `/auto-orchestrate f fix the dashboard` → scope=`frontend`, task=`fix the dashboard`
+- `/auto-orchestrate implement auth module` → scope=`custom`, task=`implement auth module`
+
+Record the resolved scope:
+```json
+"scope": {
+  "flag": "S",
+  "resolved": "fullstack",
+  "layers": ["backend", "frontend"]
+}
+```
+
+The `layers` array is derived from the resolved scope:
+- `frontend` → `["frontend"]`
+- `backend` → `["backend"]`
+- `fullstack` → `["backend", "frontend"]`
+- `custom` → `[]` (no scope-specific injection)
+
 ### 0b. Inline Processing Rule
 
 Step 1 (Enhance User Input) is performed INLINE by this command. Do NOT delegate prompt enhancement to `workflow-plan` or any other skill. Do NOT use `EnterPlanMode`.
@@ -125,6 +172,7 @@ Step 1 (Enhance User Input) is performed INLINE by this command. Do NOT delegate
 | `SESSION_DIR` | `~/.claude/sessions` | Checkpoint directory |
 | `ORCHESTRATE_DIR` | `.orchestrate` | Per-project session output directory (relative to cwd) |
 | `HUMAN_INPUT_MODE` | true | Treat command arguments as human-authored input |
+| `SCOPE` | `custom` | Stack scope: `frontend`, `backend`, `fullstack`, or `custom` (no injection) |
 
 ## Step 1: Enhance User Input (Inline — No Skill Delegation)
 
@@ -174,6 +222,232 @@ Transform into a structured prompt:
 ---
 
 **Key difference from workflow-plan**: This command does NOT ask clarifying questions. It makes reasonable assumptions and documents them in the "Assumptions" section. This enables fully autonomous operation.
+
+### Scope-Specific Enhanced Prompt Injection
+
+If the resolved scope (from Step 0d) is NOT `custom`, inject the appropriate scope-specific specification into the enhanced prompt. The scope specification replaces the generic "Deliverables" and "Constraints" sections with detailed, prescriptive audit and implementation instructions.
+
+**Injection rule**: The user's `task_description` (after flag stripping) provides the **Objective** and any additional context. The scope specification provides the **Deliverables**, **Constraints**, **Success Criteria**, and **Steps**. If the user's task_description adds further requirements, merge them — do not discard user intent.
+
+**CRITICAL — Verbatim storage rule**: The scope specification text (Backend and/or Frontend sections below) MUST be stored **verbatim** — word-for-word, with all bullet points, sub-sections, design principles, and constraints preserved exactly as written. Do NOT summarize, paraphrase, condense, or restructure the scope specification into the Enhanced Prompt's generic fields (deliverables, constraints, etc.). The scope specification IS the enhanced prompt's core content when scope is not `custom`. Store the full verbatim text in the checkpoint's `enhanced_prompt.scope_specification` field and pass it to the orchestrator in full. Summarizing the scope specification causes downstream agents to receive incomplete instructions, resulting in limited implementation, shallow audits, and missing integrations.
+
+#### Backend Scope Specification (included when `layers` contains `"backend"`)
+
+```markdown
+## BACKEND
+
+### Task
+Implement all backend features to production-ready state, then audit and fully integrate. This applies whether the codebase is **greenfield** (building from scratch) or **existing** (completing and fixing what's already there):
+
+- **Greenfield**: Design and build the full backend — models, migrations, services, controllers, routes, authentication, authorization, seed data, and configuration. Every feature described in the task description or discovered during research must be fully implemented with real persistence and real integrations.
+- **Existing codebase**: Complete all partially implemented features, replace all simulations/placeholders/in-memory workarounds with real implementations, and fix every gap, error, and integration issue.
+
+In both cases: this is a production system — no in-memory workarounds, no simulations, no fake data, no placeholder logic. Everything must use real implementations with proper persistence.
+
+### Steps
+
+1. **Branch** — Create a feature branch for this implementation, integration, and audit work.
+
+2. **Implement All Features** — Build or complete every backend feature to production-ready state:
+   - **Greenfield**: Design and create all models, migrations, services, controllers, routes, authentication, authorization, middleware, seed data, and configuration from scratch based on the task requirements and research findings.
+   - **Existing codebase**: Walk through every module and complete partially implemented or stubbed features.
+   - Write real business logic — no placeholders, no TODOs, no "coming soon".
+   - Create all required API endpoints, services, models, and migrations.
+   - Implement proper error handling, input validation, and response formatting.
+   - Wire up all dependencies, database connections, and service integrations.
+   - Ensure every feature has a complete, working data path from API request through to persistent storage and back.
+   - If a feature is defined in models/schemas but has no controller or route — build it.
+   - If a feature has a route but returns hardcoded or mock data — implement the real logic.
+   - If a feature exists but is missing CRUD operations — complete all operations.
+
+3. **Full Codebase Audit** — After implementation, walk through every module again and assess:
+   - Is it fully implemented and functionally usable end-to-end?
+   - Are there missing validations, broken logic, or incomplete integrations?
+   - Are all required API endpoints exposed, documented, and working correctly?
+   - Does it use in-memory storage, simulated data, mock services, or placeholder logic instead of real implementations?
+   - Are there remaining TODO, FIXME, HACK, or PLACEHOLDER comments marking incomplete work?
+   - Document what works, what doesn't, and what's still missing.
+
+4. **Eliminate All Simulations & In-Memory Workarounds** — Identify and replace every instance of:
+   - In-memory data stores → real persistent storage (database, cache, or appropriate backing service)
+   - Simulated or mocked service calls → real service integrations
+   - Hardcoded, fake, or sample data → real data flows
+   - Placeholder or stub logic → fully functional implementations
+   - Every data path must read from and write to proper persistent storage. Nothing should be lost on restart.
+
+5. **Fix All Gaps** — For every remaining issue found, fix it. This includes:
+   - Missing or broken configurations
+   - Missing environment variables
+   - Incomplete or broken integrations between internal services and modules
+   - Validation gaps on all inputs and API boundaries
+   - Bugs and logic errors
+   - Database migrations — ensure all are up to date and run cleanly
+   - Scripts — seed scripts, setup scripts, and utility scripts must all work
+   - Any feature that is still partially implemented — complete it
+   - Default users, roles, groups, and permissions — ensure the platform has all required seed data to be functional and secure on first install
+   - Startup integrity — ensure there are no errors during application restart or cold boot
+   - Service accounts and inter-service credentials — ensure all services authenticate with correct, persisted credentials
+   - Nothing should remain deferred or broken.
+
+6. **Clean Build** — Ensure all build processes (Docker images, compilation, bundling) complete cleanly with zero errors and zero warnings.
+
+7. **Verify End-to-End** — Confirm the entire backend infrastructure is running and all features are fully operational and integrated. The system must be stable and production-ready. Verify that all data persists correctly across service restarts.
+
+### Backend Constraints
+- This is an implement-then-audit pass — first build or complete all features, then audit and fix everything.
+- **Greenfield**: Build every module from scratch — do not skip features because "there's nothing to audit yet." The implementation step IS the primary work.
+- **Existing codebase**: Scope covers every module and feature — not a single section.
+- Zero tolerance for in-memory storage, simulations, mock data, or placeholder logic.
+- Everything must use real implementations with proper persistence.
+- All API responses must use consistent formats (status codes, error shapes, pagination).
+```
+
+#### Frontend Scope Specification (included when `layers` contains `"frontend"`)
+
+```markdown
+## FRONTEND
+
+### Task
+Implement all frontend features to production-ready state, then audit and fully integrate. This applies whether the frontend is **greenfield** (building from scratch) or **existing** (completing and fixing what's already there):
+
+- **Greenfield**: Design and build the complete frontend application — application shell, navigation, routing, authentication flows, and every page/form/view needed to consume all backend API endpoints. Set up the project structure, component library, state management, and API client layer from scratch.
+- **Existing codebase**: Complete all partially implemented pages and components, replace all mock data/placeholder screens with real API integrations, and fix every gap, error, and integration issue.
+
+In both cases: the frontend must consume all backend API endpoints. No fake data, no mock APIs, no placeholder screens. The **primary design goal** is that a 10-year-old child could use this system without any supervision or training — minimum effort, maximum clarity, zero confusion.
+
+### Core Design Principles
+
+#### 1. Minimum Typing, Maximum Selection
+Reduce user labour and eliminate input errors:
+- **Dropdowns / Select boxes** for every field that has a known set of values. Load all options from the backend API (roles, statuses, categories, types, priorities, users, groups, permissions, and any other reference data).
+- **Checkboxes** for boolean fields, toggles, and multi-select scenarios.
+- **Radio buttons** for mutually exclusive choices with a small number of options.
+- **Date pickers** for all date and datetime fields. No manual date typing ever.
+- **Time pickers** for all time fields.
+- **Toggle switches** for enable/disable, active/inactive, yes/no states.
+- **Auto-complete / searchable dropdowns** for large lists (e.g., user lists, product lists, long reference tables).
+- **Sliders** for numeric ranges where applicable (e.g., priority levels, percentage values).
+- **Colour pickers** for any colour-related fields.
+- **File upload drag-and-drop zones** for any file attachment fields.
+- **Text boxes only when absolutely unavoidable** — free-text descriptions, names, notes, and search queries. Minimise these aggressively. If a value exists in the system, it must be selected, not typed.
+
+#### 2. Bulk Operations
+Reduce repetitive work on every list and table:
+- **Multiple delete** — Select multiple items via checkboxes and delete all at once with a single confirmation dialog.
+- **Multiple create** — Allow batch creation where applicable (e.g., adding multiple items, assigning multiple users/roles/permissions in one action).
+- **Select All / Deselect All** checkbox on every list and table header.
+- **Bulk status change** — Select multiple items and change their status in one action via a dropdown.
+- **Bulk assign** — Select multiple items and assign them to a user or group in one action.
+- **Bulk export** — Select multiple items and export them (CSV, PDF, etc.).
+- **Bulk actions toolbar** — When items are selected, show a floating or sticky toolbar with all available bulk actions.
+
+#### 3. Tabs for Logical Grouping
+Use tabbed layouts on pages when:
+- A page has more than one logical section (e.g., a record detail page: Details tab, Related Items tab, History/Activity tab, Settings tab).
+- A page manages related but distinct datasets.
+- It prevents the user from scrolling through a very long single page.
+- Each tab should load its own data independently and show a loading indicator.
+- The active tab should be reflected in the URL so the user can bookmark or share a direct link to a specific tab.
+
+#### 4. Pre-load Everything from the Backend
+The frontend must eliminate guesswork:
+- On page load, fetch all dropdown options, reference data, and lookup values from the backend API.
+- Never require the user to remember or manually type values that already exist in the system.
+- Show **loading states** (spinners, skeletons, or shimmer effects) while data is being fetched.
+- Cache dropdown and reference data where appropriate to avoid redundant API calls within the same session.
+- Display **meaningful labels** everywhere — not IDs, codes, or UUIDs. Show human-readable names.
+- Dropdown options should show relevant context (e.g., "John Smith — Admin" not just "John Smith").
+
+#### 5. Child-Friendly Usability
+Design so a 10-year-old can use it without help:
+- **Clear, simple labels** on every field — no jargon, no abbreviations, no technical terms.
+- **Tooltips / help icons (?)** on every field explaining what it does in plain, simple language.
+- **Inline validation** with friendly error messages as the user interacts (e.g., "Please pick a role from the list" not "ValidationError: role_id cannot be null").
+- **Confirmation dialogs** before any destructive or irreversible action (delete, bulk delete, status change, permanent actions).
+- **Success and failure toast notifications** for every action the user performs.
+- **Undo capability** where feasible (e.g., after a delete, show an "Undo" option for a few seconds).
+- **Consistent layout across every page** — same patterns everywhere (list view → detail view → edit view → back to list).
+- **Breadcrumbs** on every page so the user always knows where they are and how to go back.
+- **Large, clearly labelled buttons** — primary actions visually stand out, secondary actions are subdued, destructive actions are red.
+- **Empty states** — when a list has no data, show a friendly message explaining why and a clear "Create Your First [Item]" button.
+- **Search and filter bars** on every list and table page, using dropdown filters wherever possible instead of free-text search.
+- **Pagination** on all list views with sensible defaults and page size options.
+- **Responsive design** — must work properly on desktop, tablet, and mobile.
+- **Keyboard navigation** — all interactive elements must be reachable and usable via keyboard.
+- **Consistent iconography** — use recognisable icons alongside text labels (e.g., trash icon + "Delete", pencil icon + "Edit").
+- **No dead ends** — every page must have a clear next action or a way to navigate away.
+- **Wizard/stepper flows** for complex multi-step creation processes — break them into simple, numbered steps with progress indicators.
+
+#### 6. User Context in the Frontend
+The frontend must be aware of who is using it:
+- Show and hide features, pages, and menu items based on the logged-in user's **roles and permissions** (fetched from the backend).
+- Pre-fill the current user's information where relevant (e.g., "Created By", "Assigned To Me" defaults).
+- Display the user's name, role, and avatar/initials in the header or navigation bar.
+- Filter data views based on the user's access level — only show what they are allowed to see and do.
+- Respect permission boundaries — **disable or hide** buttons, actions, and menu items the user does not have permission for. Never show a button that will return a 403 error.
+- Show a personalised dashboard or landing page based on the user's role.
+- Session management — handle token expiry, session timeout, and re-authentication gracefully with user-friendly prompts.
+
+### Frontend Steps
+
+1. **Map Every Feature to UI** — Go through every backend API endpoint and module. Identify every screen, form, list, detail view, and interaction needed to fully expose that feature to the user.
+
+2. **Build All Pages** — For each feature or module, build:
+   - **List / Table view** — with search bar, dropdown filters, column sorting, bulk select checkboxes, bulk action toolbar, pagination, and empty state.
+   - **Create form** — with dropdowns, checkboxes, date pickers, toggles, and auto-complete fields. Text inputs only where unavoidable. Include inline validation and help tooltips.
+   - **Edit form** — same layout as create, pre-populated with existing data from the API.
+   - **Detail / View page** — read-only display with tabs for logical sections. Show related data, activity history, and metadata.
+   - **Delete** — single delete with confirmation dialog, and bulk delete via checkbox selection.
+
+3. **Connect to Backend APIs** — Every page must:
+   - Call the real backend API endpoints.
+   - Handle loading, error, empty, and forbidden states gracefully.
+   - Submit real data and display real responses.
+   - No fake data, no mocked API calls, no hardcoded values anywhere.
+
+4. **Navigation and Layout** — Build a complete application shell:
+   - Sidebar or top navigation with menu items grouped logically.
+   - Menu visibility controlled by user roles and permissions.
+   - Breadcrumbs on every page.
+   - Global search if applicable.
+   - User profile menu in the header with logout, settings, and profile links.
+
+5. **Test End-to-End** — Verify every user flow works from the frontend through to backend persistence and back. Every create, read, update, delete, bulk action, filter, and search must work against the real backend.
+
+### Frontend Constraints
+- Scope covers every feature and API endpoint in the backend — every feature gets a complete, fully functional UI.
+- **Greenfield**: Build the entire frontend application from scratch — do not skip features because "there's no existing UI." The implementation step IS the primary work. Set up project scaffolding, routing, auth, and every page.
+- **Existing codebase**: Complete and fix every existing page and component.
+- Zero fake data, mock APIs, placeholder screens, or "coming soon" pages.
+- The frontend must be fully functional against the real backend.
+- Every dropdown, list, and selection component must load its options from the backend API.
+- Minimise text input fields — if a value can be selected from existing data, it must be a selection component, not a text box.
+- Bulk operations (create, delete, update, assign, export) must be supported on every list view.
+- Tabs must be used wherever a page has multiple logical sections.
+- The system must be usable by a child — simple, clear, forgiving, and impossible to get lost in.
+- All user-facing text must be in plain language. No technical jargon.
+- Every action must provide visual feedback (loading indicators, success toasts, error messages).
+- Permission-gated UI — never show the user something they cannot use.
+```
+
+#### Full Stack Scope Specification (when `resolved` is `"fullstack"`)
+
+When scope is `fullstack`, include **both** the Backend Scope Specification and the Frontend Scope Specification above, prefixed with:
+
+```markdown
+## Scope
+**Backend** and **Frontend** — covers every module, service, feature, and/or endpoint in the existing codebase.
+```
+
+#### Scope-Specific Default Objectives
+
+When the user provides only a flag with no additional task description, use these defaults:
+
+| Scope | Default Objective |
+|-------|------------------|
+| `backend` | Build or complete all backend features to production-ready state, then audit and fully integrate — real implementations, proper persistence, zero placeholders (works for both greenfield and existing codebases) |
+| `frontend` | Build or complete all frontend features to production-ready state, then audit and fully integrate — every UI page, form, and API integration with child-friendly usability (works for both greenfield and existing codebases) |
+| `fullstack` | Build or complete all features across backend and frontend to production-ready state, then audit and fully integrate — full stack, zero placeholders, production-ready end-to-end (works for both greenfield and existing codebases) |
 
 ## Step 2: Initialize Session Checkpoint
 
@@ -252,6 +526,11 @@ Write the initial checkpoint file to `~/.claude/sessions/<session-id>.json`:
   "iteration": 0,
   "max_iterations": 15,
   "original_input": "<raw user input>",
+  "scope": {
+    "flag": "<F|B|S|null>",
+    "resolved": "<frontend|backend|fullstack|custom>",
+    "layers": ["<backend>", "<frontend>"]
+  },
   "permissions": {
     "autonomous_operation": true,
     "session_folder_access": true,
@@ -265,7 +544,8 @@ Write the initial checkpoint file to `~/.claude/sessions/<session-id>.json`:
     "constraints": ["..."],
     "success_criteria": ["..."],
     "out_of_scope": ["..."],
-    "assumptions": ["..."]
+    "assumptions": ["..."],
+    "scope_specification": "<VERBATIM full text of the Backend and/or Frontend scope specification sections — stored word-for-word, not summarized. Empty string when scope is 'custom'.>"
   },
   "task_ids": [],
   "parent_task_id": "<TaskCreate ID>",
@@ -323,6 +603,20 @@ Task(
     PARENT_TASK_ID: <parent_task_id>
     SESSION_ID: <session_id>
     ITERATION: <N> of <max_iterations>
+    SCOPE: <resolved scope — frontend|backend|fullstack|custom>
+    SCOPE_LAYERS: <layers array — e.g., ["backend", "frontend"]>
+
+    ## Scope Context
+    {{#if scope.resolved != "custom"}}
+    This session has a SCOPE RESTRICTION. Only work on layers listed in SCOPE_LAYERS.
+    - If SCOPE is "backend": Focus exclusively on backend modules, services, APIs, migrations, and infrastructure. Do NOT create or modify frontend files.
+    - If SCOPE is "frontend": Focus exclusively on frontend pages, components, forms, and API integrations. Do NOT create or modify backend files (except reading API contracts for integration).
+    - If SCOPE is "fullstack": Both backend and frontend are in scope. Backend work should generally precede frontend work (frontend depends on working APIs).
+    - The enhanced prompt below contains detailed scope-specific specifications. Follow them precisely.
+    {{else}}
+    No scope restriction — follow the enhanced prompt as written.
+    {{/if}}
+
     ## Autonomous Mode Permissions (pre-granted by user)
     The user granted autonomous operation at session start. You MUST:
     - Operate without asking for routine confirmations (MAIN-008 enforced)
@@ -352,7 +646,23 @@ Task(
     **NEVER** call a tool and return without outputting what happened.
 
     ## Enhanced Prompt
-    <Include full enhanced prompt from Step 1>
+
+    **Objective**: <enhanced_prompt.objective from checkpoint>
+
+    **Context**: <enhanced_prompt.context from checkpoint>
+
+    **Assumptions**: <enhanced_prompt.assumptions from checkpoint>
+
+    **Out of Scope**: <enhanced_prompt.out_of_scope from checkpoint>
+
+    ## Scope Specification (VERBATIM — follow every bullet point precisely)
+
+    <Include the FULL VERBATIM text from enhanced_prompt.scope_specification in the checkpoint.
+     This is the complete Backend and/or Frontend specification with all steps, design principles,
+     constraints, and detailed instructions. Do NOT summarize or abbreviate — paste the entire
+     scope_specification field contents here word-for-word. If scope is "custom" and
+     scope_specification is empty, include enhanced_prompt.deliverables and
+     enhanced_prompt.constraints instead.>
 
     ## CRITICAL: Tool Availability
     TaskCreate, TaskList, TaskUpdate, and TaskGet are NOT available to you.
@@ -640,6 +950,7 @@ Compare the last `STALL_THRESHOLD` entries in `iteration_history`:
 ## Auto-Orchestration Complete
 
 **Session**: <session_id>
+**Scope**: <resolved scope — frontend|backend|fullstack|custom>
 **Status**: <terminal_state>
 **Iterations**: <N> of <max_iterations>
 ### Task Summary
