@@ -13,6 +13,12 @@ triggers:
 
 Analyze source dependencies across shell and Python modules, detect circular imports, and validate layered architecture constraints.
 
+## Before You Begin — Load Reference Docs
+
+Read the following reference file(s) before proceeding with any workflow step:
+
+- Read `references/layer-rules.md` — Strict layered import rules that prevent circular dependencies and define which layers may import from which.
+
 ## Capabilities
 
 - **Dependency Parsing** — Extract `source` statements (shell) and `import` statements (Python)

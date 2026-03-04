@@ -89,9 +89,17 @@ PROPOSED_ACTIONS:
 
 ## Boot Sequence (MANDATORY — execute before any other work)
 
+**Step -1 (PRE-BOOT — MANDATORY FIRST ACTION):** Output `[PRE-BOOT] Writing proposed-tasks.json...`
+Before any other action, write `.orchestrate/<SESSION_ID>/proposed-tasks.json` containing task proposals for all pipeline stages. This file MUST exist before the orchestrator spawn completes so auto-orchestrate can read it in Step 4.2. If no new tasks are being proposed this iteration, write an empty proposals object:
+```json
+{"session_id": "<SESSION_ID>", "iteration": "<N>", "tasks": []}
+```
+All output files MUST use date-prefixed filenames: `YYYY-MM-DD_<descriptor>.<ext>`.
+Output: `[PRE-BOOT] proposed-tasks.json written to .orchestrate/<SESSION_ID>/proposed-tasks.json`
+
 **Step 0 (BOOT-INFRA):** Output `[BOOT] Setting up session infrastructure...`
 Spawn `session-manager` (max_turns: 10):
-> "Boot infrastructure setup. SESSION_ID: <session_id>. Ensure `~/.claude/sessions/` exists. Probe manifest at `{{MANIFEST_PATH}}` — if >200 entries, rotate per MAN-002. Return JSON: {session_dir_ready, session_id, session_checkpoint_exists, manifest_rotated, manifest_entry_count}."
+> "Boot infrastructure setup. SESSION_ID: <session_id>. Ensure `.orchestrate/<session_id>/` exists in project cwd (primary checkpoint dir). Ensure `~/.claude/sessions/` exists (legacy fallback). Probe manifest at `{{MANIFEST_PATH}}` — if >200 entries, rotate per MAN-002. Return JSON: {session_dir_ready, session_id, session_checkpoint_exists, manifest_rotated, manifest_entry_count}."
 
 Output: `[BOOT] Session infrastructure ready. Manifest entries: <N>`
 
@@ -145,6 +153,8 @@ Users see ONLY your output — subagent activity is invisible. Silence = perceiv
 
 **Rules**: Never leave a tool call without a progress line. Always emit `[STAGE N] Spawning...` BEFORE and `[STAGE N] completed` AFTER every spawn.
 
+**VERBOSE-001**: Every `[STAGE N] completed` line MUST include a `Key findings:` suffix with a single sentence summarising what the subagent returned. If the subagent returned no usable output, write: `Key findings: No output — will retry.` Never omit this suffix. Every progress line MUST include quantitative data where available (task counts, file names, error counts). Generic lines like "Processing..." without data are violations.
+
 ## Execution Loop
 
 ```
@@ -168,16 +178,33 @@ while REMAINING_BUDGET > 0:
     # 1. SFI-001: implementer tasks must target exactly 1 file → else route to epic-architect
     # 2. MAIN-013: implementer tasks must have dispatch_hint → else route to epic-architect
     # 3. PRE-IMPL-GATE: stages 0,1,2 must be complete before implementation
-    # 4. BUDGET-RESERVATION: if REMAINING_BUDGET <= POST_IMPL_RESERVED, block impl tasks
+    # 4. SEQUENTIAL-STAGE-GATE: Do NOT spawn Stage N+1 while any Stage N task is pending/in-progress.
+    #    Check all tasks with stage < task.stage — if any are not completed, skip this task and
+    #    process the incomplete prior-stage task first. Output: "[GATE] Blocking Stage {N} — Stage {N-1} incomplete."
+    # 5. BUDGET-RESERVATION: if REMAINING_BUDGET <= POST_IMPL_RESERVED, block impl tasks
 
     # SPAWN with per-stage constraint block (see Spawn Templates)
     output(f"[STAGE {stage}] Spawning {agent} for: \"{task.subject}\"...")
     spawn_subagent(agent, task, extra_prompt=constraint_block, max_turns=TURN_LIMIT)
     output(f"[STAGE {stage}] {agent} completed. Key findings: {key_findings}")
 
-    # POST-IMPL: Zero-error gate (MAIN-006)
+    # POST-IMPL: Zero-error gate with fix loop (MAIN-006)
     if agent in ["implementer", "library-implementer-python"]:
-        loop: spawn validator → if errors/warnings > 0 → re-spawn implementer → repeat until clean
+        FIX_ITER = 0
+        MAX_FIX_ITER = 3  # IMPL-009
+        while FIX_ITER < MAX_FIX_ITER:
+            output(f"[FIX-LOOP] Iteration {FIX_ITER + 1}/{MAX_FIX_ITER} — spawning validator...")
+            validation = spawn_validator(task, include_user_journey_testing=True)
+            if validation.errors == 0 and validation.warnings == 0 and validation.journeys_passed:
+                output(f"[FIX-LOOP] PASSED — errors=0, warnings=0, all user journeys passed")
+                break
+            FIX_ITER += 1
+            if FIX_ITER >= MAX_FIX_ITER:
+                output(f"[FIX-LOOP] LIMIT REACHED — {MAX_FIX_ITER} iterations exhausted. Escalating to user.")
+                propose_task("Manual fix required: validator reports errors after 3 fix iterations", blocked=True)
+                break
+            output(f"[FIX-LOOP] FAILED — errors={validation.errors}, warnings={validation.warnings}. Re-spawning implementer to fix...")
+            spawn_implementer(task, fix_findings=validation.findings)
 
     update_task(completed); REMAINING_BUDGET -= 1
     output(f"[PROGRESS] {completed}/{total} done. Next: \"{next_task}\"")
@@ -219,8 +246,15 @@ Follow RES-001–RES-008:
   RES-005: Security-first — check CVEs for packages/docker images
   RES-006: Structured output with all required sections
   RES-007: Manifest entry with key_findings (3–7 one-sentence findings)
-  RES-008: MUST use WebSearch+WebFetch. Codebase-only analysis is a violation.
-Output to: .orchestrate/<SESSION_ID>/research/
+  RES-008: MUST use WebSearch+WebFetch for internet research. Codebase-only analysis is a VIOLATION.
+           The researcher MUST perform at least 3 WebSearch queries per session. Examples:
+           - "<technology> best practices <current_year>"
+           - "<package> CVE vulnerabilities site:nvd.nist.gov"
+           - "<pattern> production implementation examples"
+           If WebSearch tool is unavailable, return status: "partial" with reason "WebSearch unavailable".
+           Do NOT silently skip internet research — it is the researcher's primary purpose.
+Output to: .orchestrate/<SESSION_ID>/stage-0/
+Filename convention: YYYY-MM-DD_<slug>.md
 ```
 
 ### Stage 1: epic-architect
@@ -238,7 +272,7 @@ Do NOT skip any phase. See @_shared/references/epic-architect/output-format.md.
 ```
 Produce technical specifications including: scope definition, interface contracts (inputs/outputs/errors),
 acceptance criteria (testable), dependencies, security considerations.
-OUTPUT_DIR: .orchestrate/<SESSION_ID>/specs/
+OUTPUT_DIR: .orchestrate/<SESSION_ID>/stage-2/
 ```
 
 ### Stage 3: implementer
@@ -264,10 +298,29 @@ If task lacks this context, STOP and return to orchestrator (MAIN-013).
 
 ### Stage 5: validator
 ```
-Validate implementation for compliance and correctness.
-Check: errors, warnings, style violations, security issues.
-Report: errors=N, warnings=N.
-Zero-error gate (MAIN-006): orchestrator will NOT advance until errors=0 AND warnings=0.
+Validate implementation for compliance, correctness, AND user experience.
+Check: errors, warnings, style violations, security issues, user journey flows, feature functionality.
+Report: errors=N, warnings=N, journeys_tested=N, journeys_passed=N.
+Zero-error gate (MAIN-006): orchestrator will NOT advance until errors=0 AND warnings=0 AND all user journeys pass.
+
+MANDATORY: User Journey Testing
+- Test complete end-user flows: CRUD operations, authentication, navigation, error handling.
+- Each journey must be reported as PASS/FAIL with the specific flow tested.
+- If Docker available: use docker-validator for HTTP endpoint testing (Phases 5-6).
+- If Docker unavailable: test via API-level calls (curl, python scripts) or code-level verification.
+- Every feature implemented in this session MUST have at least one user journey test.
+- Advancement is blocked if ANY user journey fails.
+
+MANDATORY: Feature Functionality Testing
+- Verify each feature implemented in the current session works correctly from the end-user perspective.
+- Each feature must be tested against its expected behavior.
+- Report PASS/FAIL per feature with details.
+
+Fix-Loop Protocol (applied by orchestrator after each implementer spawn):
+1. validate — run full validation including user journeys
+2. report — emit errors=N, warnings=N, journey results
+3. fix — if errors > 0 OR warnings > 0 OR journeys failed, re-spawn implementer with findings
+4. revalidate — repeat from step 1 (max 3 iterations per IMPL-009)
 ```
 
 **Stage 5a: docker-validator** — When Docker is available, validator MUST invoke docker-validator as sub-step. Executes 8 phases: Environment Check → State Audit → Checkpoint → Build & Deploy → UX Testing (unauth) → UX Testing (auth) → HTTP Summary → State Restoration. Non-zero errors block Stage 5 completion.
@@ -304,11 +357,15 @@ Before spawning `implementer` or `library-implementer-python`, check for oversiz
 
 ```
 .orchestrate/<session-id>/
-  ├── research/          # Researcher output
-  ├── architecture/      # Epic-architect plans
-  ├── specs/             # Spec-creator output
-  ├── logs/              # Session logs
-  └── proposed-tasks.json
+  ├── stage-0/           # Researcher output (Stage 0)
+  ├── stage-1/           # Epic-architect plans (Stage 1)
+  ├── stage-2/           # Spec-creator output (Stage 2)
+  ├── stage-3/           # Implementer output (Stage 3)
+  ├── stage-4/           # Test writer output (Stage 4)
+  ├── stage-4.5/         # Codebase stats output (Stage 4.5)
+  ├── stage-5/           # Validator output (Stage 5)
+  ├── stage-6/           # Documentor output (Stage 6)
+  └── proposed-tasks.json  # Written FIRST by orchestrator (Step -1)
 ```
 
 SESSION_ID propagation: include in all file paths, return values, and output.

@@ -57,9 +57,11 @@ You are a researcher. Your role is to gather, synthesize, and document informati
 
 ### Research Sources
 
-1. **Web Search** - Current practices, recent developments
-   - Use web search for up-to-date information
-   - Prioritize authoritative sources
+1. **Web Search** (MANDATORY — RES-008) - Current practices, recent developments
+   - Use `WebSearch` tool — at least 3 queries per session
+   - Use `WebFetch` to retrieve full content from search results
+   - If `WebSearch` unavailable: return `status: "partial"`, do NOT skip silently
+   - Prioritize authoritative sources (official docs, nvd.nist.gov for CVEs)
 
 2. **Documentation Lookup** - Official APIs, libraries
    - Use Context7 for framework/library documentation
@@ -175,6 +177,44 @@ Write to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md`:
 - **Feasible** - Achievable within project constraints
 
 ---
+
+---
+
+## Internet Research Mandate (RES-008)
+
+**MANDATORY**: The researcher MUST use `WebSearch` and `WebFetch` tools for internet research on every session. Codebase-only analysis is a VIOLATION of this skill's purpose.
+
+### Minimum Query Requirement
+
+Perform at least **3 WebSearch queries** per session. Example patterns:
+- `"<technology> best practices <current_year>"`
+- `"<package> CVE vulnerabilities site:nvd.nist.gov"`
+- `"<pattern> production implementation examples"`
+- `"<topic> latest standards <year>"`
+
+### WebFetch Usage
+
+For each relevant URL found via WebSearch, use `WebFetch` to retrieve the full content and cite specific sections.
+
+### Partial-Return Protocol
+
+If `WebSearch` tool is unavailable in the current context:
+1. Return `"status": "partial"` with `"reason": "WebSearch unavailable"`
+2. Document which queries WOULD have been run
+3. Do NOT silently skip internet research — explicitly report the gap
+4. Do NOT substitute codebase-only analysis as a replacement for internet research
+
+### Evidence Requirements (RES-001–RES-008)
+
+- RES-001: Evidence-based — cite sources (URL, file path, tool output)
+- RES-002: Current — prefer sources within 3mo–1yr; flag outdated info
+- RES-003: Relevant — directly address research questions
+- RES-004: Actionable — findings must lead to implementation decisions
+- RES-005: Security-first — check CVEs for packages/docker images
+- RES-006: Structured output with all required sections
+- RES-007: Manifest entry with key_findings (3-7 one-sentence findings)
+- **RES-008: MUST use WebSearch+WebFetch for internet research. Codebase-only analysis is a VIOLATION.**
+
 
 ## Skill Chaining
 

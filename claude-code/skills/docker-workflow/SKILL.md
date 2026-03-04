@@ -23,6 +23,15 @@ Patterns, templates, and references for building, running, and debugging Docker 
 
 > **All containers MUST be production-ready: secure, resource-limited, and properly configured.**
 
+## Before You Begin — Load Reference Docs
+
+Read all of the following reference files before proceeding with any workflow step:
+
+- Read `references/compose-patterns.md` — Production-ready Docker Compose configuration patterns and templates.
+- Read `references/dockerfile-patterns.md` — Dockerfile patterns organized by programming language for multi-stage builds.
+- Read `references/security-checklist.md` — Docker image and runtime security checklist covering base image, permissions, and secrets.
+- Read `references/troubleshooting.md` — Common Docker build and runtime issues with diagnostic steps and fixes.
+
 ## Parameters
 
 | Parameter | Required | Description |

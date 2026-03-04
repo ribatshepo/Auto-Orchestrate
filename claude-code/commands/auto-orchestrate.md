@@ -64,6 +64,7 @@ Run an orchestrator in a loop until all tasks complete, with crash recovery via 
 | AUTO-006 | **No direct agent routing in spawn prompt** — Never tell the orchestrator which agent to use for a specific task; routing is the orchestrator's decision. |
 | AUTO-007 | **Iteration history immutability** — Only append to `iteration_history`; never modify existing entries. |
 | PROGRESS-001 | **Always-visible processing** — Output visible progress text at every processing step. Both auto-orchestrate and the orchestrator must emit status lines before/after every tool call, spawn, and processing step. Never leave extended silence. |
+| DISPLAY-001 | **Task board at every iteration** — Every iteration banner (Step 3) and post-iteration summary (Step 4.3) MUST display the full task board showing individual tasks grouped by stage with status icons. Users must never see only stage-level counts without task detail. |
 | SCOPE-001 | **Scope specification passthrough** — When scope is not `custom`, the FULL scope specification (Appendix A/B) must be passed VERBATIM through every layer: auto-orchestrate → orchestrator → every subagent. Never summarize, condense, or omit any part. Every bullet point is a mandatory requirement. |
 | SCOPE-002 | **Scope template integrity** — The scope spec defines the quality bar, not the focus area. A narrow user objective (e.g., "fix the login page") does not reduce the spec — all design principles, steps, and constraints still apply in full. |
 
@@ -73,7 +74,8 @@ Run an orchestrator in a loop until all tasks complete, with crash recovery via 
 |-----------|---------|-------------|
 | `MAX_ITERATIONS` | 100 | Hard cap on orchestrator spawns |
 | `STALL_THRESHOLD` | 2 | Consecutive no-progress iterations before fail |
-| `SESSION_DIR` | `~/.claude/sessions` | Checkpoint directory |
+| `SESSION_DIR` | `~/.claude/sessions` | Legacy session metadata directory (backward compat) |
+| `CHECKPOINT_DIR` | `.orchestrate/<session-id>/` | Primary task checkpoint directory (project-local) |
 | `ORCHESTRATE_DIR` | `.orchestrate` | Per-project session output directory (relative to cwd) |
 | `SCOPE` | `custom` | Stack scope: `frontend`, `backend`, `fullstack`, or `custom` |
 
@@ -90,7 +92,7 @@ If `task_description` is `"c"` (case-insensitive): treat as `resume: true`, skip
 Display once:
 
 > **Autonomous mode requested.** This will:
-> - Create/update files in `~/.claude/sessions/` and `~/.claude/plans/`
+> - Create/update files in `.orchestrate/<session-id>/` (primary checkpoint); `~/.claude/sessions/` used as read-only legacy fallback for crash recovery; and `~/.claude/plans/`
 > - Spawn orchestrator and subagents without further prompts
 > - Make reasonable assumptions instead of asking clarifying questions
 > - Run up to {{MAX_ITERATIONS}} orchestrator iterations
@@ -196,12 +198,15 @@ Format:
 ### 2a. Ensure directories
 
 ```bash
-mkdir -p ~/.claude/sessions
+mkdir -p .orchestrate/${SESSION_ID}
+mkdir -p ~/.claude/sessions  # legacy fallback
 ```
 
 ### 2b. Supersede existing in-progress sessions
 
 ```bash
+# Check .orchestrate/ first (primary), then legacy fallback
+grep -rl '"status": "in_progress"' .orchestrate/*/checkpoint.json 2>/dev/null
 grep -rl '"status": "in_progress"' ~/.claude/sessions/auto-orc-*.json 2>/dev/null
 ```
 
@@ -220,10 +225,10 @@ After supersession, if any superseded session's `original_input` matches current
 Create parent tracking task via `TaskCreate`, then:
 
 ```bash
-mkdir -p .orchestrate/<session-id>/{research,architecture,logs}
+mkdir -p .orchestrate/<session-id>/{stage-0,stage-1,stage-2,stage-3,stage-4,stage-4.5,stage-5,stage-6}
 ```
 
-Write initial checkpoint to `~/.claude/sessions/<session-id>.json`:
+Write initial checkpoint to `.orchestrate/<session-id>/checkpoint.json` (primary); also write to `~/.claude/sessions/<session-id>.json` for legacy tooling compatibility:
 
 ```json
 {
@@ -268,11 +273,42 @@ Write initial checkpoint to `~/.claude/sessions/<session-id>.json`:
 
 Display:
 ```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ITERATION <N> of <max> — Starting...
- Session: <session_id> | Stage: <current_pipeline_stage>
+ Session: <session_id>
+ Pipeline: Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
  Tasks: <completed> done, <pending> pending, <blocked> blocked
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ TASK BOARD (by stage):
+ ┌─ Stage 0 (Research) ─────────────────────────────
+ │  ✓ #2  Research pipeline audit best practices
+ ├─ Stage 1 (Epic Architecture) ────────────────────
+ │  ◷ #3  Decompose audit into epic tasks          [blocked by #2]
+ ├─ Stage 2 (Specifications) ───────────────────────
+ │  ◷ #4  Create technical specifications          [blocked by #3]
+ ├─ Stage 3 (Implementation) ───────────────────────
+ │  ○ #5  Produce comprehensive audit report       [blocked by #4]
+ ├─ Stage 4.5 (Codebase Stats) ────────────────────
+ │  ○ #6  Measure codebase health                  [blocked by #5]
+ ├─ Stage 5 (Validation) ──────────────────────────
+ │  ○ #7  Validate audit report                    [blocked by #6]
+ ├─ Stage 6 (Documentation) ───────────────────────
+ │  ○ #8  Document audit findings                  [blocked by #7]
+ └──────────────────────────────────────────────────
+
+ Legend: ✓ completed  ▶ in_progress  ○ pending  ◷ blocked
+```
+
+**Task board construction**: Query `TaskList`, group tasks by their `dispatch_hint` to determine stage:
+- `researcher` → Stage 0, `epic-architect` → Stage 1, `spec-creator` → Stage 2
+- `implementer`/`library-implementer-python` → Stage 3, `test-writer-pytest` → Stage 4
+- `codebase-stats` → Stage 4.5, `validator` → Stage 5, `documentor` → Stage 6
+- Unknown/no hint → "Uncategorized"
+
+For each task, show: status icon, task ID, subject (truncated to 45 chars), and `[blocked by #N]` if blocked.
+
+```
 Spawning orchestrator — progress will appear below.
 ```
 
@@ -286,20 +322,39 @@ Spawn with `Task(subagent_type: "orchestrator", max_turns: 30)` using the prompt
 
 After orchestrator returns, output progress at EVERY sub-step (PROGRESS-001):
 
-1. **Display output**: `[ITERATION <N>] Orchestrator returned. Processing results...`
+1. **Display output**:
+   ```
+   [ITERATION <N>] Orchestrator returned. Processing results...
+     Stages covered this iteration: <stage list or 'none'>
+     Tasks completed this iteration: <N>
+     Tasks still pending: <N>
+     Pipeline: Stage 0 <✓/✗> → Stage 1 <✓/✗> → Stage 2 <✓/✗> → Stage 3 <✓/✗> → Stage 4.5 <✓/✗> → Stage 5 <✓/✗> → Stage 6 <✓/✗>
+   ```
 
 2. **Process task proposals**: `[STEP 4.2] Processing task proposals...`
    - Read `.orchestrate/<session-id>/proposed-tasks.json` if it exists
    - Create tasks via `TaskCreate`, set up `blockedBy` via `TaskUpdate`
-   - Rename processed file to `proposed-tasks-processed-<iteration>.json`
    - Parse orchestrator return text for `PROPOSED_ACTIONS` JSON blocks
-   - Output: `Created <N> tasks from proposals`
+   - **Enriched processing record**: After processing, write the processed file to `proposed-tasks-processed-<iteration>.json` with **enriched content** — append `"processed_at"`, `"tasks_created"` (IDs of tasks actually created), `"tasks_updated"` (IDs updated), and `"iteration_summary"` (what the orchestrator accomplished). If the proposals file was empty AND PROPOSED_ACTIONS contained no tasks, **skip** creating the processed file entirely (avoid empty files).
+   - Output: `Created <N> tasks, updated <M> tasks from proposals`
 
 3. **Query task statuses**: `[STEP 4.2a] Querying task statuses...` via `TaskList`
 
-4. **Categorize tasks**: `[STEP 4.3] Categorizing tasks...`
+4. **Categorize and display tasks**: `[STEP 4.3] Categorizing tasks...`
    - Categories: `completed`, `pending`, `in_progress`, `blocked_or_failed`, `partial`
-   - Output: `Tasks: <completed> completed, <pending> pending, <in_progress> in progress, <blocked> blocked`
+   - Output summary line: `Tasks: <completed> completed, <pending> pending, <in_progress> in progress, <blocked> blocked`
+   - **Then display the task detail table** (PROGRESS-001 — users must see what changed):
+   ```
+   TASK STATUS UPDATE:
+     ✓ #2  Research pipeline audit best practices          [researcher]     → completed
+     ✓ #3  Decompose audit into epic tasks                 [epic-architect]  → completed
+     ▶ #4  Create technical specifications                 [spec-creator]    → in_progress
+     ○ #5  Produce comprehensive audit report              [implementer]     → pending (blocked by #4)
+     ○ #6  Measure codebase health                         [codebase-stats]  → pending (blocked by #5)
+     ○ #7  Validate audit report                           [validator]       → pending (blocked by #6)
+     ○ #8  Document audit findings                         [documentor]      → pending (blocked by #7)
+   ```
+   Show ALL tasks with: status icon (`✓`/`▶`/`○`/`◷`), task ID, subject (truncated to 45 chars), dispatch_hint in brackets, and status with blockers.
 
 5. **Verify partial tasks**: `[STEP 4.4] Checking for partial tasks...` — Verify manifests with `"status": "partial"` have corresponding continuation tasks.
 
@@ -309,10 +364,10 @@ After orchestrator returns, output progress at EVERY sub-step (PROGRESS-001):
    ```json
    {
      "iteration": N,
-     "tasks_completed": ["id1"],
-     "tasks_pending": ["id3"],
+     "tasks_completed": [{"id": "1", "subject": "Research best practices"}],
+     "tasks_pending": [{"id": "3", "subject": "Create specifications"}],
      "tasks_in_progress": [],
-     "tasks_blocked": [],
+     "tasks_blocked": [{"id": "4", "subject": "Produce audit report", "blocked_by": ["3"]}],
      "tasks_partial_continued": [],
      "task_cap_reached": false,
      "stages_completed_snapshot": [0, 1, 3],
@@ -321,6 +376,7 @@ After orchestrator returns, output progress at EVERY sub-step (PROGRESS-001):
      "summary": "<first 500 chars of orchestrator output>"
    }
    ```
+   **Key change**: `tasks_completed`, `tasks_pending`, `tasks_in_progress`, and `tasks_blocked` now store objects with `id` and `subject` (not just IDs). This enables the iteration timeline in the final report to show which specific tasks were worked on, and provides crash recovery with enough context to display task names without querying TaskList.
 
 8. **Save checkpoint + task snapshot**: `[STEP 4.7] Saving checkpoint...`
    Write `task_snapshot` with ALL tasks (complete replacement each iteration):
@@ -384,18 +440,28 @@ Evaluate in order:
 ## Auto-Orchestration Complete
 **Session**: <session_id> | **Scope**: <resolved> | **Status**: <terminal_state> | **Iterations**: N/max
 
-### Task Summary
-Completed: N | Pending: N | Blocked: N
+### Pipeline
+Stage 0 <✓/✗> → Stage 1 <✓/✗> → Stage 2 <✓/✗> → Stage 3 <✓/✗> → Stage 4.5 <✓/✗> → Stage 5 <✓/✗> → Stage 6 <✓/✗>
+
+### Completed Tasks
+- ✓ [#2] Research pipeline audit best practices (researcher, Stage 0)
+- ✓ [#3] Decompose audit into epic tasks (epic-architect, Stage 1)
+- ✓ [#4] Create technical specifications (spec-creator, Stage 2)
+- ...
+
+### Remaining Tasks (if any)
+- ○ [#7] Validate audit report (validator, Stage 5) — blocked by #6
+- ○ [#8] Document audit findings (documentor, Stage 6) — blocked by #7
 
 ### Mandatory Stages
-| Stage | Status |
-|-------|--------|
-| 0 (researcher) | ✓/✗ |
-| 1 (epic-architect) | ✓/✗ |
-| 2 (spec-creator) | ✓/✗ |
-| 4.5 (codebase-stats) | ✓/✗ |
-| 5 (validator) | ✓/✗ |
-| 6 (documentor) | ✓/✗ |
+| Stage | Status | Task |
+|-------|--------|------|
+| 0 (researcher) | ✓/✗ | #<id> <subject> |
+| 1 (epic-architect) | ✓/✗ | #<id> <subject> |
+| 2 (spec-creator) | ✓/✗ | #<id> <subject> |
+| 4.5 (codebase-stats) | ✓/✗ | #<id> <subject> |
+| 5 (validator) | ✓/✗ | #<id> <subject> |
+| 6 (documentor) | ✓/✗ | #<id> <subject> |
 
 ### Git Commit Instructions
 > Auto-orchestrate NEVER commits automatically. Review and commit manually.
@@ -403,9 +469,19 @@ Completed: N | Pending: N | Blocked: N
 **Suggested commits**: [Git-Commit-Message values]
 
 ### Iteration Timeline
-| # | Completed | Pending | Summary |
-|---|-----------|---------|---------|
+| # | Completed | Pending | Tasks Worked On |
+|---|-----------|---------|-----------------|
+| 1 | 0 | 7 | Proposed all pipeline tasks |
+| 2 | 1 | 6 | ✓ #2 Research (Stage 0) |
+| 3 | 1 | 5 | ✓ #3 Epic decomposition (Stage 1) |
+| ...| ... | ... | ... |
 ```
+
+**Key additions to the final report**:
+- **Completed Tasks** section listing every completed task with ID, subject, agent, and stage
+- **Remaining Tasks** section listing pending/blocked tasks with their blockers
+- **Mandatory Stages** table now includes the specific task ID and subject for each stage
+- **Iteration Timeline** now shows which specific tasks were worked on per iteration
 
 ---
 
@@ -413,7 +489,7 @@ Completed: N | Pending: N | Blocked: N
 
 Runs at the START of every invocation:
 
-1. Ensure `~/.claude/sessions/` exists
+1. Ensure `.orchestrate/` exists in project cwd (primary). Ensure `~/.claude/sessions/` exists (legacy fallback).
 2. Scan for `auto-orc-*.json` with `"status": "in_progress"`
 3. If found: compare `original_input` with current input
    - Same or no new input → **Resume** (see below)
@@ -430,7 +506,26 @@ Runs at the START of every invocation:
    - Set up `blockedBy` dependencies
    - If a task can't be recreated, log `[WARN]` and continue
    - Task IDs may differ — use subject-matching as fallback
-4. Resume from `iteration + 1`, skip Step 1
+4. **Display recovery summary** — show the user exactly where the pipeline is resuming:
+   ```
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    CRASH RECOVERY — Resuming session <session_id>
+    Last checkpoint: iteration <N> at <updated_at>
+    Pipeline: Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    RESTORED TASKS:
+      ✓ #2  Research pipeline audit best practices        [completed]
+      ✓ #3  Decompose audit into epic tasks               [completed]
+      ▶ #4  Create technical specifications               [was in_progress — resuming]
+      ○ #5  Produce comprehensive audit report            [pending, blocked by #4]
+      ○ #6  Measure codebase health                       [pending, blocked by #5]
+      ...
+
+    Resume point: Stage <N>, next task: #<id> "<subject>"
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ```
+5. Resume from `iteration + 1`, skip Step 1
 
 ---
 
@@ -450,10 +545,15 @@ Subagents do NOT have TaskCreate/TaskList/TaskUpdate/TaskGet. Task (spawn) is un
 
 ```
 .orchestrate/<session-id>/
-├── research/            # Researcher output
-├── architecture/        # Epic-architect plans
-├── logs/                # Session logs (incl. docker-checkpoint.json)
-└── proposed-tasks.json  # Task proposals
+├── stage-0/             # Researcher output (Stage 0)
+├── stage-1/             # Epic-architect plans (Stage 1)
+├── stage-2/             # Spec-creator output (Stage 2)
+├── stage-3/             # Implementer output (Stage 3)
+├── stage-4/             # Test writer output (Stage 4)
+├── stage-4.5/           # Codebase stats output (Stage 4.5)
+├── stage-5/             # Validator output (Stage 5)
+├── stage-6/             # Documentor output (Stage 6)
+└── proposed-tasks.json  # Task proposals (written by orchestrator FIRST)
 ```
 
 ---
@@ -630,6 +730,23 @@ Every list and table must support:
 Use `Task(subagent_type: "orchestrator", max_turns: 30)` with this prompt:
 
 ```
+## MANDATORY FIRST ACTION (before boot)
+Before running the Boot Sequence or any other work, write `.orchestrate/<SESSION_ID>/proposed-tasks.json` with your planned task proposals for ALL pipeline stages (0 through 6). This file MUST exist before the orchestrator spawn completes. If you have no new tasks to propose, write an empty proposals object:
+```json
+{"session_id": "<SESSION_ID>", "iteration": <N>, "tasks": []}
+```
+Format for proposals:
+```json
+{
+  "session_id": "<SESSION_ID>",
+  "iteration": <N>,
+  "tasks": [
+    {"subject": "...", "description": "...", "activeForm": "...", "stage": 0, "dispatch_hint": "researcher", "blockedBy": []}
+  ]
+}
+```
+All output files MUST use date-prefixed filenames: `YYYY-MM-DD_<descriptor>.<ext>` (e.g., `2026-03-04_pipeline-research.md`).
+
 ## Auto-Orchestration Context
 
 PARENT_TASK_ID: <parent_task_id>
@@ -720,6 +837,7 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns, session-manager boot, and
 6. If Task tool works: spawn up to 5 subagents; if not: Read/Glob/Grep for analysis ONLY, propose via PROPOSED_ACTIONS
 7. Follow the Execution Loop — don't stop after one piece of work
 8. Progress through pipeline stages in order from current stage
+8a. **Sequential stage gate** — Do NOT spawn any Stage N+1 agent while Stage N tasks are still pending or in-progress. Stages 0 → 1 → 2 must all be complete before any Stage 3 work. Stages 4.5 → 5 → 6 must complete in order after Stage 3.
 9. Report which stages were covered this iteration
 10. Include SESSION_ID in every file path and subagent spawn
 11. FLOW INTEGRITY (MAIN-012): Follow full pipeline, never skip stages
@@ -735,18 +853,21 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns, session-manager boot, and
 **All agents (when scope != custom)**: Include FULL scope spec verbatim in every spawn prompt (SCOPE-001).
 
 **researcher** (Stage 0 — mandatory, always first):
-- Use WebSearch and WebFetch for internet research (RES-008)
+- MUST use WebSearch and WebFetch for internet research (RES-008). Codebase-only analysis is a VIOLATION.
+- Must perform at least 3 WebSearch queries. If WebSearch unavailable, return status: "partial".
 - Check CVEs for packages/docker images (RES-005), check latest stable versions
-- Output to: .orchestrate/<SESSION_ID>/research/
+- Output to: .orchestrate/<SESSION_ID>/stage-0/
+- Filename: YYYY-MM-DD_<slug>.md
 
 **epic-architect** (Stage 1 — mandatory, after researcher):
 - 4-Phase Planning Pipeline: Scope Analysis → Task Decomposition → Dependency Graph → Quick Reference
 - Every task needs dispatch_hint (required) and risk level
 - Must decompose according to full scope spec
+- Output to: .orchestrate/<SESSION_ID>/stage-1/
 
 **spec-creator** (Stage 2 — mandatory, after epic-architect):
 - Technical specs with scope, interface contracts, acceptance criteria
-- Output to: .orchestrate/<SESSION_ID>/specs/
+- Output to: .orchestrate/<SESSION_ID>/stage-2/
 
 **implementer** (Stage 3):
 - IMPL-001: No placeholders. IMPL-006: Enterprise production-ready. IMPL-007: Scope-conditional quality pipeline. IMPL-008: 0 security issues. IMPL-013/MAIN-014: No auto-commit — output Git-Commit-Message in DONE block.
@@ -757,7 +878,12 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns, session-manager boot, and
 
 **validator** (Stage 5 — mandatory after implementation):
 - Zero-error gate: 0 errors, 0 warnings (MAIN-006)
-- When Docker available: invoke docker-validator (8-phase validation)
+- MANDATORY: User journey testing — test complete end-user flows (CRUD, auth, navigation, error handling)
+- MANDATORY: Feature functionality testing — verify each implemented feature works from end-user perspective
+- When Docker available: invoke docker-validator (8-phase validation including UX testing)
+- When Docker unavailable: test via API-level calls (curl/scripts) or code-level verification
+- Fix-loop protocol: validate→report→fix→revalidate (max 3 iterations per IMPL-009)
+- Advancement blocked until: errors=0 AND warnings=0 AND all user journeys pass
 
 **documentor** (Stage 6 — mandatory after stable implementation):
 - Full docs pipeline: docs-lookup → docs-write → docs-review

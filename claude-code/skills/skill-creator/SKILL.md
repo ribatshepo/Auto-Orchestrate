@@ -16,6 +16,13 @@ triggers:
 
 Guide for building effective skills — modular packages that transform Claude from a general-purpose agent into a specialized one by providing procedural knowledge, workflows, and tools.
 
+## Before You Begin — Load Reference Docs
+
+Read all of the following reference files before proceeding with any workflow step:
+
+- Read `references/output-patterns.md` — Output format patterns and examples for skill-generated artifacts.
+- Read `references/workflows.md` — Workflow patterns and lifecycle stages for skill creation and packaging.
+
 ## Core Principles
 
 ### Concise is Key

@@ -19,6 +19,15 @@ triggers:
 
 Patterns, templates, and references for building CI pipelines, deployment automation, and debugging pipeline issues.
 
+## Before You Begin — Load Reference Docs
+
+Read all of the following reference files before proceeding with any workflow step:
+
+- Read `references/github-actions.md` — GitHub Actions patterns and best practices.
+- Read `references/gitlab-ci.md` — GitLab CI patterns and best practices.
+- Read `references/deployment-strategies.md` — Deployment strategy patterns.
+- Read `references/troubleshooting.md` — Common CI/CD issues and solutions.
+
 ## Overview
 
 This skill provides:

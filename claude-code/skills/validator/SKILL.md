@@ -94,6 +94,64 @@ When Docker is available (`docker version` exits 0), invoke `docker-validator` a
 
 **Forward these parameters:** `SESSION_ID`, `TASK_ID`, `DATE`, `SLUG`, `COMPOSE_PATH`, `HEALTHCHECK_ENDPOINT`, `AUTH_ENDPOINT`, `AUTH_CREDENTIALS` (last three from task description if available).
 
+### User Journey Testing
+
+Test complete end-to-end user flows to verify the application works correctly from the end-user perspective. This is **MANDATORY** for Stage 5 validation.
+
+**Test Categories:**
+
+| Category | Description | Example Flows |
+|----------|-------------|---------------|
+| CRUD Operations | Create, Read, Update, Delete for every entity | Create user → view user → edit user → delete user |
+| Authentication | Login, logout, session management, token flows | Register → login → access protected resource → logout |
+| Navigation | Page flows, routing, breadcrumbs, back navigation | Home → list → detail → edit → save → back to list |
+| Error Handling | Invalid input, missing data, permission denied | Submit empty form → see validation error → fix → submit |
+| Edge Cases | Boundary values, concurrent operations, empty states | View empty list → create first item → verify empty state gone |
+
+**Execution:**
+- If Docker available: use docker-validator HTTP endpoint testing (Phases 5-6)
+- If Docker unavailable: test via API-level calls (curl, scripts) or code-level verification
+- Each journey MUST be reported as PASS/FAIL with the specific flow tested
+- Advancement is blocked if ANY user journey fails
+
+**Report format:**
+
+```markdown
+## User Journey Results
+
+| # | Journey | Flow | Status | Details |
+|---|---------|------|--------|---------|
+| 1 | User CRUD | Create → Read → Update → Delete | PASS | All operations returned expected status codes |
+| 2 | Authentication | Login → Access → Logout | FAIL | Login returns 500 on valid credentials |
+
+Totals: N tested, N passed, N failed
+```
+
+### Feature Functionality Testing
+
+Verify that every feature implemented in the current session works correctly. This is **MANDATORY** for Stage 5 validation.
+
+**Process:**
+1. Identify all features implemented in the current session (from implementer DONE blocks)
+2. For each feature, define expected behavior from the end-user perspective
+3. Test each feature against its expected behavior
+4. Report PASS/FAIL per feature with details
+
+**Report format:**
+
+```markdown
+## Feature Functionality Results
+
+| # | Feature | Expected Behavior | Status | Details |
+|---|---------|-------------------|--------|---------|
+| 1 | User registration | POST /api/users creates user, returns 201 | PASS | |
+| 2 | Password reset | POST /api/reset sends email, returns 200 | FAIL | Returns 404 |
+
+Totals: N tested, N passed, N failed
+```
+
+**Gate rule:** ALL features must PASS before Stage 5 is marked complete. Failed features trigger the fix-loop protocol (validate→report→fix→revalidate, max 3 iterations per IMPL-009).
+
 ---
 
 ## Output File Template
@@ -162,6 +220,9 @@ The validator is a **terminal quality-gate skill** — it receives work from exe
 - [ ] Compliance percentage calculated
 - [ ] Critical issues flagged
 - [ ] Docker validation run (if Docker available)
+- [ ] User journey testing completed (all journeys passed)
+- [ ] Feature functionality testing completed (all features passed)
+- [ ] Fix-loop iterations recorded (if any)
 - [ ] Remediation steps provided (if FAIL/PARTIAL)
 - [ ] Report written to `{{OUTPUT_DIR}}`
 - [ ] Manifest entry appended

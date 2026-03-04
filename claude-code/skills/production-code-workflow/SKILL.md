@@ -237,8 +237,10 @@ claude-code/
             └── research-queries.md
 ```
 
-## References
+## Before You Begin — Load Reference Docs
 
-- `references/implementation-patterns.md` - Production code patterns for 6 languages
-- `references/review-checklist.md` - Review criteria by language
-- `references/research-queries.md` - Search strategies and templates
+Read all of the following reference files before proceeding with any workflow step:
+
+- Read `references/implementation-patterns.md` — Production code patterns for 6 languages.
+- Read `references/review-checklist.md` — Review criteria by language.
+- Read `references/research-queries.md` — Search strategies and templates.
