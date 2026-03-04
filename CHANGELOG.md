@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Scope spec pipeline sequence clash** — Scope specifications (Appendix A/B) previously used numbered step lists ("1. Branch", "2. Implement All Features", ...) that competed with the pipeline stage sequence (Stage 0→1→2→3→4.5→5→6), causing the orchestrator to skip research/planning stages when scope flags were used. Renamed "Steps" to "Implementation Quality Criteria (for Stage 3 — NOT a pipeline sequence)", switched from numbered lists to bullet lists, added disambiguation blockquotes, and expanded the NON-NEGOTIABLE box in the orchestrator spawn prompt (Appendix C) to explicitly state that scope spec criteria are for Stage 3/5 only
 - **Session checkpoint path isolation** — Session checkpoints now written to project-local `.orchestrate/<session-id>/checkpoint.json` instead of `~/.claude/sessions/<id>.json`; prevents cross-project interference and keeps all session artifacts co-located with the project
 - **Cross-terminal supersession interference** — Supersession scan now scoped to `.orchestrate/*/checkpoint.json` (current project only) instead of `~/.claude/sessions/auto-orc-*.json` (global); eliminates false-positive supersessions when multiple projects run auto-orchestrate concurrently
 - **Crash recovery legacy support** — Crash recovery protocol reads `.orchestrate/` (primary) then falls back to `~/.claude/sessions/` (read-only legacy) so sessions started before the path change can still be recovered
@@ -25,12 +26,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **No-auto-commit policy** — `dev-workflow` phases G3 and G4 now generate conventional commit messages and display copy-pasteable `git add`/`git commit`/`git push` commands without executing them; the user reviews and runs commands manually
 - **File-based task proposal protocol** — Subagents now communicate task proposals via `.orchestrate/<session-id>/proposed-tasks.json` files and `PROPOSED_ACTIONS` JSON blocks in return values, enabling reliable task management without direct tool access (commit `6993c4b`)
 - **`dispatch_hint` routing field** — Epic-architect assigns `dispatch_hint` to every task, providing explicit routing keys for auto-orchestrate to route tasks to the correct subagent (commit `3fd2cf1`)
-- **`.orchestrate/` session folder structure** — Each auto-orchestrate session creates a per-session directory (`research/`, `architecture/`, `logs/`) for organized output storage (commits `3fd2cf1`, `6993c4b`)
-- **`specs/` in session directories** — `mkdir` now creates `specs/` alongside `research/`, `architecture/`, and `logs/` in each session directory; spec-creator outputs are co-located with other session artifacts
+- **`.orchestrate/` session folder structure** — Each auto-orchestrate session creates a per-session directory with stage-based subdirectories (`stage-0/` through `stage-6/`) for organized output storage
+- **Scope flags (F/B/S)** — Auto-orchestrate supports inline scope flags (`F`=frontend, `B`=backend, `S`=fullstack) that inject full quality specifications (Appendix A/B) into every orchestrator and subagent prompt. Includes default objectives when only a flag is provided
+- **SCOPE-001/SCOPE-002 constraints** — Scope specification passthrough (full verbatim spec through every layer) and scope template integrity (narrow objectives don't reduce the quality bar)
+- **PROGRESS-001 constraint** — Always-visible processing: both auto-orchestrate and orchestrator emit status lines before/after every tool call, spawn, and processing step
+- **DISPLAY-001 constraint** — Task board at every iteration: full task detail grouped by stage with status icons, never stage-level counts alone
+- **Task snapshot in checkpoints** — `task_snapshot` field in checkpoint.json stores full task state (id, subject, status, blockedBy, dispatch_hint) every iteration for crash recovery
+- **Enriched iteration history** — `tasks_completed`, `tasks_pending`, `tasks_in_progress`, and `tasks_blocked` now store objects with `id` and `subject` (not just IDs) for better crash recovery and final report detail
+- **Stage-based session directories** — Session output organized by pipeline stage (`stage-0/` through `stage-6/`) instead of functional names (`research/`, `architecture/`, `specs/`, `logs/`)
 
 ### Changed
 
-- **Stage 0 mandatory** — Orchestrator now mandates Stage 0 research before advancing to epic-architect decomposition (Stage 1); previously optional and only triggered when unknowns existed
+- **Stages 0, 1, 2 mandatory** — Orchestrator now mandates Stages 0 (research), 1 (epic architecture), and 2 (specifications) before advancing to implementation (Stage 3); previously only Stage 0 was mandatory
+- **Max iterations default** — `MAX_ITERATIONS` increased from 15 to 100 for enhanced orchestration capability
 - **Agent count** — System now has 6 specialized agents (was 5): orchestrator, epic-architect, implementer, documentor, session-manager, researcher
 - **dev-workflow G3/G4** — Replaced auto-commit and auto-push with message-generation-only workflow
 - **Orchestrator communication protocol** — Orchestrator now receives task state via spawn prompt (`## Current Task State` section) instead of calling TaskList, and proposes task updates via `PROPOSED_ACTIONS` return value instead of TaskCreate/TaskUpdate (commit `6993c4b`)
