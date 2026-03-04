@@ -22,7 +22,7 @@ arguments:
   - name: max_iterations
     type: integer
     required: false
-    default: 15
+    default: 100
     description: Override the maximum number of orchestrator spawns.
   - name: stall_threshold
     type: integer
@@ -124,23 +124,29 @@ This rule ensures that auto-orchestrate maintains the same input fidelity as if 
 
 Parse the `scope` argument (if provided) to determine which stack layers are in scope. The scope flag controls whether scope-specific audit and implementation specifications are injected into the enhanced prompt (Step 1).
 
-| Flag | Resolved Scope | Description |
-|------|---------------|-------------|
-| `F` or `f` | `frontend` | Frontend only — audit, fix, and build all UI pages, forms, and integrations |
-| `B` or `b` | `backend` | Backend only — audit, fix, and fully integrate all backend modules and services |
-| `S` or `s` | `fullstack` | Full stack — both backend and frontend scopes combined |
-| *(omitted)* | `custom` | No scope injection — use `task_description` as-is |
+| Flag | Resolved Scope | Description | Inline extraction? |
+|------|---------------|-------------|-------------------|
+| `F` or `f` | `frontend` | Frontend only — audit, fix, and build all UI pages, forms, and integrations | `F` yes, `f` explicit `scope` param only |
+| `B` or `b` | `backend` | Backend only — audit, fix, and fully integrate all backend modules and services | `B` yes, `b` explicit `scope` param only |
+| `S` or `s` | `fullstack` | Full stack — both backend and frontend scopes combined | `S` yes, `s` explicit `scope` param only |
+| *(omitted)* | `custom` | No scope injection — use `task_description` as-is | — |
 
-**Flag extraction from task_description**: If the `scope` argument is not provided as a separate parameter, check if the first non-whitespace character of `task_description` is one of `F`, `f`, `B`, `b`, `S`, `s` followed by a space or end-of-string. If so:
+**Flag extraction from task_description**: If the `scope` argument is not provided as a separate parameter, check if the first non-whitespace token of `task_description` is **exactly** one of `F`, `B`, `S` (UPPERCASE ONLY) followed by a space or end-of-string. If so:
 1. Extract the flag character as the scope
 2. Strip the flag (and any following whitespace) from `task_description` to get the clean task text
 3. If `task_description` is empty after stripping (i.e., only the flag was provided), use the scope-specific default objective as the task description
 
+**CRITICAL — Uppercase-only rule for inline flag extraction**: When parsing flags from `task_description`, ONLY accept uppercase letters (`F`, `B`, `S`). Lowercase letters (`f`, `b`, `s`) are ONLY valid when passed via the explicit `scope` parameter. This prevents false positives where normal English words starting with f/b/s (e.g., "fix", "build", "setup", "find", "backend", "something") are incorrectly parsed as scope flags. The lowercase variants exist in the flag table above for use with the explicit `scope` parameter only.
+
 Examples:
 - `/auto-orchestrate S implement all features` → scope=`fullstack`, task=`implement all features`
 - `/auto-orchestrate B` → scope=`backend`, task=*(scope default objective)*
-- `/auto-orchestrate f fix the dashboard` → scope=`frontend`, task=`fix the dashboard`
+- `/auto-orchestrate F fix the dashboard` → scope=`frontend`, task=`fix the dashboard`
+- `/auto-orchestrate fix the dashboard` → scope=`custom`, task=`fix the dashboard` (NOT a flag — "fix" starts with lowercase "f", which is a normal word)
+- `/auto-orchestrate build the API` → scope=`custom`, task=`build the API` (NOT a flag — "build" starts with lowercase "b")
+- `/auto-orchestrate setup everything` → scope=`custom`, task=`setup everything` (NOT a flag — "setup" starts with lowercase "s")
 - `/auto-orchestrate implement auth module` → scope=`custom`, task=`implement auth module`
+- `/auto-orchestrate --scope f fix the dashboard` → scope=`frontend`, task=`fix the dashboard` (lowercase "f" is valid via explicit scope parameter)
 
 Record the resolved scope:
 ```json
@@ -167,7 +173,7 @@ Step 1 (Enhance User Input) is performed INLINE by this command. Do NOT delegate
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `MAX_ITERATIONS` | 15 | Hard cap on orchestrator spawns |
+| `MAX_ITERATIONS` | 100 | Hard cap on orchestrator spawns |
 | `STALL_THRESHOLD` | 2 | Consecutive no-progress iterations before fail |
 | `SESSION_DIR` | `~/.claude/sessions` | Checkpoint directory |
 | `ORCHESTRATE_DIR` | `.orchestrate` | Per-project session output directory (relative to cwd) |
@@ -223,13 +229,51 @@ Transform into a structured prompt:
 
 **Key difference from workflow-plan**: This command does NOT ask clarifying questions. It makes reasonable assumptions and documents them in the "Assumptions" section. This enables fully autonomous operation.
 
+> **NOTE**: The template above is for `custom` scope ONLY (when no scope flag is provided). When a scope flag (F/f/B/b/S/s) is used, the scope specification IS the enhanced prompt — see the Scope-Templated format below.
+
 ### Scope-Specific Enhanced Prompt Injection
 
-If the resolved scope (from Step 0d) is NOT `custom`, inject the appropriate scope-specific specification into the enhanced prompt. The scope specification replaces the generic "Deliverables" and "Constraints" sections with detailed, prescriptive audit and implementation instructions.
+If the resolved scope (from Step 0d) is NOT `custom`, the scope specification IS the enhanced prompt template. The scope specification is the **primary, non-negotiable template** — the user's `task_description` is woven INTO it as the Objective, not the other way around.
 
-**Injection rule**: The user's `task_description` (after flag stripping) provides the **Objective** and any additional context. The scope specification provides the **Deliverables**, **Constraints**, **Success Criteria**, and **Steps**. If the user's task_description adds further requirements, merge them — do not discard user intent.
+**Template-first rule**: The scope specification (Backend, Frontend, or both) serves as a comprehensive template that defines the Deliverables, Steps, Design Principles, Constraints, and Success Criteria. The user's `task_description` (after flag stripping) provides ONLY the **Objective** — a focus point placed at the top of the template. The user's input may ADD additional requirements, context, or constraints to supplement the template, but MUST NOT cause any part of the scope specification to be omitted, summarized, condensed, or deprioritized. Every section, every bullet point, every design principle, every step, and every constraint in the scope specification MUST appear in the enhanced prompt verbatim.
 
-**CRITICAL — Verbatim storage rule**: The scope specification text (Backend and/or Frontend sections below) MUST be stored **verbatim** — word-for-word, with all bullet points, sub-sections, design principles, and constraints preserved exactly as written. Do NOT summarize, paraphrase, condense, or restructure the scope specification into the Enhanced Prompt's generic fields (deliverables, constraints, etc.). The scope specification IS the enhanced prompt's core content when scope is not `custom`. Store the full verbatim text in the checkpoint's `enhanced_prompt.scope_specification` field and pass it to the orchestrator in full. Summarizing the scope specification causes downstream agents to receive incomplete instructions, resulting in limited implementation, shallow audits, and missing integrations.
+**Anti-omission rule**: If the user's `task_description` is short (e.g., "fix the dashboard") or narrow, the scope specification still applies IN FULL. A short or focused user input does not reduce the scope — it merely specifies the focus within the full template. All steps, design principles, constraints, and requirements from the scope specification remain mandatory. The scope specification defines the quality bar and implementation methodology; the user input defines what to apply it to.
+
+**Scope-Templated Enhanced Prompt Format** (used when scope is NOT `custom`):
+
+---
+
+### Enhanced Prompt (Scope-Templated)
+
+**Objective**: [User's task_description — the specific goal being pursued within the scope template]
+
+**Additional User Context** (if the user's input contains extra requirements beyond the objective):
+- [Any extra context, constraints, or requirements from the user's input that go BEYOND the scope specification]
+
+**Assumptions** (autonomous mode — no clarifying questions asked):
+- [Assumption 1]
+- [Assumption 2]
+
+**Out of Scope**:
+- [What this plan explicitly does NOT include]
+
+## Full Scope Specification (VERBATIM — EVERY LINE IS MANDATORY)
+
+[PASTE THE ENTIRE BACKEND AND/OR FRONTEND SCOPE SPECIFICATION HERE — WORD FOR WORD, INCLUDING ALL SECTIONS, ALL BULLET POINTS, ALL DESIGN PRINCIPLES, ALL STEPS, AND ALL CONSTRAINTS. NOTHING MAY BE OMITTED.]
+
+---
+
+**CRITICAL — Verbatim template rule**: The scope specification text (Backend and/or Frontend sections below) MUST be included **verbatim** — word-for-word, with ALL bullet points, sub-sections, design principles, steps, and constraints preserved exactly as written. The scope specification is a non-negotiable template: nothing may be removed, summarized, paraphrased, condensed, or restructured. The user's input ADDS to this template; it NEVER subtracts from it. Store the full verbatim text in the checkpoint's `enhanced_prompt.scope_specification` field and pass it to the orchestrator in full.
+
+**Why this matters**: Summarizing or omitting any part of the scope specification causes downstream agents (researcher, epic-architect, implementer, validator, documentor) to receive incomplete instructions. This results in: limited implementation scope, shallow audits, missing integrations, simplified UI designs that ignore design principles, and incomplete feature coverage. The scope specification exists precisely because these details are critical — every bullet point represents a requirement that was added for a reason.
+
+**Passthrough obligation**: The full scope specification MUST be passed verbatim through every layer:
+1. **auto-orchestrate** stores it verbatim in the checkpoint's `enhanced_prompt.scope_specification`
+2. **auto-orchestrate** includes it verbatim in the orchestrator spawn prompt
+3. **orchestrator** includes the relevant parts verbatim in every subagent spawn prompt
+4. **subagents** (researcher, epic-architect, spec-creator, implementer, etc.) receive and follow the full specification
+
+Failure at any layer breaks the entire chain, causing downstream agents to work without the full context.
 
 #### Backend Scope Specification (included when `layers` contains `"backend"`)
 
@@ -524,7 +568,7 @@ Write the initial checkpoint file to `~/.claude/sessions/<session-id>.json`:
   "updated_at": "<ISO-8601>",
   "status": "in_progress",
   "iteration": 0,
-  "max_iterations": 15,
+  "max_iterations": 100,
   "original_input": "<raw user input>",
   "scope": {
     "flag": "<F|B|S|null>",
@@ -647,22 +691,66 @@ Task(
 
     ## Enhanced Prompt
 
+    {{#if scope.resolved != "custom"}}
+    ### Objective (from user input)
+    <enhanced_prompt.objective from checkpoint>
+
+    ### Additional User Context
+    <enhanced_prompt.context from checkpoint, if any>
+    <enhanced_prompt.assumptions from checkpoint>
+    <enhanced_prompt.out_of_scope from checkpoint>
+
+    ### FULL SCOPE SPECIFICATION (VERBATIM — EVERY LINE IS MANDATORY)
+
+    ╔══════════════════════════════════════════════════════════════════════╗
+    ║  THE FOLLOWING SCOPE SPECIFICATION IS A NON-NEGOTIABLE TEMPLATE.   ║
+    ║  EVERY section, bullet point, design principle, step, and          ║
+    ║  constraint below MUST be followed precisely. The user's Objective ║
+    ║  above specifies the focus; this specification defines the HOW,    ║
+    ║  the WHAT, and the QUALITY BAR.                                    ║
+    ║                                                                    ║
+    ║  NOTHING MAY BE OMITTED, SUMMARIZED, OR DEPRIORITIZED.            ║
+    ║                                                                    ║
+    ║  ALL subagents (researcher, epic-architect, spec-creator,          ║
+    ║  implementer, validator, documentor) MUST receive and follow       ║
+    ║  the relevant parts of this specification in their spawn prompts.  ║
+    ╚══════════════════════════════════════════════════════════════════════╝
+
+    <Include the FULL VERBATIM text from enhanced_prompt.scope_specification in the checkpoint.
+     This is the complete Backend and/or Frontend specification with ALL steps, ALL design
+     principles (Minimum Typing/Maximum Selection, Bulk Operations, Tabs for Logical Grouping,
+     Pre-load Everything, Child-Friendly Usability, User Context), ALL constraints, and ALL
+     detailed instructions.
+
+     PASTE THE ENTIRE scope_specification field contents here WORD-FOR-WORD.
+     Do NOT summarize, abbreviate, condense, or restructure ANY part.
+     Do NOT skip sections because "the user only asked about X" — the full spec applies
+     regardless of how narrow the user's objective is.
+
+     The scope specification defines:
+     - For BACKEND: Task, Steps (1-7), Backend Constraints
+     - For FRONTEND: Task, Core Design Principles (1-6 with all sub-bullets), Frontend Steps (1-5), Frontend Constraints
+     - For FULLSTACK: Both Backend AND Frontend specifications in full
+
+     Every single bullet point in this specification represents a mandatory requirement.
+     If any bullet point is missing from this prompt, the downstream agents will not
+     implement it, resulting in incomplete work.>
+
+    {{else}}
     **Objective**: <enhanced_prompt.objective from checkpoint>
 
     **Context**: <enhanced_prompt.context from checkpoint>
 
+    **Deliverables**: <enhanced_prompt.deliverables from checkpoint>
+
+    **Constraints**: <enhanced_prompt.constraints from checkpoint>
+
+    **Success Criteria**: <enhanced_prompt.success_criteria from checkpoint>
+
     **Assumptions**: <enhanced_prompt.assumptions from checkpoint>
 
     **Out of Scope**: <enhanced_prompt.out_of_scope from checkpoint>
-
-    ## Scope Specification (VERBATIM — follow every bullet point precisely)
-
-    <Include the FULL VERBATIM text from enhanced_prompt.scope_specification in the checkpoint.
-     This is the complete Backend and/or Frontend specification with all steps, design principles,
-     constraints, and detailed instructions. Do NOT summarize or abbreviate — paste the entire
-     scope_specification field contents here word-for-word. If scope is "custom" and
-     scope_specification is empty, include enhanced_prompt.deliverables and
-     enhanced_prompt.constraints instead.>
+    {{/if}}
 
     ## CRITICAL: Tool Availability
     TaskCreate, TaskList, TaskUpdate, and TaskGet are NOT available to you.
@@ -730,9 +818,14 @@ Task(
     13. MANDATORY STAGE ENFORCEMENT: {{#if mandatory_stage_enforcement}}MANDATORY: Required stages are OVERDUE. Prioritize them BEFORE any other work.{{else}}Stages 0, 1, 2, 4.5, 5, and 6 are ALL mandatory. Ensure all are executed before reporting done. Stages 0, 1, 2 MUST run before implementation. Stages 4.5, 5, 6 MUST run after implementation.{{/if}}
     14. Return a PROPOSED_ACTIONS JSON block at the end of your response (see format in orchestrator.md Tool Availability section)
     15. NO AUTO-COMMIT (MAIN-014): NEVER run git commit, git push, or any git write operation. Collect suggested commit messages from subagents (Git-Commit-Message fields) and include them in the session report. Include MAIN-014 in EVERY subagent spawn prompt.
+    16. SCOPE SPECIFICATION PASSTHROUGH (SCOPE-001): When SCOPE is not "custom", include the FULL scope specification (from the "Full Scope Specification" section above) VERBATIM in EVERY subagent spawn prompt. Do NOT summarize it for subagents — pass the entire specification text. Subagents that receive summarized, condensed, or partial scope specifications will produce incomplete work that misses design principles, skips steps, and ignores constraints. The scope specification is a template that defines the quality bar for ALL work in this session.
+    17. SCOPE TEMPLATE INTEGRITY (SCOPE-002): The scope specification defines mandatory requirements regardless of how narrow the user's objective is. If the user asked to "fix the login page" with a Frontend scope flag, the FULL frontend specification (all 6 design principles, all 5 steps, all constraints) still applies. The user's objective narrows the FOCUS, not the QUALITY BAR. Never rationalize omitting scope specification sections because "they don't apply to this specific task."
 
     ## Agent Constraint Enforcement (MANDATORY)
-    When spawning each agent, you MUST include the relevant constraint block in the spawn prompt:
+    When spawning each agent, you MUST include the relevant constraint block in the spawn prompt.
+
+    ### General Rule — Scope Specification Passthrough (ALL agents when SCOPE is not "custom"):
+    Every subagent spawn prompt MUST include the FULL scope specification verbatim when SCOPE is not "custom". The scope specification defines the quality bar, implementation steps, design principles, and constraints that ALL agents must follow. Do NOT summarize it for subagents — pass it in full. This applies to EVERY agent type: researcher (to know what to research), epic-architect (to decompose according to the spec), spec-creator (to write specs that reflect the full requirements), implementer (to build against the full spec), validator (to validate against the full spec), and documentor (to document what was built per the spec).
 
     ### researcher (Stage 0 — MANDATORY, NEVER skip):
     - MUST be spawned FIRST, before any other agent
@@ -748,12 +841,14 @@ Task(
     - Every task MUST have dispatch_hint set (required field)
     - Every task MUST have risk level (high/medium/low)
     - Default dispatch_hint for implementation = `implementer`, for documentation = `documentor`
+    - SCOPE-001: When SCOPE is not "custom", the epic-architect spawn prompt MUST include the FULL scope specification verbatim. The epic-architect uses the scope specification to decompose tasks correctly — ensuring every step, design principle, and constraint from the scope spec is covered by at least one task. Without the full spec, task decomposition will be incomplete.
 
     ### spec-creator (Stage 2 — MANDATORY, NEVER skip):
     - MUST be spawned AFTER epic-architect (Stage 1) completes — do NOT skip Stage 2
     - MUST produce technical specifications with scope, interface contracts, acceptance criteria
     - Specs guide implementation — implementer reads these before writing code
     - OUTPUT_DIR: .orchestrate/<SESSION_ID>/specs/ (overrides default docs/specs/ path)
+    - SCOPE-001: When SCOPE is not "custom", the spec-creator spawn prompt MUST include the FULL scope specification verbatim. Specs must reflect the complete scope requirements — every design principle, every step, every constraint. Specs that don't include scope specification details will produce incomplete implementation guidance.
 
     ### implementer (Stage 3):
     - MUST follow IMPL-001 through IMPL-013 constraints
@@ -764,6 +859,7 @@ Task(
     - IMPL-013: No auto-commit — NEVER run git commit/push. Output Git-Commit-Message in DONE block
     - MAIN-014: Do NOT run git commit, git push, or any git write operation
     - For production code tasks, use `implementer` agent (opus model), NOT `task-executor` skill
+    - SCOPE-001: When SCOPE is not "custom", the implementer spawn prompt MUST include the FULL scope specification verbatim. The scope specification defines implementation steps, design principles (e.g., Minimum Typing/Maximum Selection, Bulk Operations, Child-Friendly Usability for frontend), constraints, and quality bars. If the implementer does not receive the full scope specification, it will produce generic implementations that miss required design patterns, skip mandatory steps, and ignore critical constraints. This is the #1 cause of scope specification non-compliance.
 
     ### documentor (Stage 6 — MANDATORY):
     - MUST be spawned after implementation is stable — do NOT skip Stage 6
@@ -923,7 +1019,7 @@ Evaluate in order:
 |---|-----------|--------|--------|
 | 1 | All tasks `completed` (excluding parent) AND `stages_completed` includes 0, 1, 2, 4.5, 5, and 6 | `completed` | Report success |
 | 1a | All tasks `completed` (excluding parent) BUT `stages_completed` is missing any of 0, 1, 2, 4.5, 5, or 6 | — | Immediately inject missing-stage tasks via TaskCreate for each absent stage (dispatch_hint: `researcher` for 0, `epic-architect` for 1, `spec-creator` for 2, `codebase-stats` for 4.5, `validator` for 5, `documentor` for 6). Then force one more iteration with `mandatory_stage_enforcement: true` in spawn prompt. If still missing after retry, terminate as `completed_stages_incomplete`. |
-| 2 | `iteration >= MAX_ITERATIONS` (15) | `max_iterations_reached` | Report partial completion |
+| 2 | `iteration >= MAX_ITERATIONS` (100) | `max_iterations_reached` | Report partial completion |
 | 3 | No progress for `STALL_THRESHOLD` (2) consecutive iterations | `stalled` | Report stall with diagnostics |
 | 4 | All remaining tasks are `blocked` | `all_blocked` | Report blockers |
 
@@ -1102,6 +1198,10 @@ This keeps session artifacts organized per-project and per-session, separate fro
 | Declaring `completed` without mandatory stages | Violates AUTO-002 — stages 0, 1, 2, 4.5, 5, and 6 must be in `stages_completed` | Check `stages_completed` includes 0, 1, 2, 4.5, 5, and 6 before terminating as `completed` |
 | Allowing pipeline stage to decrease between iterations | Violates AUTO-003 — stage monotonicity | Keep the high-water mark; log regression and record in iteration history |
 | Ignoring overdue mandatory stages after implementation | Violates AUTO-004 — mandatory stages must be enforced if overdue 2+ iterations | Set `mandatory_stage_enforcement: true` and include enforcement directive in spawn prompt |
+| Summarizing scope specification in orchestrator spawn prompt | Violates SCOPE-001 — downstream agents receive incomplete instructions, miss design principles, skip steps, and ignore constraints. This is the #1 cause of scope non-compliance | Pass the FULL scope specification verbatim in the orchestrator spawn prompt and require it be passed to every subagent |
+| Omitting scope specification because user input is narrow | Violates SCOPE-002 — the scope spec defines the quality bar, not the focus area. "Fix the login page" with Frontend flag still requires ALL 6 design principles, ALL 5 steps, ALL constraints | Always include the FULL scope specification regardless of how narrow the user's objective is |
+| Summarizing scope specification for subagent prompts | Violates SCOPE-001 — subagents produce generic implementations that lack required design patterns (e.g., missing bulk operations, missing dropdowns, missing breadcrumbs for frontend scope) | Orchestrator must pass the full scope specification to every subagent spawn prompt |
+| Parsing lowercase first character as a scope flag | False positive — "fix", "build", "setup" etc. get misinterpreted as frontend/backend/fullstack scope flags, corrupting the user's intent | Only parse UPPERCASE letters (F, B, S) as inline scope flags; lowercase (f, b, s) only valid via explicit `scope` parameter |
 
 ## Output
 
