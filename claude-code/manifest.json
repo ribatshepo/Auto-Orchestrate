@@ -502,6 +502,13 @@
       ],
       "has_scripts": true,
       "has_references": false,
+      "chaining": {
+        "produces": ["extraction-plan", "function-groups"],
+        "consumes_from": ["codebase-stats"],
+        "chains_to": ["refactor-executor"],
+        "chains_from": ["codebase-stats"],
+        "patterns": ["producer-consumer", "analyzer-executor"]
+      },
       "path": "skills/refactor-analyzer/SKILL.md"
     },
     {
@@ -516,6 +523,13 @@
       ],
       "has_scripts": true,
       "has_references": true,
+      "chaining": {
+        "produces": ["library-files", "refactoring-report"],
+        "consumes_from": ["refactor-analyzer"],
+        "chains_to": ["validator"],
+        "chains_from": ["refactor-analyzer"],
+        "patterns": ["analyzer-executor", "quality-gate"]
+      },
       "path": "skills/refactor-executor/SKILL.md"
     },
     {
@@ -532,6 +546,13 @@
       ],
       "has_scripts": false,
       "has_references": false,
+      "chaining": {
+        "produces": ["findings", "recommendations"],
+        "consumes_from": [],
+        "chains_to": ["docs-write", "spec-creator"],
+        "chains_from": [],
+        "patterns": ["producer", "producer-consumer", "sequential-pipeline"]
+      },
       "path": "skills/researcher/SKILL.md"
     },
     {
@@ -558,6 +579,13 @@
       ],
       "has_scripts": true,
       "has_references": true,
+      "chaining": {
+        "produces": ["vulnerability-list", "risk-assessment"],
+        "consumes_from": ["codebase-stats"],
+        "chains_to": ["error-standardizer", "validator"],
+        "chains_from": ["codebase-stats"],
+        "patterns": ["producer-consumer"]
+      },
       "path": "skills/security-auditor/SKILL.md"
     },
     {
@@ -647,6 +675,13 @@
       ],
       "has_scripts": true,
       "has_references": false,
+      "chaining": {
+        "produces": ["gaps-list", "test-stubs"],
+        "consumes_from": ["codebase-stats"],
+        "chains_to": ["test-writer-pytest"],
+        "chains_from": ["codebase-stats"],
+        "patterns": ["producer-consumer", "analyzer-executor"]
+      },
       "path": "skills/test-gap-analyzer/SKILL.md"
     },
     {
@@ -661,6 +696,13 @@
       ],
       "has_scripts": true,
       "has_references": false,
+      "chaining": {
+        "produces": ["test-files", "test-report"],
+        "consumes_from": ["test-gap-analyzer"],
+        "chains_to": ["validator", "hierarchy-unifier"],
+        "chains_from": ["test-gap-analyzer"],
+        "patterns": ["analyzer-executor", "quality-gate", "cross-skill-script"]
+      },
       "path": "skills/test-writer-pytest/SKILL.md"
     },
     {

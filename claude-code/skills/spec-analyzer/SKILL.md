@@ -24,6 +24,14 @@ Analyzes specifications for completeness, extracts structured requirements, vali
 
 > **Specifications must be complete, unambiguous, and testable before implementation begins.**
 
+## Before You Begin — Load Reference Docs
+
+Read all of the following reference files before proceeding with any workflow step:
+
+- Read `references/spec-patterns.md` — Specification patterns and templates for structured requirements.
+- Read `references/phase-patterns.md` — Multi-phase implementation planning patterns and decomposition strategies.
+- Read `references/validation-checklist.md` — Validation criteria checklist for specification completeness and quality.
+
 ## Parameters
 
 | Parameter | Required | Description |

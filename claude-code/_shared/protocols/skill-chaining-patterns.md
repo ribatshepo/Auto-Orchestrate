@@ -120,6 +120,33 @@ Task(description: "Execute docs-lookup", prompt: "<SKILL.md content>", subagent_
 | Quality gates between phases | Invoke review skill before completion |
 | Specialized expertise needed | Delegate to domain-specific skill |
 
+### Canonical Pattern: Cross-Skill Script Invocation
+
+When a skill needs to consume another skill's Python script output, invoke the script directly via relative path. This avoids spawning a subagent and keeps the output in the calling skill's context.
+
+**Example: test-writer-pytest invoking hierarchy-unifier's function_discoverer**
+
+```bash
+# From within test-writer-pytest, invoke a sibling skill's script
+python ../hierarchy-unifier/scripts/function_discoverer.py <target_directory>
+```
+
+**Expected output format:** JSON array of discovered functions with file paths, names, and signatures.
+
+**How the consuming skill uses it:**
+1. Capture the JSON output into a variable or pipe
+2. Parse the structured output to inform test generation
+3. Use function signatures to generate accurate test stubs
+
+**When to use this pattern:**
+- The consuming skill needs structured data from another skill's script
+- The script is stateless (no side effects, deterministic output)
+- Spawning a full subagent would be overhead for a single script call
+
+**When NOT to use:**
+- The script requires the full skill context (read references, apply workflow)
+- The script modifies files (use skill chaining instead)
+
 ### Context Management
 
 **Within skill chain (same agent)**:

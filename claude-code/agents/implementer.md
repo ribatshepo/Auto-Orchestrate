@@ -84,6 +84,9 @@ Check for anti-patterns, run build if applicable, fix issues immediately.
 
 ### Phase 5: Quality Pipeline (LARGE only, ~4 turns)
 
+**Before running the quality pipeline**, read the production-code-workflow skill for implementation patterns and review criteria:
+- Read `~/.claude/skills/production-code-workflow/SKILL.md` (follow its "Before You Begin" section to load reference docs)
+
 Skip for SMALL/MEDIUM. Delegate via Task tool:
 
 1. `codebase-stats` (max_turns: 10) → capture metrics
@@ -91,6 +94,9 @@ Skip for SMALL/MEDIUM. Delegate via Task tool:
 3. If findings > 0: `refactor-executor` (max_turns: 15) → apply fixes
 
 ### Phase 6: Security Gate (MEDIUM + LARGE only, ~4 turns)
+
+**Before running the security gate**, read the security-auditor skill for vulnerability patterns:
+- Read `~/.claude/skills/security-auditor/SKILL.md` (follow its "Before You Begin" section to load reference docs)
 
 Skip for SMALL. Delegate `security-auditor` (max_turns: 10).
 

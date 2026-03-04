@@ -61,7 +61,8 @@ ACTIVE valid ops: /workflow-focus, /workflow-dash, /workflow-next, /workflow-pla
 
 | Principle | Implementation |
 |-----------|----------------|
-| Session Isolation | Each session uses its own checkpoint: `~/.claude/sessions/<SESSION_ID>-tasks.json` |
+| Session Isolation | Each session uses its own checkpoint: `.orchestrate/<SESSION_ID>/<SESSION_ID>-tasks.json` (primary) |
+| Legacy Fallback | If `.orchestrate/` not available: `~/.claude/sessions/<SESSION_ID>-tasks.json` |
 | No Cross-Pollution | Tasks in session A never appear in session B |
 | Backward Compat | No SESSION_ID → fallback `~/.claude/sessions/workflow-tasks.json` |
 | ID Propagation | SESSION_ID passed to all workflow-* skills via spawn context |
@@ -71,7 +72,8 @@ ACTIVE valid ops: /workflow-focus, /workflow-dash, /workflow-next, /workflow-pla
 When delegating to workflow-* skills, MUST pass:
 ```
 SESSION_ID: <session-id>
-TASK_CHECKPOINT_PATH: ~/.claude/sessions/<session-id>-tasks.json
+TASK_CHECKPOINT_PATH: .orchestrate/<session-id>/<session-id>-tasks.json
+TASK_CHECKPOINT_FALLBACK: ~/.claude/sessions/<session-id>-tasks.json
 ```
 
 ### Concurrent Sessions
@@ -83,9 +85,10 @@ Two terminals with different SESSION_IDs get isolated checkpoints, isolated Task
 When spawned by orchestrator with boot-infrastructure prompt, handles filesystem setup the orchestrator must not perform directly.
 
 ### Operations
-1. **Session dir**: `mkdir -p ~/.claude/sessions/`
-2. **Project .orchestrate/ dirs** (if SESSION_ID provided): Create `.orchestrate/<SESSION_ID>/{research,architecture,logs}/` in project cwd (NOT `~/.claude/`)
-3. **Session checkpoint probe**: If SESSION_ID exists, check for `~/.claude/sessions/<SESSION_ID>-tasks.json`
+1. **Primary checkpoint dir**: `mkdir -p .orchestrate/<SESSION_ID>/` in project cwd
+2. **Legacy session dir**: `mkdir -p ~/.claude/sessions/` (for backward compat)
+3. **Project .orchestrate/ stage dirs** (if SESSION_ID provided): Create `.orchestrate/<SESSION_ID>/{stage-0,stage-1,stage-2,stage-3,stage-4,stage-4.5,stage-5,stage-6}/` in project cwd (NOT `~/.claude/`)
+4. **Session checkpoint probe**: If SESSION_ID exists, check for `.orchestrate/<SESSION_ID>/<SESSION_ID>-tasks.json` (primary), then `~/.claude/sessions/<SESSION_ID>-tasks.json` (legacy fallback)
 4. **Manifest rotation (MAN-002)**: Read first 5 lines of manifest to estimate entries. If >200: rename to `MANIFEST-<DATE>-archived.jsonl`, filter to non-completed task entries, write new manifest. Log `[MAN-002] Manifest rotated`.
 
 Output progress messages to user, then return JSON:
@@ -130,7 +133,7 @@ Track: tasks completed (count `completed` transitions), focus changes (count /wo
 | Task has blockers | List blockers, suggest alternatives |
 | Empty TaskList | Prompt task creation |
 | Stale cache (>5 min) | Refresh on next op |
-| Crash (empty TaskList + active checkpoint) | Restore from `~/.claude/sessions/<SESSION_ID>-tasks.json` (fallback `workflow-tasks.json`) via PERSIST-002 |
+| Crash (empty TaskList + active checkpoint) | Restore from `.orchestrate/<SESSION_ID>/<SESSION_ID>-tasks.json` (primary), fallback `~/.claude/sessions/<SESSION_ID>-tasks.json`, then `workflow-tasks.json` via PERSIST-002 |
 | Corrupt checkpoint (invalid JSON) | Log warning, skip recovery, start fresh |
 
 ## Inputs/Outputs

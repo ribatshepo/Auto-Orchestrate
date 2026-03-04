@@ -20,8 +20,9 @@ Properly close your current work session with status review.
 
 Determine the checkpoint file path based on session context:
 
-1. If `SESSION_ID` is provided (e.g., from auto-orchestrate or session-manager): use `~/.claude/sessions/<SESSION_ID>-tasks.json`
-2. If `SESSION_ID` is NOT provided (standalone usage): use `~/.claude/sessions/workflow-tasks.json`
+1. If `SESSION_ID` is provided AND `.orchestrate/` exists in cwd (auto-orchestrate context): use `.orchestrate/<SESSION_ID>/tasks.json` (primary)
+2. If `SESSION_ID` is provided but `.orchestrate/` does NOT exist (standalone usage): use `~/.claude/sessions/<SESSION_ID>-tasks.json` (legacy fallback)
+3. If `SESSION_ID` is NOT provided (standalone usage): use `~/.claude/sessions/workflow-tasks.json` (legacy fallback)
 
 Store this resolved path as `CHECKPOINT_PATH` for use in all subsequent steps.
 

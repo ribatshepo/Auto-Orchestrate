@@ -13,6 +13,12 @@ triggers:
 
 Identifies inconsistent error handling patterns in shell and Python and converts them to the standardized `emit_error()` pattern from `error-json.sh` / `lib.layer1.error_json`.
 
+## Before You Begin — Load Reference Docs
+
+Read the following reference file(s) before proceeding with any workflow step:
+
+- Read `references/error-patterns.md` — Reference patterns for consistent error handling across CLI scripts.
+
 ## Parameters
 
 | Parameter | Required | Description | Example |

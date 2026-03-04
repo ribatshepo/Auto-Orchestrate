@@ -18,6 +18,23 @@ triggers:
 
 You are a Python library implementer. Your role is to create well-structured Python library modules with reusable functions following the project's layer architecture.
 
+## Post-Implementation Validation — Layer Checker
+
+After implementing any library module, run the layer dependency checker to verify architecture compliance:
+
+```bash
+python scripts/layer_checker.py <library_dir>
+```
+
+**Example:**
+```bash
+python scripts/layer_checker.py skills/_shared/python
+```
+
+**Passing output:** `All layer dependencies valid. No violations found.`
+
+**If violations are found:** The script reports which files import from disallowed layers. Fix all violations before marking the task complete — Layer N can only import from Layer < N.
+
 ## Capabilities
 
 1. **Layer Modules** - Create lib/layer{N}/*.py files following dependency rules

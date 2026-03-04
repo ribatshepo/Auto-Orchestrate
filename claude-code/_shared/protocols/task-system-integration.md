@@ -134,8 +134,9 @@ Tasks managed by Claude Code's native `TaskCreate`/`TaskList`/`TaskUpdate` tools
 
 ### Checkpoint File
 
-- **Path**: `~/.claude/sessions/<session-id>-tasks.json` (session-scoped)
-- **Fallback Path**: `~/.claude/sessions/workflow-tasks.json` (backward compatibility when no session ID)
+- **Primary Path**: `.orchestrate/<session-id>/tasks.json` (project-local, when SESSION_ID and `.orchestrate/` available)
+- **Legacy Fallback Path**: `~/.claude/sessions/<session-id>-tasks.json` (read-only crash recovery)
+- **Standalone Fallback**: `~/.claude/sessions/workflow-tasks.json` (backward compatibility when no session ID)
 - **Format**: JSON with schema version, timestamp, session state, session ID, and full task array
 
 ```json
@@ -164,16 +165,21 @@ Tasks managed by Claude Code's native `TaskCreate`/`TaskList`/`TaskUpdate` tools
 After any `TaskList` call in a workflow command, MUST save the current task state to a session-scoped checkpoint file. Use the `Write` tool to write the JSON checkpoint. Set `session_state` to `"active"` during normal operation.
 
 **Session-Scoped Path Pattern**:
-- If `SESSION_ID` is available: `~/.claude/sessions/<SESSION_ID>-tasks.json`
+- If `SESSION_ID` is available AND `.orchestrate/` exists in cwd: `.orchestrate/<SESSION_ID>/tasks.json` (primary)
+- If `SESSION_ID` is available but `.orchestrate/` does NOT exist: `~/.claude/sessions/<SESSION_ID>-tasks.json` (legacy fallback)
 - If `SESSION_ID` is NOT available (backward compatibility): `~/.claude/sessions/workflow-tasks.json`
 
 **Implementation**:
 ```python
 # Determine checkpoint path based on session context
-if SESSION_ID:
+import os
+if SESSION_ID and os.path.exists('.orchestrate'):
+    checkpoint_path = f".orchestrate/{SESSION_ID}/tasks.json"
+    legacy_path = f"~/.claude/sessions/{SESSION_ID}-tasks.json"  # read-only fallback only
+elif SESSION_ID:
     checkpoint_path = f"~/.claude/sessions/{SESSION_ID}-tasks.json"
 else:
-    checkpoint_path = "~/.claude/sessions/workflow-tasks.json"  # fallback
+    checkpoint_path = "~/.claude/sessions/workflow-tasks.json"  # standalone fallback
 
 # Write checkpoint
 Write(checkpoint_path, {
@@ -189,7 +195,8 @@ Write(checkpoint_path, {
 
 On session start (`workflow-start`), if `TaskList` returns empty:
 1. Determine checkpoint path:
-   - If `SESSION_ID` exists: Check `~/.claude/sessions/<SESSION_ID>-tasks.json`
+   - If `SESSION_ID` exists AND `.orchestrate/` in cwd: Check `.orchestrate/<SESSION_ID>/tasks.json` (primary)
+   - If primary not found: Check `~/.claude/sessions/<SESSION_ID>-tasks.json` (legacy fallback, read-only)
    - If NOT found or no `SESSION_ID`: Fall back to `~/.claude/sessions/workflow-tasks.json`
 2. If checkpoint exists and `session_state` is `"active"`:
    - Recreate each task via `TaskCreate` (subject, description, activeForm)
@@ -200,11 +207,18 @@ On session start (`workflow-start`), if `TaskList` returns empty:
 **Implementation**:
 ```python
 # Determine which checkpoint to restore
-if SESSION_ID:
+import os
+if SESSION_ID and os.path.exists('.orchestrate'):
+    primary_checkpoint = f".orchestrate/{SESSION_ID}/tasks.json"
+    legacy_checkpoint = f"~/.claude/sessions/{SESSION_ID}-tasks.json"  # read-only fallback
+    fallback_checkpoint = "~/.claude/sessions/workflow-tasks.json"
+elif SESSION_ID:
     primary_checkpoint = f"~/.claude/sessions/{SESSION_ID}-tasks.json"
+    legacy_checkpoint = None
     fallback_checkpoint = "~/.claude/sessions/workflow-tasks.json"
 else:
     primary_checkpoint = "~/.claude/sessions/workflow-tasks.json"
+    legacy_checkpoint = None
     fallback_checkpoint = None
 
 # Try primary, then fallback
@@ -229,8 +243,9 @@ if checkpoint_data and checkpoint_data["session_state"] == "active":
 When saving checkpoints, MUST write the complete JSON content in a single `Write` tool call to the session-scoped checkpoint path. This ensures the file is always in a valid state.
 
 **Path determination follows PERSIST-001 rules**:
-- Session-scoped: `~/.claude/sessions/<SESSION_ID>-tasks.json`
-- Fallback: `~/.claude/sessions/workflow-tasks.json`
+- Primary (with SESSION_ID + .orchestrate/): `.orchestrate/<SESSION_ID>/tasks.json`
+- Legacy fallback (with SESSION_ID, no .orchestrate/): `~/.claude/sessions/<SESSION_ID>-tasks.json`
+- Standalone fallback: `~/.claude/sessions/workflow-tasks.json`
 ---
 
 ## Task Count Limits

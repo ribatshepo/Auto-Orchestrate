@@ -2,7 +2,7 @@
 
 Comprehensive architecture documentation for the Claude Code plugins system.
 
-**Last Updated**: 2026-03-03
+**Last Updated**: 2026-03-04 (pipeline fix: stage-based dirs, SEQUENTIAL-STAGE-GATE, RES-008, VERBOSE-001, proposed-tasks.json PRE-BOOT; zero-error loop FIX_ITER + user journey testing)
 **Components**: 6 agents | 33 skills | 1 command | 4 protocols | 2 templates
 
 ---
@@ -179,7 +179,7 @@ claude-code/
 - No full file reads (manifest summaries only)
 - Respect dependencies (sequential spawning)
 - Context budget under 10K tokens
-- Zero-error gate (no exit until 0 errors/warnings)
+- Zero-error gate (no exit until 0 errors/warnings AND all user journeys pass; explicit FIX_ITER counter, max 3 iterations)
 - Session folder autonomy (full read of ~/.claude/)
 - Minimal user interruption (autonomous decisions)
 - File scope discipline (no out-of-scope file changes)
@@ -189,6 +189,11 @@ claude-code/
 - Decomposition gate (verify dispatch_hint before spawning implementer)
 - No auto-commit (NEVER run git commit, git push, or any git write operation)
 - Always-visible processing (progress output before/after every subagent spawn)
+
+**Additional Rules**:
+- **VERBOSE-001**: Every `[STAGE N] completed` line MUST include a `Key findings:` suffix with a one-sentence summary. Never omit this suffix. Progress lines must include quantitative data (task counts, file names, error counts) where available.
+- **PRE-BOOT (Step -1)**: The orchestrator's MANDATORY FIRST ACTION each iteration is to write `.orchestrate/<SESSION_ID>/proposed-tasks.json` before any other work. If no new tasks are proposed, write an empty proposals object.
+- **SEQUENTIAL-STAGE-GATE**: Do NOT spawn Stage N+1 while any Stage N task is still pending or in-progress. See section 4.3.2.
 
 **Decision Flow**:
 ```
@@ -412,13 +417,20 @@ Each auto-orchestrate session creates a per-session output directory in the proj
 ```
 .orchestrate/
 └── <session-id>/
-    ├── research/              # Researcher output files
-    ├── architecture/          # Epic-architect decomposition plans
-    ├── logs/                  # Session execution logs
-    └── proposed-tasks.json    # Task proposals for auto-orchestrate
+    ├── stage-0/               # Researcher output (Stage 0)
+    ├── stage-1/               # Epic-architect plans (Stage 1)
+    ├── stage-2/               # Spec-creator output (Stage 2)
+    ├── stage-3/               # Implementer output (Stage 3)
+    ├── stage-4/               # Test writer output (Stage 4)
+    ├── stage-4.5/             # Codebase stats output (Stage 4.5)
+    ├── stage-5/               # Validator output (Stage 5)
+    ├── stage-6/               # Documentor output (Stage 6)
+    └── proposed-tasks.json    # Task proposals (written by orchestrator as MANDATORY FIRST ACTION)
 ```
 
 This directory is separate from `~/.claude/sessions/` (checkpoint storage). The `.orchestrate/` folder stores work artifacts that are project-specific, while `~/.claude/sessions/` stores session metadata that is user-specific.
+
+**File naming convention**: All output files written to stage directories MUST use date-prefixed filenames: `YYYY-MM-DD_<descriptor>.<ext>` (e.g. `2026-03-04_research-findings.md`).
 
 **References**:
 - `claude-code/_shared/references/TOOL-AVAILABILITY.md` — Full tool availability matrix and workarounds
@@ -464,6 +476,16 @@ if REMAINING_BUDGET <= POST_IMPL_RESERVED:
 #### POST-IMPL-EXIT-GATE (Budget Exemption)
 
 Budget exhaustion is NEVER a valid reason to skip Stages 5 or 6. Even if REMAINING_BUDGET reaches 0, the validator (Stage 5) and documentor (Stage 6) spawns are **exempt from budget limits**. This ensures the quality gate and documentation always run regardless of how many implementation iterations occurred.
+
+**Enhanced Fix-Loop (FIX_ITER)**: After every implementer spawn, the orchestrator runs an explicit fix loop with an iteration counter (`FIX_ITER`, max `MAX_FIX_ITER = 3`). Each iteration: spawns validator (including user journey testing) → if errors=0 AND warnings=0 AND all journeys pass → exits loop. Otherwise increments FIX_ITER and re-spawns implementer with validator findings. If `FIX_ITER >= MAX_FIX_ITER`, the orchestrator escalates to the user with a blocked task rather than looping indefinitely.
+
+**User Journey Gate**: The validator MUST perform user journey testing (CRUD, authentication, navigation, error handling, edge cases) as part of Stage 5. Advancement is blocked if ANY user journey fails, in addition to the existing errors/warnings=0 requirement.
+
+#### SEQUENTIAL-STAGE-GATE
+
+Enforces strict sequential ordering within the execution loop. The orchestrator MUST NOT spawn a Stage N+1 agent while any Stage N task is still pending or in-progress. When this gate fires, the orchestrator skips the higher-stage task and processes the incomplete prior-stage task first. This prevents out-of-order execution where, for example, epic-architect (Stage 1) would be spawned while researcher (Stage 0) is still running.
+
+Output when gate fires: `[GATE] Blocking Stage {N} — Stage {N-1} incomplete.`
 
 #### HARD SELF-AUDIT GATE
 
@@ -628,16 +650,17 @@ active -> /workflow-end -> ended
 
 **Tools**: Read, Glob, Grep, Bash, WebSearch, WebFetch
 
-**Constraints (RES-001 to RES-007)**:
-- RES-001: Always search before concluding (minimum 3 queries per topic)
-- RES-002: Cite sources (include URLs for every factual claim)
-- RES-003: CVE lookup mandatory when packages or Docker images are mentioned
-- RES-004: Prefer official sources (docs.*, github.com/*, nvd.nist.gov)
-- RES-005: Summarize in key_findings (3–7 sentences max per topic)
-- RES-006: Flag unknowns (mark items needing implementation-time decisions)
-- RES-007: No recommendations without evidence (must cite a source)
+**Constraints (RES-001 to RES-008)**:
+- RES-001: Evidence-based — every claim cites a source (URL, file path, or tool output)
+- RES-002: Current — prefer sources ≤2 years old; explicitly flag older sources
+- RES-003: Relevant — answer only the research questions; no tangential exploration
+- RES-004: Actionable — every finding maps to a specific, prioritized, justified recommendation
+- RES-005: Security-first — always check CVEs (NVD + GitHub Security Advisories) for packages/images
+- RES-006: Structured output — follow the standard output format with all required sections
+- RES-007: Manifest entry — always append to `~/.claude/MANIFEST.jsonl` with 3–7 one-sentence key_findings
+- RES-008: **Mandatory internet research** — MUST use WebSearch+WebFetch every session. Codebase-only analysis is a VIOLATION. MUST perform at least 3 WebSearch queries per session (e.g. `"<tech> best practices <year>"`, `"<package> CVE site:nvd.nist.gov"`, `"<pattern> production examples"`). If WebSearch is unavailable, return `status: "partial"` with reason. Do NOT silently skip internet research.
 
-**Output**: Research findings file at `.orchestrate/<SESSION_ID>/research/<DATE>_<SLUG>.md` and manifest entry with `key_findings`.
+**Output**: Research findings file at `.orchestrate/<SESSION_ID>/stage-0/YYYY-MM-DD_<slug>.md` and manifest entry with `key_findings`.
 
 **Skill Delegation**: None — executes directly using WebSearch and WebFetch tools.
 
@@ -1247,7 +1270,7 @@ Analyze input -> Check existing plans -> Check tasks -> Generate prompt
 
 ### Skills -> Templates
 
-All 32 skills reference `skill-boilerplate.md` sections:
+All 33 skills reference `skill-boilerplate.md` sections:
 - `#task-integration` (20 skills)
 - `#subagent-protocol` (20 skills)
 - `#manifest-entry` (20 skills)
@@ -1554,7 +1577,7 @@ The `_shared/` directory contains cross-cutting resources that skills and agents
 
 | File | Purpose | Reference Count |
 |------|---------|-----------------|
-| `skill-boilerplate.md` | 7-step execution sequence, manifest entry format | 68 references across 32 skills |
+| `skill-boilerplate.md` | 7-step execution sequence, manifest entry format | 68 references across 33 skills |
 | `anti-patterns.md` | Common mistakes to avoid by category | 6 references |
 
 **References** (2 agent-specific directories):
@@ -1607,7 +1630,7 @@ jq '._meta.totalAgents, ._meta.totalSkills, ._meta.totalCommands' claude-code/ma
 
 **Component Verification**:
 - [ ] All 6 agents documented (orchestrator, documentor, epic-architect, implementer, session-manager, researcher)
-- [ ] All 32 skills cataloged
+- [ ] All 33 skills cataloged
 - [ ] All 1 command referenced (auto-orchestrate)
 - [ ] All 4 protocols described
 - [ ] All 2 templates explained
