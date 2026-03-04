@@ -57,6 +57,21 @@ Launch a fully autonomous pipeline with a single command:
 /auto-orchestrate Build a REST API for user management with authentication, tests, and documentation
 ```
 
+**Scope flags** target the pipeline at a specific stack layer with pre-built quality specifications:
+
+```
+/auto-orchestrate B                          # Backend scope (default objective)
+/auto-orchestrate F build the dashboard      # Frontend scope with custom objective
+/auto-orchestrate S implement all features   # Fullstack scope
+```
+
+| Flag | Scope | Description |
+|------|-------|-------------|
+| `B`/`b` | Backend | Models, migrations, services, controllers, routes, auth, persistence |
+| `F`/`f` | Frontend | Pages, forms, API integrations, child-friendly usability |
+| `S`/`s` | Fullstack | Both backend and frontend, production-ready end-to-end |
+| *(omitted)* | Custom | No scope injection — follows user input as-is |
+
 The system will:
 1. Research requirements and unknowns
 2. Decompose the task into an execution plan
@@ -111,8 +126,8 @@ Completion (all mandatory gates passed)
 | Stage | Component | Purpose | Required |
 |-------|-----------|---------|----------|
 | 0 | researcher | Gather unknowns and context | **Yes** |
-| 1 | epic-architect | Decompose into tasks with dependencies | No |
-| 2 | spec-creator | Write technical specifications | No |
+| 1 | epic-architect | Decompose into tasks with dependencies | **Yes** |
+| 2 | spec-creator | Write technical specifications | **Yes** |
 | 3 | implementer | Produce production-ready code | No |
 | 4 | test-writer-pytest | Generate tests | No |
 | 4.5 | codebase-stats | Measure technical debt impact | **Yes** |
@@ -120,15 +135,17 @@ Completion (all mandatory gates passed)
 | 5a | docker-validator | Docker environment validation, UX testing, state checkpointing | **Yes** (sub-step of 5) |
 | 6 | documentor | Write/update documentation | **Yes** |
 
-Stages 4.5, 5, and 6 are mandatory — the pipeline will not terminate until they complete successfully.
+Stages 0, 1, 2, 4.5, 5, and 6 are mandatory — the pipeline will not terminate until they complete successfully (AUTO-002).
 
 ### Constraint System
 
 The framework enforces three constraint sets to maintain quality and predictability:
 
-- **MAIN-001 to MAIN-013** — Orchestrator constraints (delegation-only, context budgets, zero-error gates, file scope discipline)
-- **IMPL-001 to IMPL-012** — Implementer constraints (no placeholders, one-pass quality, security gates, anti-pattern detection)
+- **MAIN-001 to MAIN-014** — Orchestrator constraints (delegation-only, context budgets, zero-error gates, file scope discipline, no auto-commit)
+- **IMPL-001 to IMPL-013** — Implementer constraints (no placeholders, one-pass quality, security gates, anti-pattern detection)
 - **AUTO-001 to AUTO-007** — Auto-orchestrate constraints (stage monotonicity, mandatory completion, checkpoint integrity)
+- **PROGRESS-001, DISPLAY-001** — Visibility constraints (always-visible processing, task board at every iteration)
+- **SCOPE-001, SCOPE-002** — Scope constraints (verbatim spec passthrough, template integrity)
 
 See `claude-code/ARCHITECTURE.md` for the full constraint matrix.
 
@@ -228,15 +245,19 @@ Each session gets its own subdirectory named by session ID:
 ```
 .orchestrate/
 └── <session-id>/
-    ├── checkpoint.json    # Session checkpoint (task state, iteration history)
-    ├── research/          # Researcher agent output (findings, unknowns)
-    ├── architecture/      # Epic-architect decomposition plans
-    ├── specs/             # Spec-creator output (technical specifications)
-    ├── logs/              # Session-scoped event logs
-    └── proposed-tasks.json  # Task proposals queued for auto-orchestrate
+    ├── checkpoint.json      # Session checkpoint (task state, iteration history)
+    ├── proposed-tasks.json  # Task proposals queued for auto-orchestrate
+    ├── stage-0/             # Researcher output (Stage 0)
+    ├── stage-1/             # Epic-architect plans (Stage 1)
+    ├── stage-2/             # Spec-creator output (Stage 2)
+    ├── stage-3/             # Implementer output (Stage 3)
+    ├── stage-4/             # Test writer output (Stage 4)
+    ├── stage-4.5/           # Codebase stats output (Stage 4.5)
+    ├── stage-5/             # Validator output (Stage 5)
+    └── stage-6/             # Documentor output (Stage 6)
 ```
 
-The auto-orchestrate loop reads `proposed-tasks.json` to create tasks on behalf of the orchestrator (which cannot call TaskCreate directly). `checkpoint.json` stores iteration history and task snapshots for crash recovery. Contents are safe to delete between sessions.
+The auto-orchestrate loop reads `proposed-tasks.json` to create tasks on behalf of the orchestrator (which cannot call TaskCreate directly). `checkpoint.json` stores iteration history and task snapshots for crash recovery. All output files use date-prefixed filenames: `YYYY-MM-DD_<descriptor>.<ext>`. Contents are safe to delete between sessions.
 
 ## Utilities
 

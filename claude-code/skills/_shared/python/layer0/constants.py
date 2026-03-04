@@ -45,8 +45,8 @@ MAX_TASKS_PER_EPIC: int = 50
 """Maximum number of tasks allowed in a single epic."""
 
 # Session constants
-DEFAULT_MAX_ITERATIONS: int = 15
+DEFAULT_MAX_ITERATIONS: int = 100
 """Default maximum iterations for auto-orchestration."""
 
-DEFAULT_STALL_THRESHOLD: int = 3
+DEFAULT_STALL_THRESHOLD: int = 2
 """Default number of iterations without progress before flagging stall."""

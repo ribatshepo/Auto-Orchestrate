@@ -2,7 +2,7 @@
 
 Comprehensive architecture documentation for the Claude Code plugins system.
 
-**Last Updated**: 2026-03-04 (pipeline fix: stage-based dirs, SEQUENTIAL-STAGE-GATE, RES-008, VERBOSE-001, proposed-tasks.json PRE-BOOT; zero-error loop FIX_ITER + user journey testing)
+**Last Updated**: 2026-03-04 (scope spec restructuring: Implementation Quality Criteria disambiguation, SCOPE-001/SCOPE-002 constraints, PROGRESS-001/DISPLAY-001 constraints, scope flags F/B/S, .orchestrate/ stage-based dirs)
 **Components**: 6 agents | 33 skills | 1 command | 4 protocols | 2 templates
 
 ---
@@ -428,7 +428,7 @@ Each auto-orchestrate session creates a per-session output directory in the proj
     └── proposed-tasks.json    # Task proposals (written by orchestrator as MANDATORY FIRST ACTION)
 ```
 
-This directory is separate from `~/.claude/sessions/` (checkpoint storage). The `.orchestrate/` folder stores work artifacts that are project-specific, while `~/.claude/sessions/` stores session metadata that is user-specific.
+This directory is project-local. `~/.claude/sessions/` is retained as a read-only legacy fallback for crash recovery of sessions started before the path migration. Checkpoint data is now stored in `.orchestrate/<session-id>/checkpoint.json`.
 
 **File naming convention**: All output files written to stage directories MUST use date-prefixed filenames: `YYYY-MM-DD_<descriptor>.<ext>` (e.g. `2026-03-04_research-findings.md`).
 
@@ -1179,49 +1179,111 @@ Analyze input -> Check existing plans -> Check tasks -> Generate prompt
 
 ### 7.8 /auto-orchestrate - Autonomous Orchestration Loop
 
-**Purpose**: Autonomously enhance user input, spawn orchestrator repeatedly, and loop until all tasks complete with crash recovery.
+**Purpose**: Autonomously enhance user input, spawn orchestrator repeatedly, and loop until all tasks complete with crash recovery. Supports scope flags for backend/frontend/fullstack quality specifications.
 
 **Arguments**:
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `task_description` | string | yes | — | The task or objective to orchestrate |
+| `task_description` | string | yes | — | The task or objective to orchestrate. Pass `"c"` to resume most recent session. |
 | `session_id` | string | no | — | Resume a specific session by ID |
-| `max_iterations` | integer | no | 15 | Maximum number of orchestrator spawns |
+| `max_iterations` | integer | no | 100 | Maximum number of orchestrator spawns |
 | `stall_threshold` | integer | no | 2 | Consecutive no-progress iterations before failing |
+| `max_tasks` | integer | no | 50 | Maximum total tasks allowed (LIMIT-001). Cap 100. |
+| `scope` | string | no | — | Scope flag: `F`/`f` (frontend), `B`/`b` (backend), `S`/`s` (fullstack) |
+| `resume` | boolean | no | false | Resume an existing session |
+
+**Scope Flags**: Scope can be specified as the `scope` argument or as an inline single-character prefix in `task_description`:
+- `S implement all features` → scope=`fullstack`, task=`implement all features`
+- `B` → scope=`backend`, task=*(default backend objective)*
+- `fix the dashboard` → scope=`custom` (multi-char tokens are never flags)
+
+| Flag | Resolved | Layers |
+|------|----------|--------|
+| `F`/`f` | `frontend` | `["frontend"]` |
+| `B`/`b` | `backend` | `["backend"]` |
+| `S`/`s` | `fullstack` | `["backend", "frontend"]` |
+| *(omitted)* | `custom` | `[]` |
+
+When scope is not `custom`, the full scope specification (Appendix A/B of auto-orchestrate.md) is injected verbatim into every orchestrator spawn and subagent prompt (SCOPE-001). The scope spec defines **Implementation Quality Criteria** — quality requirements for Stage 3 implementers and Stage 5 validators. These are explicitly labeled as NOT a pipeline sequence to prevent confusion with the pipeline stages (0→1→2→3→4.5→5→6).
 
 **Execution Flow**:
 ```
-/auto-orchestrate <description>
+/auto-orchestrate [scope-flag] <description>
          │
          v
 ┌─────────────────────┐
-│ Enhance prompt into │
-│ structured tasks    │
+│ Step 0: Permission   │──> Scope resolution (F/B/S/custom)
+│ grant + scope flags │
 └────────┬────────────┘
          │
          v
 ┌─────────────────────┐
-│ Spawn orchestrator  │<──────────────────┐
+│ Step 1: Enhance     │──> Inline (no EnterPlanMode)
+│ prompt (structured) │    Custom template OR scope-templated
+└────────┬────────────┘
+         │
+         v
+┌─────────────────────┐
+│ Step 2: Initialize  │──> Supersede old sessions
+│ session checkpoint  │    Create .orchestrate/<session-id>/
+└────────┬────────────┘
+         │
+         v
+┌─────────────────────┐
+│ Step 3: Spawn       │<──────────────────┐
+│ orchestrator        │   (iteration N)   │
+│ (display task board)│                   │
 └────────┬────────────┘                   │
          │                                │
          v                                │
 ┌─────────────────────┐    no             │
-│ All tasks complete? │──────────────────>│
-└────────┬────────────┘   (checkpoint)    │
+│ Step 4: Check       │──────────────────>│
+│ completion + loop   │   (checkpoint)    │
+└────────┬────────────┘                   │
          │ yes                            │
          v                                │
 ┌─────────────────────┐                   │
-│   Session complete  │    stall?─────> FAIL
+│ Step 5: Termination │    stall?─────> FAIL
+│ + final report      │
 └─────────────────────┘
 ```
+
+**Checkpoint Storage**: Primary at `.orchestrate/<session-id>/checkpoint.json` (project-local); legacy fallback at `~/.claude/sessions/<session-id>.json` (read-only for crash recovery). Each session creates stage-based subdirectories: `stage-0/` through `stage-6/`.
+
+**Core Constraints (AUTO-001 to AUTO-007, PROGRESS-001, DISPLAY-001, SCOPE-001, SCOPE-002)**:
+
+| ID | Rule |
+|----|------|
+| AUTO-001 | Orchestrator-only gateway — never spawn non-orchestrator agents directly |
+| AUTO-002 | Mandatory stage completion — stages 0, 1, 2, 4.5, 5, 6 required |
+| AUTO-003 | Stage monotonicity — pipeline stages only increase |
+| AUTO-004 | Post-implementation stage gate — enforce 4.5/5/6 after 1 overdue iteration |
+| AUTO-005 | Checkpoint-before-spawn — write checkpoint before every orchestrator spawn |
+| AUTO-006 | No direct agent routing — routing is orchestrator's decision |
+| AUTO-007 | Iteration history immutability — append-only |
+| PROGRESS-001 | Always-visible processing — status lines before/after every tool call |
+| DISPLAY-001 | Task board at every iteration — full task detail, not just stage counts |
+| SCOPE-001 | Scope spec passthrough — full verbatim spec through every layer when scope != custom |
+| SCOPE-002 | Scope template integrity — narrow objectives don't reduce the quality bar |
 
 **Tools Used**: `TaskCreate`, `TaskList`, `TaskUpdate`, `TaskGet`, `Task` (orchestrator delegation)
 
 **Success Criteria**:
 - All tasks reach `completed` status
+- `stages_completed` includes mandatory stages 0, 1, 2, 4.5, 5, 6
 - No stall detected (progress made each iteration)
 - Session checkpoint written after each iteration
+
+**Termination Conditions** (evaluated in order):
+
+| # | Condition | Status |
+|---|-----------|--------|
+| 1 | All tasks completed AND all mandatory stages done | `completed` |
+| 1a | All tasks completed BUT mandatory stages missing | Inject missing tasks, retry once |
+| 2 | `iteration >= MAX_ITERATIONS` | `max_iterations_reached` |
+| 3 | No progress for `STALL_THRESHOLD` consecutive iterations | `stalled` |
+| 4 | All remaining tasks blocked | `all_blocked` |
 
 **Pairs with**: `orchestrator` agent, all downstream skills
 

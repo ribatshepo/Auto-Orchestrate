@@ -570,11 +570,14 @@ Implement all backend features to production-ready state, then audit and fully i
 
 No in-memory workarounds, no simulations, no fake data, no placeholder logic. Everything uses real implementations with proper persistence.
 
-### Steps
+### Implementation Quality Criteria (for Stage 3 — NOT a pipeline sequence)
 
-1. **Branch** — Create a feature branch.
+> **IMPORTANT**: These are quality requirements for the implementer (Stage 3) and validator (Stage 5).
+> They are NOT pipeline stages. The pipeline sequence is always: Stage 0 (Research) → 1 (Epic Architecture) → 2 (Specifications) → 3 (Implementation) → 4.5 (Codebase Stats) → 5 (Validation) → 6 (Documentation).
 
-2. **Implement All Features** — Build or complete every backend feature:
+- **Branch** — Create a feature branch.
+
+- **Implement All Features** — Build or complete every backend feature:
    - **Greenfield**: Create all models, migrations, services, controllers, routes, auth, middleware, seed data, config from scratch.
    - **Existing**: Walk through every module and complete partial/stubbed features.
    - Write real business logic — no placeholders, no TODOs.
@@ -584,21 +587,21 @@ No in-memory workarounds, no simulations, no fake data, no placeholder logic. Ev
    - Every feature must have a complete data path from API request → persistent storage → response.
    - Build missing controllers/routes for defined models. Implement real logic for mock-returning routes. Complete missing CRUD operations.
 
-3. **Full Codebase Audit** — After implementation, assess every module:
+- **Full Codebase Audit** — After implementation, assess every module:
    - Fully implemented and functional end-to-end?
    - Missing validations, broken logic, incomplete integrations?
    - All API endpoints exposed, documented, working?
    - Any in-memory storage, simulated data, mock services, placeholder logic?
    - Any remaining TODO/FIXME/HACK/PLACEHOLDER comments?
 
-4. **Eliminate All Simulations** — Replace every instance of:
+- **Eliminate All Simulations** — Replace every instance of:
    - In-memory stores → real persistent storage
    - Simulated/mocked service calls → real integrations
    - Hardcoded/fake/sample data → real data flows
    - Placeholder/stub logic → full implementations
    - Every data path must survive restarts.
 
-5. **Fix All Gaps** — Address every remaining issue:
+- **Fix All Gaps** — Address every remaining issue:
    - Broken configs, missing env vars, incomplete integrations
    - Validation gaps, bugs, logic errors
    - Database migrations — up to date and clean
@@ -608,9 +611,9 @@ No in-memory workarounds, no simulations, no fake data, no placeholder logic. Ev
    - Startup integrity — no errors on restart/cold boot
    - Service accounts and inter-service credentials working
 
-6. **Clean Build** — All build processes complete with zero errors, zero warnings.
+- **Clean Build** — All build processes complete with zero errors, zero warnings.
 
-7. **Verify End-to-End** — Entire backend running, all features operational, data persists across restarts.
+- **Verify End-to-End** — Entire backend running, all features operational, data persists across restarts.
 
 ### Backend Constraints
 - Implement-then-audit: build/complete all features first, then audit and fix.
@@ -692,24 +695,27 @@ Every list and table must support:
 - Personalised dashboard by role.
 - Handle token expiry, session timeout, re-auth gracefully.
 
-### Frontend Steps
+### Frontend Implementation Quality Criteria (for Stage 3 — NOT a pipeline sequence)
 
-1. **Map Every Feature to UI** — For every backend endpoint/module, identify every screen, form, list, detail view, and interaction needed.
+> **IMPORTANT**: These are quality requirements for the implementer (Stage 3) and validator (Stage 5).
+> They are NOT pipeline stages. The pipeline sequence is always: Stage 0 (Research) → 1 (Epic Architecture) → 2 (Specifications) → 3 (Implementation) → 4.5 (Codebase Stats) → 5 (Validation) → 6 (Documentation).
 
-2. **Build All Pages** — For each feature:
+- **Map Every Feature to UI** — For every backend endpoint/module, identify every screen, form, list, detail view, and interaction needed.
+
+- **Build All Pages** — For each feature:
    - **List/Table view**: search bar, dropdown filters, column sorting, bulk checkboxes, bulk toolbar, pagination, empty state.
    - **Create form**: dropdowns, checkboxes, date pickers, toggles, auto-complete. Text inputs only where unavoidable. Inline validation, help tooltips.
    - **Edit form**: same as create, pre-populated from API.
    - **Detail/View page**: read-only with tabs for logical sections, related data, activity history, metadata.
    - **Delete**: single with confirmation, bulk via checkbox selection.
 
-3. **Connect to Backend APIs** — Every page calls real endpoints, handles loading/error/empty/forbidden states, submits real data. No fake data, no mocked calls, no hardcoded values.
+- **Connect to Backend APIs** — Every page calls real endpoints, handles loading/error/empty/forbidden states, submits real data. No fake data, no mocked calls, no hardcoded values.
 
-4. **Navigation and Layout** — Complete application shell:
+- **Navigation and Layout** — Complete application shell:
    - Sidebar/top nav grouped logically. Menu visibility by roles/permissions. Breadcrumbs everywhere.
    - Global search if applicable. User profile menu with logout, settings, profile.
 
-5. **Test End-to-End** — Every user flow works through to backend persistence. Every CRUD, bulk action, filter, and search works against the real backend.
+- **Test End-to-End** — Every user flow works through to backend persistence. Every CRUD, bulk action, filter, and search works against the real backend.
 
 ### Frontend Constraints
 - Every feature/endpoint gets a complete, fully functional UI.
@@ -789,6 +795,12 @@ Never leave more than one tool call without a progress line.
 ║  step, and constraint MUST be followed precisely. Nothing   ║
 ║  may be omitted, summarized, or deprioritized.              ║
 ║  ALL subagents MUST receive relevant parts in full.         ║
+╠══════════════════════════════════════════════════════════════╣
+║  CRITICAL: The scope spec's "Implementation Quality         ║
+║  Criteria" are requirements for Stage 3 implementers and    ║
+║  Stage 5 validators ONLY. They are NOT a replacement for    ║
+║  the pipeline sequence. The ONLY execution sequence is:     ║
+║  Stage 0→1→2→3→4.5→5→6 (defined in Instructions below).    ║
 ╚══════════════════════════════════════════════════════════════╝
 
 <Paste FULL enhanced_prompt.scope_specification verbatim>
