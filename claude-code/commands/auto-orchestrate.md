@@ -60,14 +60,43 @@ arguments:
 | AUTO-004 | **Post-implementation stage gate** — If Stage 3 done but 4.5/5/6 missing for 1+ iterations, set `mandatory_stage_enforcement: true` and inject missing-stage tasks. |
 | AUTO-005 | **Checkpoint-before-spawn** — Write checkpoint to disk before every orchestrator spawn. |
 | AUTO-006 | **No direct agent routing** — Never tell the orchestrator which agent to use; routing is its decision. |
+| AUTO-008 | **Orchestrator delegation mandate** — The orchestrator MUST spawn subagents for ALL stage work. It must NEVER do research, analysis, implementation, testing, or documentation itself. Reading project files to "understand" the codebase is researcher work, not orchestrator work. |
 | AUTO-007 | **Iteration history immutability** — Only append to `iteration_history`; never modify existing entries. |
 | CEILING-001 | **Stage ceiling enforcement** — Calculate `STAGE_CEILING` from `stages_completed` before every spawn (Step 3a). Orchestrator MUST NOT work above STAGE_CEILING. Auto-fix missing `blockedBy` chains. |
 | CHAIN-001 | **Mandatory blockedBy chains** — Every proposed task for Stage N (N > 0) must include `blockedBy` referencing at least one Stage N-1 task. Auto-orchestrate validates and auto-fixes in Step 4.2. |
 | PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. Never leave extended silence. |
+| PROGRESS-002 | **In-progress blocks completion** — Tasks with status `in_progress` mean background agents are still working. NEVER evaluate termination, declare completion, or mark stages done while `in_progress > 0`. Display running task count prominently. |
 | DISPLAY-001 | **Task board at every iteration** — Show full task board with individual tasks grouped by stage at iteration start (Step 3) and post-iteration (Step 4.3). |
 | SCOPE-001 | **Scope specification passthrough** — When scope is not `custom`, pass FULL scope spec (Appendix A/B) VERBATIM through every layer. Never summarize. |
 | SCOPE-002 | **Scope template integrity** — A narrow user objective does not reduce the spec — all design principles, steps, and constraints still apply in full. |
 | MANIFEST-001 | **Manifest-driven pipeline** — The orchestrator MUST read `~/.claude/manifest.json` at boot and use it as the authoritative registry for agent routing, skill discovery, and capability validation. Auto-orchestrate passes the manifest path in every orchestrator spawn. Agents MUST verify their mandatory skills exist in the manifest before invoking them. |
+
+## Execution Guard — AUTO-ORCHESTRATE IS A LOOP CONTROLLER, NOT A WORKER
+
+╔══════════════════════════════════════════════════════════════════════════╗
+║  AUTO-ORCHESTRATE MUST NEVER:                                           ║
+║                                                                         ║
+║  1. Read project files to understand the codebase or task domain        ║
+║     (that is the researcher/orchestrator's job)                         ║
+║  2. Create implementation/work tasks directly — ONLY create ONE         ║
+║     parent tracking task (Step 2c), then let the orchestrator           ║
+║     propose all work tasks via proposed-tasks.json                      ║
+║  3. Spawn ANY agent type other than "orchestrator" (AUTO-001)           ║
+║  4. Do analysis, planning, or implementation work itself                ║
+║  5. "Identify services", "read documentation", "understand the          ║
+║     architecture" — these are Stage 0 (researcher) activities           ║
+║                                                                         ║
+║  AUTO-ORCHESTRATE ONLY:                                                 ║
+║  - Enhances the user prompt (Step 1)                                    ║
+║  - Creates session infrastructure (Step 2)                              ║
+║  - Spawns orchestrators in a loop (Step 3)                              ║
+║  - Processes orchestrator results and manages tasks (Step 4)            ║
+║  - Evaluates termination (Step 5)                                       ║
+║                                                                         ║
+║  If you catch yourself reading project docs, identifying services,      ║
+║  or creating more than 1 task before the first orchestrator spawn       ║
+║  — STOP. You are violating this guard.                                  ║
+╚══════════════════════════════════════════════════════════════════════════╝
 
 ## Pipeline Stage Reference
 
@@ -154,6 +183,7 @@ Record: `"scope": { "flag": "<letter>", "resolved": "<scope>", "layers": [...] }
 ## Step 1: Enhance User Input (Inline)
 
 > **GUARD**: Do NOT delegate to `workflow-plan` or call `EnterPlanMode`.
+> **GUARD**: Do NOT read project files, docs, or source code. Enhancement uses ONLY the user's input text. Project analysis is the researcher's job (Stage 0). If the task mentions "docs folder" or specific files, reference them in the enhanced prompt for the orchestrator — do NOT read them yourself.
 
 Analyze raw input for clarity, scope, deliverables, constraints, and context. Transform into a structured prompt.
 
@@ -255,6 +285,8 @@ Write checkpoint to `.orchestrate/<session-id>/checkpoint.json` (primary) and `~
 
 ## Step 3: Spawn Orchestrator (Loop Entry)
 
+> **CRITICAL TRANSITION GUARD**: You should arrive here with EXACTLY ONE task (the parent tracking task from Step 2c) and ZERO knowledge of the project's internals. If you have read project files, identified components/services, or created multiple tasks — you have violated the Execution Guard. STOP and restart from this step. The orchestrator and its subagents will do ALL project analysis and task creation.
+
 **Before spawning** (AUTO-005): Increment `iteration`, update `updated_at`, write checkpoint.
 
 ### 3a. Calculate STAGE_CEILING
@@ -280,9 +312,11 @@ STAGE_CEILING = the maximum pipeline stage the orchestrator may work on. Calcula
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ITERATION <N> of <max> | Session: <session_id>
  STAGE_CEILING: <ceiling> | Pipeline: Stage 0 <✓/✗> → ... → Stage 6 <✓/✗>
- Tasks: <completed> done, <pending> pending, <blocked> blocked
+ Tasks: <completed> done, <in_progress> running, <pending> pending, <blocked> blocked
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+> **IMPORTANT**: If `in_progress > 0`, append to the banner: `⚠ <N> task(s) still running — pipeline NOT complete`
 
 ### 3c. Display task board (DISPLAY-001)
 
@@ -302,9 +336,18 @@ Query `TaskList`, group by `dispatch_hint` using the Pipeline Stage Reference ta
 
 Each task shows: status icon, task ID, subject (truncated to 45 chars), `[blocked by #N]` if blocked.
 
-### 3d. Spawn orchestrator
+### 3d. Pre-spawn self-check
 
-Spawn with `Task(subagent_type: "orchestrator", max_turns: 30)` using the **Appendix C** template.
+Before spawning, verify ALL of these conditions. If ANY fails, you are off-track:
+- [ ] You are about to spawn exactly ONE agent with `subagent_type: "orchestrator"` — NOT 5 parallel agents, NOT implementer/researcher/documentor agents
+- [ ] You have NOT read any project source files, docs, or configs (beyond what Step 1 needed for prompt enhancement)
+- [ ] The only task that exists (besides the parent) was proposed by a previous orchestrator iteration (or this is iteration 1 with no work tasks yet)
+- [ ] The iteration banner (Step 3b) includes `STAGE_CEILING` — if it doesn't, you skipped Step 3a
+- [ ] You are NOT about to "do the work yourself" because it "seems simple enough"
+
+### 3e. Spawn orchestrator
+
+Spawn EXACTLY ONE agent: `Agent(subagent_type: "orchestrator")` using the **Appendix C** template. Never spawn multiple orchestrators in parallel. Never spawn non-orchestrator agents from this loop.
 
 ---
 
@@ -314,7 +357,7 @@ Spawn with `Task(subagent_type: "orchestrator", max_turns: 30)` using the **Appe
 
 After orchestrator returns, execute these sub-steps with visible progress at each (PROGRESS-001):
 
-**4.1 Display summary**: Stages covered, tasks completed/pending, pipeline status.
+**4.1 Display summary**: Stages covered, tasks completed/in_progress/pending, pipeline status. If ANY tasks are `in_progress`, display prominently: `⚠ <N> task(s) still running — waiting for completion before evaluating pipeline`. Tasks with status `in_progress` mean background agents are still working — the pipeline is NOT idle and NOT complete.
 
 **4.2 Process task proposals** `[STEP 4.2]`:
 - Read `.orchestrate/<session-id>/proposed-tasks.json` and parse `PROPOSED_ACTIONS` from return text
@@ -356,7 +399,7 @@ After orchestrator returns, execute these sub-steps with visible progress at eac
 }
 ```
 
-**4.8 Evaluate pipeline progress**: Use Pipeline Stage Reference to determine completion. Apply AUTO-003 (monotonicity). Track `stage_3_completed_at_iteration`.
+**4.8 Evaluate pipeline progress**: Use Pipeline Stage Reference to determine completion. A stage is complete ONLY when ALL tasks for that stage are `completed` AND ZERO tasks for that stage are `in_progress`. Tasks still `in_progress` (background agents running) block stage completion — do NOT mark a stage done while any of its tasks are still running. Apply AUTO-003 (monotonicity). Track `stage_3_completed_at_iteration`.
 
 **4.9 Mandatory stage gates**:
 - **AUTO-004**: If Stage 3 done but 4.5/5/6 missing for 1+ iterations → `mandatory_stage_enforcement: true`, inject missing tasks.
@@ -376,7 +419,9 @@ After orchestrator returns, execute these sub-steps with visible progress at eac
 
 ## Step 5: Termination Conditions
 
-Evaluate in order:
+**Pre-check — in_progress tasks block termination**: If ANY tasks have status `in_progress`, skip ALL termination checks and return to Step 3 (next iteration). Background agents are still working — the pipeline is neither complete, stalled, nor blocked. Display: `⚠ <N> task(s) still in_progress — skipping termination check, continuing loop`.
+
+Evaluate in order (ONLY when zero tasks are `in_progress`):
 
 | # | Condition | Status |
 |---|-----------|--------|
@@ -384,9 +429,9 @@ Evaluate in order:
 | 1a | All tasks completed BUT mandatory stages missing | Inject tasks, retry once. If still missing: `completed_stages_incomplete` |
 | 2 | `iteration >= MAX_ITERATIONS` | `max_iterations_reached` |
 | 3 | No progress for `STALL_THRESHOLD` consecutive iterations | `stalled` |
-| 4 | All remaining tasks blocked | `all_blocked` |
+| 4 | All remaining tasks blocked AND zero `in_progress` | `all_blocked` |
 
-**Stall detection**: Same pending+completed counts for 2 consecutive iterations = stall. `tasks_partial_continued` resets counter.
+**Stall detection**: Same pending+completed counts for 2 consecutive iterations = stall. However, `in_progress` tasks reset the stall counter (work is actively happening). `tasks_partial_continued` also resets counter.
 
 ### On Termination
 
@@ -421,10 +466,11 @@ Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
 **Suggested commits**: [Git-Commit-Message values]
 
 ### Iteration Timeline
-| # | Completed | Pending | Tasks Worked On |
-|---|-----------|---------|-----------------|
-| 1 | 0 | 7 | Proposed all pipeline tasks |
-| 2 | 1 | 6 | ✓ #2 Research (Stage 0) |
+| # | Completed | Running | Pending | Tasks Worked On |
+|---|-----------|---------|---------|-----------------|
+| 1 | 0 | 0 | 7 | Proposed all pipeline tasks |
+| 2 | 0 | 1 | 6 | ▶ #2 Research (Stage 0) |
+| 3 | 1 | 0 | 6 | ✓ #2 Research (Stage 0) |
 ```
 
 ---
@@ -732,18 +778,47 @@ Output visible progress before/after each subagent spawn, at loop start, between
 **Out of Scope**: <enhanced_prompt.out_of_scope>
 {{/if}}
 
+## Delegation Guard — YOU ARE A COORDINATOR, NOT A WORKER
+╔══════════════════════════════════════════════════════════════╗
+║  The orchestrator MUST delegate ALL work to subagents.       ║
+║  The orchestrator NEVER does the work itself.                ║
+║                                                              ║
+║  - Stage 0: Spawn `researcher` agent — do NOT read project  ║
+║    files, do NOT use WebSearch yourself, do NOT analyze      ║
+║    the codebase. The researcher agent does this.             ║
+║  - Stage 1: Spawn `epic-architect` agent — do NOT decompose ║
+║    tasks yourself.                                           ║
+║  - Stage 2: Spawn `spec-creator` agent — do NOT write       ║
+║    specs yourself.                                           ║
+║  - Stage 3+: Spawn appropriate agents — do NOT implement,   ║
+║    test, validate, or document yourself.                     ║
+║                                                              ║
+║  Your ONLY job: propose tasks, spawn subagents, track        ║
+║  progress, report back via PROPOSED_ACTIONS.                 ║
+║                                                              ║
+║  "Composing task descriptions" means writing a prompt for    ║
+║  the subagent. It does NOT mean reading files to understand  ║
+║  the codebase, doing research, or analyzing code.            ║
+║  Glob/Grep to find file paths for subagent prompts = OK.     ║
+║  Reading file contents to understand/analyze them = VIOLATION║
+╚══════════════════════════════════════════════════════════════╝
+
 ## Tool Availability
 TaskCreate, TaskList, TaskUpdate, TaskGet are NOT available.
-Task tool for spawning may or may not work — attempt it.
+Agent tool for spawning subagents IS available — use it. You MUST spawn subagents to do work.
 
-**If Task tool unavailable**: Return PROPOSED_ACTIONS only. NEVER do work yourself. MAIN-001/002 apply regardless. Read/Glob/Grep ONLY for composing task descriptions. NEVER write files or code.
+**If Agent tool fails**: Return PROPOSED_ACTIONS only. NEVER do work yourself. NEVER fall back to doing research/implementation inline. Glob/Grep ONLY to find file paths for subagent prompts — NEVER to analyze, research, or understand the codebase.
 
 **Violation patterns** (if you catch yourself doing ANY of these — STOP):
 - "Let me take a more practical approach"
 - "I'll do the research by reading the codebase"
 - "This is more efficient"
+- "I'll just quickly check/read/analyze..."
 - "I'll create tasks and spawn agents directly"
-- Codebase reading beyond composing task descriptions
+- Reading file contents to understand the project (that's the researcher's job)
+- Using WebSearch/WebFetch yourself (that's the researcher's job)
+- Doing codebase analysis yourself (that's the researcher/architect's job)
+- Writing specs, code, tests, or docs yourself (that's the subagent's job)
 - Spawning any agent above STAGE_CEILING
 - "Stage 0/1/2 isn't needed for this"
 - "I'll skip to implementation since I know what to do"
@@ -767,7 +842,7 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns and file paths.
 2. Skip completed tasks. Focus on pending/failed AT OR BELOW STAGE_CEILING.
 3. Do NOT call TaskCreate/TaskList/TaskUpdate/TaskGet.
 4. Propose new tasks via .orchestrate/<session_id>/proposed-tasks.json AND PROPOSED_ACTIONS. ALL Stage N proposals must `blockedBy` Stage N-1 tasks.
-5. If Task tool works: spawn up to 5 subagents. If not: Read/Glob/Grep for analysis ONLY, propose via PROPOSED_ACTIONS.
+5. Spawn subagents via Agent tool to do ALL work. You MUST delegate — never do research, analysis, implementation, or any stage work yourself. If Agent tool fails: return PROPOSED_ACTIONS only and let auto-orchestrate retry.
 6. Follow the Execution Loop — don't stop after one piece of work.
 7. **Sequential stage gate** — Do NOT spawn Stage N+1 while Stage N tasks are pending/in-progress. Stages 0->1->2 before Stage 3. Stages 4.5->5->6 after Stage 3.
 8. **STAGE_CEILING gate** — NEVER exceed ceiling. If STAGE_CEILING=0, ONLY Stage 0 work. Period.
@@ -782,20 +857,22 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns and file paths.
 **All agents (when scope != custom)**: Include FULL scope spec verbatim (SCOPE-001).
 
 **researcher** (Stage 0 — mandatory, always first):
-- MUST use WebSearch+WebFetch (RES-008). Codebase-only analysis = VIOLATION.
-- At least 3 WebSearch queries. If unavailable: status "partial".
+- You MUST spawn a `researcher` subagent via `Agent(subagent_type: "researcher")`. Do NOT do research yourself — no reading project files, no WebSearch, no codebase analysis. The researcher AGENT does all of this.
+- Include in the researcher's prompt: MUST use WebSearch+WebFetch (RES-008). Codebase-only analysis = VIOLATION. At least 3 WebSearch queries. If unavailable: status "partial".
 - Check CVEs (RES-005), latest stable versions.
 - MUST research implementation risks and produce Risks & Remedies (RES-009).
 - Packages with unpatched HIGH/CRITICAL CVEs = BLOCKED — list alternatives (RES-010).
 - Output: .orchestrate/<SESSION_ID>/stage-0/YYYY-MM-DD_<slug>.md
 
 **epic-architect** (Stage 1 — mandatory, after researcher):
+- You MUST spawn an `epic-architect` subagent via `Agent(subagent_type: "epic-architect")`. Do NOT decompose tasks or design architecture yourself.
 - 4-Phase Pipeline: Scope Analysis -> Task Decomposition -> Dependency Graph -> Quick Reference
 - Every task needs dispatch_hint (required) and risk level.
 - MUST read Stage 0 research: no CVE-blocked packages; include HIGH-severity remedies as acceptance criteria.
 - Output: .orchestrate/<SESSION_ID>/stage-1/
 
 **spec-creator** (Stage 2 — mandatory, after epic-architect):
+- You MUST spawn a `spec-creator` subagent. Do NOT write specs yourself.
 - Technical specs: scope, interface contracts, acceptance criteria.
 - MUST read Stage 0 research: no CVE-blocked packages in specs; include remedies as requirements.
 - Output: .orchestrate/<SESSION_ID>/stage-2/
