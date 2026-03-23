@@ -178,7 +178,15 @@ Acts as both a sequential pipeline stage (spec-creator → spec-analyzer → tas
 
 ## Common Workflows
 
-**Analyze new spec**: Read spec → extract requirements → identify dependencies → check completeness → score readiness → define phases → create documents
+**Analyze new spec**: Read spec → validate spec structure → extract requirements → identify dependencies → check completeness → score readiness → define phases → create documents
+
+Run spec validation before extracting requirements:
+
+```bash
+scripts/spec_validator.py {{SPEC_PATH}}
+```
+
+Fix any blocking or important issues reported by the validator before proceeding with analysis.
 
 **Before implementation**: Verify spec exists in `docs/specs/` → validate readiness → create implementation plan if missing → begin Phase 1
 

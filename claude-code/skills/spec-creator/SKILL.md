@@ -171,6 +171,13 @@ The `OUTPUT_DIR` parameter takes precedence over the default path when present.
 - [ ] All constraints numbered (CON-XXX)
 - [ ] Compliance section defines pass/fail
 - [ ] Specification written to `OUTPUT_DIR` (if provided) or `docs/specs/`
+- [ ] Scaffold and validate output with spec scaffolder:
+
+```bash
+scripts/spec_scaffolder.py {{SPEC_NAME}} --output {{OUTPUT_DIR}}
+```
+
+Run this before writing the specification to generate a compliant template. Populate the generated scaffold with actual content.
 
 ---
 

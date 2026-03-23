@@ -81,6 +81,10 @@
         "program_planning": true,
         "continuation_tasks": true,
         "task_splitting": true,
+        "skills_orchestrated": [
+          "spec-analyzer",
+          "dependency-analyzer"
+        ],
         "outputs": [
           "Epic task created",
           "Child tasks with dependencies",
@@ -123,6 +127,13 @@
           "SMALL",
           "MEDIUM",
           "LARGE"
+        ],
+        "skills_orchestrated": [
+          "production-code-workflow",
+          "security-auditor",
+          "codebase-stats",
+          "refactor-analyzer",
+          "refactor-executor"
         ],
         "outputs": [
           "Production-ready code files",
@@ -216,6 +227,10 @@
         "technology_evaluation": true,
         "codebase_analysis": true,
         "mandatory_stage": 0,
+        "skills_orchestrated": [
+          "researcher",
+          "docs-lookup"
+        ],
         "outputs": [
           "Research findings file (.orchestrate/<SESSION_ID>/research/<DATE>_<SLUG>.md)",
           "Manifest entry with key_findings (3-7 sentences)",

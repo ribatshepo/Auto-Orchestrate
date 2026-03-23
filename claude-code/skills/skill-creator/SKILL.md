@@ -159,7 +159,23 @@ Remember: the skill is for another Claude instance to use. Include information t
 
 *Body*: Use imperative/infinitive form. Write instructions for using the skill and its bundled resources.
 
-### Step 5: Package the Skill
+### Step 5: Validate the Skill
+
+Run basic structure validation before packaging:
+
+```bash
+scripts/quick_validate.py <path/to/skill-folder>
+```
+
+Fix any reported issues before proceeding to packaging.
+
+If the skill updates manifest.json, validate it:
+
+```bash
+python3 _shared/python/validate_manifest.py ~/.claude/manifest.json
+```
+
+### Step 6: Package the Skill
 
 ```bash
 scripts/package_skill.py <path/to/skill-folder>
@@ -168,7 +184,7 @@ scripts/package_skill.py <path/to/skill-folder> ./dist  # optional output dir
 
 Automatically validates (frontmatter, naming, structure, description quality) then creates a `.skill` file (zip with `.skill` extension). Fix any reported errors and re-run if validation fails.
 
-### Step 6: Iterate
+### Step 7: Iterate
 
 1. Use the skill on real tasks
 2. Notice struggles or inefficiencies

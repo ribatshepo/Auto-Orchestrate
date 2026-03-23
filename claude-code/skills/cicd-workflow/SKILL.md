@@ -262,10 +262,19 @@ Write to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md`:
 
 ### Skill-Specific Items
 
+- [ ] Pipeline config validated via `pipeline_validator.py`
 - [ ] Workflow file created/updated
 - [ ] Security checklist completed
 - [ ] Caching configured
 - [ ] Secrets properly stored
+
+### Pipeline Validation
+
+Run the pipeline validator against the generated workflow file to check for misconfigurations:
+
+```bash
+python scripts/pipeline_validator.py {{DOCKERFILE_PATH:-".github/workflows/"}}
+```
 
 ---
 

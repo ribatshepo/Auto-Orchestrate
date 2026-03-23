@@ -2,7 +2,7 @@
 
 Comprehensive architecture documentation for the Claude Code plugins system.
 
-**Last Updated**: 2026-03-04 (scope spec restructuring: Implementation Quality Criteria disambiguation, SCOPE-001/SCOPE-002 constraints, PROGRESS-001/DISPLAY-001 constraints, scope flags F/B/S, .orchestrate/ stage-based dirs)
+**Last Updated**: 2026-03-23 (STAGE_CEILING enforcement, CHAIN-001, agent-skill mandate audit, skill reference enforcement, auto-orchestrate/orchestrator optimization)
 **Components**: 6 agents | 33 skills | 1 command | 4 protocols | 2 templates
 
 ---
@@ -67,12 +67,12 @@ claude-code/
 │   │   └── placeholders.json                  (327 lines)
 │   └── schemas/                               (canonical: manifest.schema.json — 2020-12, 352 lines)
 ├── agents/
-│   ├── orchestrator.md                        (1035 lines)
+│   ├── orchestrator.md                        (277 lines)
 │   ├── documentor.md                          (190 lines)
-│   ├── epic-architect.md                      (439 lines)
-│   ├── implementer.md                         (826 lines)
+│   ├── epic-architect.md                      (283 lines)
+│   ├── implementer.md                         (335 lines)
 │   ├── session-manager.md                     (371 lines)
-│   └── researcher.md                          (312 lines)
+│   └── researcher.md                          (162 lines)
 ├── skills/
 │   ├── codebase-stats/SKILL.md                (351 lines)
 │   ├── dependency-analyzer/SKILL.md           (352 lines)
@@ -1251,7 +1251,7 @@ When scope is not `custom`, the full scope specification (Appendix A/B of auto-o
 
 **Checkpoint Storage**: Primary at `.orchestrate/<session-id>/checkpoint.json` (project-local); legacy fallback at `~/.claude/sessions/<session-id>.json` (read-only for crash recovery). Each session creates stage-based subdirectories: `stage-0/` through `stage-6/`.
 
-**Core Constraints (AUTO-001 to AUTO-007, PROGRESS-001, DISPLAY-001, SCOPE-001, SCOPE-002)**:
+**Core Constraints (AUTO-001 to AUTO-007, CEILING-001, CHAIN-001, PROGRESS-001, DISPLAY-001, SCOPE-001, SCOPE-002)**:
 
 | ID | Rule |
 |----|------|
@@ -1262,6 +1262,8 @@ When scope is not `custom`, the full scope specification (Appendix A/B of auto-o
 | AUTO-005 | Checkpoint-before-spawn — write checkpoint before every orchestrator spawn |
 | AUTO-006 | No direct agent routing — routing is orchestrator's decision |
 | AUTO-007 | Iteration history immutability — append-only |
+| CEILING-001 | Stage ceiling enforcement — STAGE_CEILING limits orchestrator to next incomplete stage |
+| CHAIN-001 | Mandatory blockedBy chains — Stage N tasks must reference Stage N-1 tasks |
 | PROGRESS-001 | Always-visible processing — status lines before/after every tool call |
 | DISPLAY-001 | Task board at every iteration — full task detail, not just stage counts |
 | SCOPE-001 | Scope spec passthrough — full verbatim spec through every layer when scope != custom |
@@ -1432,18 +1434,32 @@ This diagram shows which skills each agent can delegate to:
 ┌─────────────────────────────────────────────────────────────────┐
 │                    EPIC-ARCHITECT                               │
 │  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Mandatory skills:                                        │   │
+│  │   spec-analyzer ---------> Requirements validation (Ph1) │   │
+│  │   dependency-analyzer ---> Dep graph validation (Ph3)    │   │
 │  │ Creates tasks for:                                       │   │
-│  │   Any skill via Program-planned task decomposition          │   │
-│  │   May spawn: researcher, task-executor                   │   │
+│  │   Any skill via Program-planned task decomposition       │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
 │                     IMPLEMENTER                                  │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Executes directly:                                       │   │
-│  │   No delegation - implements code in single pass         │   │
-│  │   References: production-code-workflow                   │   │
+│  │ Mandatory skills:                                        │   │
+│  │   production-code-workflow -> ALL scopes (mandatory)     │   │
+│  │   security-auditor -------> MEDIUM + LARGE scopes        │   │
+│  │   codebase-stats ---------> LARGE scope                  │   │
+│  │   refactor-analyzer ------> LARGE scope                  │   │
+│  │   refactor-executor ------> LARGE scope (if findings)    │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                      RESEARCHER                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Mandatory skills:                                        │   │
+│  │   researcher (skill) ----> Research protocol (Phase 1)   │   │
+│  │   docs-lookup -----------> Library/framework docs (Ph2)  │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 

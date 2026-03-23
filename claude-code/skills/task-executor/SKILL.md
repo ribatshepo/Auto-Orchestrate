@@ -36,6 +36,14 @@ Complete assigned tasks by following instructions, producing deliverables, and v
 
 ### 1. Prepare
 
+- Validate task structure and required fields before execution:
+
+```bash
+scripts/task_validator.py {{TASK_ID}}
+```
+
+Fix any validation errors before proceeding.
+
 - Read task via `{{TASK_SHOW}} {{TASK_ID}}` — understand full context.
 - Review `{{MANIFEST_SUMMARIES}}` from upstream agents.
 - Identify every item in `{{DELIVERABLES_LIST}}` and every criterion in `{{ACCEPTANCE_CRITERIA}}`.

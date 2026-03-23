@@ -7,8 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Manifest-driven pipeline (MANIFEST-001)** — `manifest.json` is now the authoritative registry enforced across the entire pipeline. The orchestrator MUST read it at boot for agent routing and skill discovery. All agents validate their mandatory skills exist before invoking. Session-manager validates manifest.json existence and integrity at boot. Auto-orchestrate passes `MANIFEST_PATH` to every orchestrator spawn.
+- **Research-driven implementation (RES-009, RES-010, IMPL-014)** — Researcher now produces "Implementation Risks & Remedies" section and "CVE-Blocked Packages" list. Packages with unpatched HIGH/CRITICAL CVEs are BLOCKED — downstream agents must use alternatives. Epic-architect includes HIGH-severity remedies as acceptance criteria. Spec-creator includes remedies as requirements. Implementer (IMPL-014) must read Stage 0 research before coding and apply all remedies. Full data flow: researcher findings -> epic-architect planning -> spec constraints -> implementer enforcement.
+- **STAGE_CEILING enforcement (CEILING-001)** — Auto-orchestrate now calculates a hard `STAGE_CEILING` from `stages_completed` before every orchestrator spawn. The orchestrator is structurally limited to working at or below this ceiling. On new installs (empty stages_completed), ceiling is 0 — only research is allowed. Each completed stage unlocks the next. Fixes pipeline stage-skipping on fresh Claude Code installs
+- **Mandatory blockedBy chains (CHAIN-001)** — Every proposed task for Stage N (N > 0) must include `blockedBy` referencing at least one Stage N-1 task. Auto-orchestrate validates and auto-fixes missing chains in Step 4.2 with `[CHAIN-FIX]` logging
+- **Agent mandatory skill enforcement** — All agents now declare and enforce mandatory skills:
+  - **implementer**: production-code-workflow (ALL scopes), security-auditor, codebase-stats, refactor-analyzer, refactor-executor (scope-conditional)
+  - **epic-architect**: spec-analyzer (Phase 1), dependency-analyzer (Phase 3)
+  - **researcher**: researcher skill (Phase 1), docs-lookup (Phase 2)
+  - Previously only documentor and session-manager had declared skills
+- **Skill reference enforcement** — All 20 skills with `references/` or `scripts/` directories now mandate loading those files. 9 previously unreferenced scripts were added to their SKILL.md files: pipeline_validator.py, dockerfile_linter.py, placeholder_parser.py, placeholder_scanner.py, complexity_analyzer.py, quick_validate.py, spec_validator.py, spec_scaffolder.py, task_validator.py. `_shared/python/validate_manifest.py` now referenced by skill-creator
+
+### Changed
+
+- **auto-orchestrate.md optimized** — Reduced from 984 to 824 lines (-16%): defined Pipeline Stage Reference table once (was repeated 3x), removed changelog artifacts, consolidated display formats, compressed Step 4 sub-steps
+- **orchestrator.md optimized** — Reduced from 456 to 277 lines (-39%): merged Pipeline Stages + Turn Limits tables, removed duplicated Session Structure section, trimmed violation patterns, condensed Self-Audit Gate, integrated User Interaction Policy and SFI-001 into existing sections
+- **Implementer SMALL scope pipeline** — Changed from "SKIP" to "LIGHT" (production-code-workflow + self-review). production-code-workflow is now mandatory at ALL scope levels, not just LARGE
+
 ### Fixed
 
+- **Pipeline stage-skipping on new installs** — The orchestrator could skip stages 0-2 and jump directly to implementation on fresh Claude Code installs because no structural enforcement existed. STAGE_CEILING (CEILING-001) now prevents this by limiting the orchestrator to the next incomplete stage
+- **Orchestrator stage gate was advisory, not structural** — The sequential stage gate in the execution loop was a pseudocode comment that the model could rationalize past. Now enforced via STAGE_CEILING in the spawn prompt with a prominently boxed NON-NEGOTIABLE section
+- **Task proposals without blocking chains** — Orchestrator could propose tasks for all stages at once without proper blockedBy dependencies, causing later-stage tasks to appear as "pending" and get worked on prematurely. CHAIN-001 now validates and auto-fixes missing chains
 - **Scope spec pipeline sequence clash** — Scope specifications (Appendix A/B) previously used numbered step lists ("1. Branch", "2. Implement All Features", ...) that competed with the pipeline stage sequence (Stage 0→1→2→3→4.5→5→6), causing the orchestrator to skip research/planning stages when scope flags were used. Renamed "Steps" to "Implementation Quality Criteria (for Stage 3 — NOT a pipeline sequence)", switched from numbered lists to bullet lists, added disambiguation blockquotes, and expanded the NON-NEGOTIABLE box in the orchestrator spawn prompt (Appendix C) to explicitly state that scope spec criteria are for Stage 3/5 only
 - **Session checkpoint path isolation** — Session checkpoints now written to project-local `.orchestrate/<session-id>/checkpoint.json` instead of `~/.claude/sessions/<id>.json`; prevents cross-project interference and keeps all session artifacts co-located with the project
 - **Cross-terminal supersession interference** — Supersession scan now scoped to `.orchestrate/*/checkpoint.json` (current project only) instead of `~/.claude/sessions/auto-orc-*.json` (global); eliminates false-positive supersessions when multiple projects run auto-orchestrate concurrently

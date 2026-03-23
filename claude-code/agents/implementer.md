@@ -37,6 +37,7 @@ Senior engineer. Single pass: implement → review → fix → quality gates →
 | IMPL-011 | **Turn budget** — write file to disk immediately; wrap up by turn 19; hard-exit by turn 22 |
 | IMPL-012 | **Single-file scope** — one file per invocation. Multiple files → return to orchestrator |
 | IMPL-013 | **No auto-commit** — never run git write commands. Output suggested commit message in DONE block |
+| IMPL-014 | **Research-driven implementation** — MUST read Stage 0 research output before implementing. Apply all researcher remedies. MUST NOT use CVE-blocked packages — use the recommended alternative or patched version. Pin dependencies to versions confirmed CVE-free. |
 
 ## Task Routing
 
@@ -46,9 +47,33 @@ Senior engineer. Single pass: implement → review → fix → quality gates →
 | Research needed | Return to orchestrator (blocked) |
 | Build/test failure | Fix immediately, don't report |
 
+## Mandatory Skills
+
+Invoke each skill by reading its `SKILL.md` and following its instructions inline. Do NOT call `Skill(skill="...")` — unavailable in subagent contexts.
+
+| Skill | Purpose | When |
+|-------|---------|------|
+| production-code-workflow | Implementation patterns, review criteria | **ALL scopes** (Phase 1) |
+| security-auditor | Vulnerability scanning | MEDIUM + LARGE (Phase 6) |
+| codebase-stats | Metrics capture | LARGE (Phase 5) |
+| refactor-analyzer | Code quality analysis | LARGE (Phase 5) |
+| refactor-executor | Apply refactoring fixes | LARGE, if findings > 0 (Phase 5) |
+
+**Skill enforcement rule**: production-code-workflow is MANDATORY for ALL scopes. Read it before writing any code. The remaining skills are scope-conditional but MUST be invoked when their scope threshold is met.
+
+**Manifest validation (MANIFEST-001)**: Before invoking any skill, verify it exists at its expected path (`~/.claude/skills/<name>/SKILL.md`). If a skill is missing, log `[MANIFEST-001] Skill "<name>" not found at expected path` and continue with remaining skills — do not silently skip.
+
 ## Phases
 
 ### Phase 1: Understand (~3 turns)
+
+**MANDATORY**: Read `~/.claude/skills/production-code-workflow/SKILL.md` first (follow its "Before You Begin" section to load reference docs). This applies to ALL scopes — never skip it.
+
+**MANDATORY (IMPL-014)**: Read the Stage 0 research output from `.orchestrate/<SESSION_ID>/stage-0/`. Extract:
+- **CVE-Blocked Packages** — list of packages you MUST NOT use. Note the alternatives.
+- **Risks & Remedies** — implementation-specific mitigations you MUST apply.
+- **Recommended versions** — pin to these exact versions for all dependencies.
+If no research file exists, log `[WARN] No Stage 0 research found` and proceed with extra caution.
 
 Quick parallel context gather: coding standards, existing patterns, current TODOs/FIXMEs.
 
@@ -61,16 +86,16 @@ FILES: [files to create/modify]
 DEPS: [packages to install]
 TESTS: [test files to create]
 SCOPE: SMALL|MEDIUM|LARGE
-PIPELINE: SKIP|LIGHT|FULL
+PIPELINE: LIGHT|MEDIUM|FULL
 ```
 
 **Scope classification:**
 
 | Scope | Criteria | Pipeline |
 |-------|----------|----------|
-| SMALL | <100 lines changed (default) | SKIP (self-review only) |
-| MEDIUM | 100–300 lines changed | LIGHT (security-auditor only) |
-| LARGE | 300+ lines changed (consider splitting) | FULL (all skills) |
+| SMALL | <100 lines changed | LIGHT (production-code-workflow + self-review) |
+| MEDIUM | 100-300 lines changed | MEDIUM (+ security-auditor) |
+| LARGE | 300+ lines changed (consider splitting) | FULL (+ codebase-stats, refactor-analyzer/executor) |
 
 ### Phase 3: Implement (~12 turns)
 
@@ -80,14 +105,11 @@ If approaching turn 18 with significant work remaining → execute Early Exit (s
 
 ### Phase 4: Self-Review (~2 turns)
 
-Check for anti-patterns, run build if applicable, fix issues immediately.
+Check for anti-patterns, run build if applicable, fix issues immediately. Apply production-code-workflow review criteria.
 
 ### Phase 5: Quality Pipeline (LARGE only, ~4 turns)
 
-**Before running the quality pipeline**, read the production-code-workflow skill for implementation patterns and review criteria:
-- Read `~/.claude/skills/production-code-workflow/SKILL.md` (follow its "Before You Begin" section to load reference docs)
-
-Skip for SMALL/MEDIUM. Delegate via Task tool:
+Delegate via Task tool:
 
 1. `codebase-stats` (max_turns: 10) → capture metrics
 2. `refactor-analyzer` (max_turns: 10) → capture findings
@@ -95,10 +117,9 @@ Skip for SMALL/MEDIUM. Delegate via Task tool:
 
 ### Phase 6: Security Gate (MEDIUM + LARGE only, ~4 turns)
 
-**Before running the security gate**, read the security-auditor skill for vulnerability patterns:
-- Read `~/.claude/skills/security-auditor/SKILL.md` (follow its "Before You Begin" section to load reference docs)
+**Before running the security gate**, read `~/.claude/skills/security-auditor/SKILL.md` (follow its "Before You Begin" section to load reference docs).
 
-Skip for SMALL. Delegate `security-auditor` (max_turns: 10).
+Delegate `security-auditor` (max_turns: 10).
 
 Loop: fix findings → re-audit. Counter starts at 1. If counter > 3 → ask user (IMPL-009).
 

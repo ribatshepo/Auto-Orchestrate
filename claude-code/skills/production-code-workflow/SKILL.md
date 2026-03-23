@@ -133,6 +133,20 @@ python scripts/detect_placeholders.py ./src --format json --severity-threshold c
 - MAJOR (15): Debug logging, async issues
 - MINOR (6): Magic numbers, missing docs
 
+### Placeholder Parser
+
+```bash
+# Parse source files for placeholder patterns and output structured results
+python scripts/placeholder_parser.py {{SOURCE_DIR}} --format json
+```
+
+### Placeholder Scanner
+
+```bash
+# Scan for non-production code patterns across the codebase
+python scripts/placeholder_scanner.py {{SOURCE_DIR}} --format text
+```
+
 ### Plan Generator
 
 ```bash

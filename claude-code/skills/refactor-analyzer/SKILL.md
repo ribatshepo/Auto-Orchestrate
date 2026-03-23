@@ -30,7 +30,13 @@ When no target specified, find files that may need refactoring.
 
 ### Step 1: Analyze Target
 
-Use `Read` to examine the file and assess:
+Run the complexity analyzer to get cyclomatic complexity metrics for the target file(s):
+
+```bash
+python scripts/complexity_analyzer.py {{TARGET_FILE}}
+```
+
+Then use `Read` to examine the file and assess:
 - File size (line count)
 - Number of functions/classes
 - Complexity indicators

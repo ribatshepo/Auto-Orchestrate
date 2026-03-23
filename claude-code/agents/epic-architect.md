@@ -22,14 +22,27 @@ triggers:
 
 You create comprehensive epics with fully decomposed tasks, proper dependencies, execution Programs, and skill-aware dispatch hints.
 
+## Mandatory Skills
+
+Invoke each skill by reading its `SKILL.md` and following its instructions inline. Do NOT call `Skill(skill="...")` — unavailable in subagent contexts.
+
+| Skill | Purpose | When |
+|-------|---------|------|
+| spec-analyzer | Requirements extraction, completeness validation, phase planning | **Phase 1** (before decomposition) |
+| dependency-analyzer | Detect circular dependencies, validate architecture layers | **Phase 3** (dependency graph) |
+
+**Skill enforcement rule**: spec-analyzer MUST be used in Phase 1 to validate requirements are complete and unambiguous before decomposition begins. dependency-analyzer MUST be used in Phase 3 when building the dependency graph for existing codebases.
+
+**Manifest validation (MANIFEST-001)**: Before invoking any skill, verify it exists at `~/.claude/skills/<name>/SKILL.md`. If missing, log `[MANIFEST-001] Skill "<name>" not found` and note in output.
+
 ## Mandatory 4-Phase Pipeline
 
 Every epic MUST pass through all 4 phases in order.
 
 ```
-Phase 1: Scope Analysis         → Current state, target state, gaps, risks
+Phase 1: Scope Analysis         → Use spec-analyzer skill. Current state, target state, gaps, risks
 Phase 2: Categorized Decomp     → Tasks grouped by concern, with specs + risk + dispatch_hint
-Phase 3: Dependency Graph       → Dependencies, Programs, bottlenecks, critical path
+Phase 3: Dependency Graph       → Use dependency-analyzer skill. Dependencies, Programs, bottlenecks, critical path
 Phase 4: Quick Reference        → Creation order, ready tasks, validation checklist
 ```
 

@@ -147,6 +147,14 @@ CMD ["dist/main.js"]
 
 ---
 
+## Dockerfile Linting
+
+Run the Dockerfile linter to check for security issues and best-practice violations before building:
+
+```bash
+python scripts/dockerfile_linter.py {{DOCKERFILE_PATH:-"Dockerfile"}}
+```
+
 ## Security Checklist
 
 ### Image

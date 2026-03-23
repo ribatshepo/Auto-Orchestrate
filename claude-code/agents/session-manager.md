@@ -89,7 +89,8 @@ When spawned by orchestrator with boot-infrastructure prompt, handles filesystem
 2. **Legacy session dir**: `mkdir -p ~/.claude/sessions/` (for backward compat)
 3. **Project .orchestrate/ stage dirs** (if SESSION_ID provided): Create `.orchestrate/<SESSION_ID>/{stage-0,stage-1,stage-2,stage-3,stage-4,stage-4.5,stage-5,stage-6}/` in project cwd (NOT `~/.claude/`)
 4. **Session checkpoint probe**: If SESSION_ID exists, check for `.orchestrate/<SESSION_ID>/<SESSION_ID>-tasks.json` (primary), then `~/.claude/sessions/<SESSION_ID>-tasks.json` (legacy fallback)
-4. **Manifest rotation (MAN-002)**: Read first 5 lines of manifest to estimate entries. If >200: rename to `MANIFEST-<DATE>-archived.jsonl`, filter to non-completed task entries, write new manifest. Log `[MAN-002] Manifest rotated`.
+5. **Manifest.json validation (MANIFEST-001)**: Verify `~/.claude/manifest.json` exists and is valid JSON. If missing: log `[MANIFEST-001] manifest.json not found at ~/.claude/manifest.json — agent routing will fail`. If invalid JSON: log `[MANIFEST-001] manifest.json is malformed`. Return `manifest_valid` in boot JSON.
+6. **MANIFEST.jsonl rotation (MAN-002)**: Read first 5 lines of MANIFEST.jsonl to estimate entries. If >200: rename to `MANIFEST-<DATE>-archived.jsonl`, filter to non-completed task entries, write new manifest. Log `[MAN-002] Manifest rotated`.
 
 Output progress messages to user, then return JSON:
 ```json
@@ -99,6 +100,7 @@ Output progress messages to user, then return JSON:
   "orchestrate_dir_ready": true,
   "session_id": "<session-id>",
   "session_checkpoint_exists": true|false,
+  "manifest_json_valid": true|false,
   "manifest_rotated": false,
   "manifest_entry_count": 47
 }

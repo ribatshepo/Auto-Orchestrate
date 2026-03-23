@@ -141,9 +141,10 @@ Stages 0, 1, 2, 4.5, 5, and 6 are mandatory — the pipeline will not terminate 
 
 The framework enforces three constraint sets to maintain quality and predictability:
 
-- **MAIN-001 to MAIN-014** — Orchestrator constraints (delegation-only, context budgets, zero-error gates, file scope discipline, no auto-commit)
+- **MAIN-001 to MAIN-015** — Orchestrator constraints (delegation-only, context budgets, zero-error gates, file scope discipline, no auto-commit, always-visible processing)
 - **IMPL-001 to IMPL-013** — Implementer constraints (no placeholders, one-pass quality, security gates, anti-pattern detection)
 - **AUTO-001 to AUTO-007** — Auto-orchestrate constraints (stage monotonicity, mandatory completion, checkpoint integrity)
+- **CEILING-001, CHAIN-001** — Pipeline enforcement (stage ceiling limits orchestrator to next incomplete stage, mandatory blockedBy chains between stages)
 - **PROGRESS-001, DISPLAY-001** — Visibility constraints (always-visible processing, task board at every iteration)
 - **SCOPE-001, SCOPE-002** — Scope constraints (verbatim spec passthrough, template integrity)
 
@@ -153,14 +154,14 @@ See `claude-code/ARCHITECTURE.md` for the full constraint matrix.
 
 ### Agents
 
-| Agent | Description |
-|-------|-------------|
-| orchestrator | Coordinates workflows by delegating to subagents; enforces MAIN constraints |
-| epic-architect | Decomposes work into task graphs with dependency analysis (4-phase pipeline) |
-| implementer | Single-pass implementation with self-review, quality pipeline, and security gate |
-| documentor | Documentation specialist; orchestrates docs-lookup, docs-write, and docs-review |
-| session-manager | Manages session lifecycle, checkpoints, and crash recovery |
-| researcher | Internet-enabled research agent for best practices, CVEs, package analysis, and technology evaluation |
+| Agent | Mandatory Skills | Description |
+|-------|-----------------|-------------|
+| orchestrator | *(delegates to agents)* | Coordinates workflows by delegating to subagents; enforces MAIN constraints |
+| epic-architect | spec-analyzer, dependency-analyzer | Decomposes work into task graphs with dependency analysis (4-phase pipeline) |
+| implementer | production-code-workflow, security-auditor, codebase-stats, refactor-analyzer, refactor-executor | Single-pass implementation with self-review, quality pipeline, and security gate |
+| documentor | docs-lookup, docs-write, docs-review | Documentation specialist; chains skills for full docs workflow |
+| session-manager | workflow-start/end/dash/focus/next/plan | Manages session lifecycle, checkpoints, and crash recovery |
+| researcher | researcher (skill), docs-lookup | Internet-enabled research for best practices, CVEs, package analysis |
 
 ### Skills (by domain)
 
