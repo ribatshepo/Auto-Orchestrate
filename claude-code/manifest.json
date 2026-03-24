@@ -2,11 +2,11 @@
   "schema_version": "1.0.0",
   "name": "plugins-ai-claude-code",
   "description": "Claude Code plugin system with skills, agents, commands, and shared resources for autonomous AI-assisted software engineering.",
-  "updated_at": "2026-03-03",
+  "updated_at": "2026-03-24",
   "stats": {
-    "total_skills": 33,
-    "total_agents": 6,
-    "total_commands": 1,
+    "total_skills": 34,
+    "total_agents": 7,
+    "total_commands": 2,
     "total_protocols": 4,
     "total_templates": 2,
     "total_style_guides": 1
@@ -282,6 +282,54 @@
         ]
       },
       "path": "agents/session-manager.md"
+    },
+    {
+      "name": "debugger",
+      "description": "Debug coordination agent. Triages errors, researches root causes, applies fixes, and verifies corrections. Spawned during auto-debug loop.",
+      "model": "opus",
+      "tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep",
+        "Task"
+      ],
+      "dispatch_triggers": [
+        "debug",
+        "fix error",
+        "troubleshoot",
+        "diagnose",
+        "root cause analysis",
+        "debug docker",
+        "fix crash",
+        "error investigation",
+        "stack trace analysis",
+        "container debugging"
+      ],
+      "capabilities": {
+        "error_triage": true,
+        "root_cause_analysis": true,
+        "fix_implementation": true,
+        "fix_verification": true,
+        "docker_debugging": true,
+        "skills_orchestrated": [
+          "debug-diagnostics",
+          "researcher",
+          "docker-validator",
+          "docker-workflow",
+          "error-standardizer",
+          "security-auditor",
+          "validator"
+        ],
+        "outputs": [
+          "Debug report (.debug/<SESSION_ID>/reports/)",
+          "Diagnostic data (.debug/<SESSION_ID>/diagnostics/)",
+          "DONE block with fix details and verification result"
+        ]
+      },
+      "path": "agents/debugger.md"
     }
   ],
   "skills": [
@@ -838,6 +886,30 @@
       "has_scripts": false,
       "has_references": false,
       "path": "skills/python-venv-manager/SKILL.md"
+    },
+    {
+      "name": "debug-diagnostics",
+      "description": "Structured error diagnosis skill for parsing, categorizing, and collecting diagnostic data. Produces diagnostic reports and tracks error-fix history.",
+      "dispatch_triggers": [
+        "diagnose",
+        "error analysis",
+        "classify error",
+        "collect diagnostics",
+        "parse logs",
+        "error triage",
+        "debug diagnostics",
+        "stack trace analysis"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "chaining": {
+        "produces": ["diagnostic-report", "error-classification"],
+        "consumes_from": [],
+        "chains_to": ["researcher", "validator", "docker-validator"],
+        "chains_from": [],
+        "patterns": ["producer", "sequential-pipeline"]
+      },
+      "path": "skills/debug-diagnostics/SKILL.md"
     }
   ],
   "commands": [
@@ -845,6 +917,11 @@
       "name": "auto-orchestrate",
       "description": "Autonomous orchestration loop. Enhances user input, spawns orchestrator repeatedly, loops until all tasks complete. Crash recovery via session checkpoints.",
       "path": "commands/auto-orchestrate.md"
+    },
+    {
+      "name": "auto-debug",
+      "description": "Autonomous debugging loop. Collects error context, spawns debugger agent repeatedly, cycles through triage-research-fix-verify until all errors resolved. Crash recovery via session checkpoints.",
+      "path": "commands/auto-debug.md"
     }
   ],
   "shared": {
