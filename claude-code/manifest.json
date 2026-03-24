@@ -2,11 +2,11 @@
   "schema_version": "1.0.0",
   "name": "plugins-ai-claude-code",
   "description": "Claude Code plugin system with skills, agents, commands, and shared resources for autonomous AI-assisted software engineering.",
-  "updated_at": "2026-03-24",
+  "updated_at": "2026-03-25",
   "stats": {
-    "total_skills": 34,
-    "total_agents": 7,
-    "total_commands": 2,
+    "total_skills": 35,
+    "total_agents": 8,
+    "total_commands": 3,
     "total_protocols": 4,
     "total_templates": 2,
     "total_style_guides": 1
@@ -330,6 +330,49 @@
         ]
       },
       "path": "agents/debugger.md"
+    },
+    {
+      "name": "auditor",
+      "description": "Spec compliance auditor. Reads specs and codebase, produces compliance reports with gap analysis. Read-only — never modifies code.",
+      "model": "opus",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "dispatch_triggers": [
+        "audit code",
+        "spec compliance audit",
+        "check implementation",
+        "verify against spec",
+        "gap analysis",
+        "compliance report",
+        "audit docker services",
+        "requirements coverage",
+        "implementation audit"
+      ],
+      "capabilities": {
+        "spec_compliance": true,
+        "docker_audit": true,
+        "gap_analysis": true,
+        "read_only": true,
+        "skills_orchestrated": [
+          "spec-compliance",
+          "spec-analyzer",
+          "docker-validator",
+          "codebase-stats",
+          "test-gap-analyzer",
+          "security-auditor"
+        ],
+        "outputs": [
+          "Compliance matrix (.audit/<SESSION_ID>/compliance-matrix.md)",
+          "Gap report (.audit/<SESSION_ID>/gap-report.json)",
+          "Audit report (.audit/<SESSION_ID>/audit-report-<cycle>.md)",
+          "DONE block with compliance score and verdict"
+        ]
+      },
+      "path": "agents/auditor.md"
     }
   ],
   "skills": [
@@ -910,6 +953,31 @@
         "patterns": ["producer", "sequential-pipeline"]
       },
       "path": "skills/debug-diagnostics/SKILL.md"
+    },
+    {
+      "name": "spec-compliance",
+      "description": "Requirement-to-implementation mapping. Parses specs, builds requirements matrix, scans codebase for implementation evidence, checks Docker services, produces compliance report with gap analysis.",
+      "dispatch_triggers": [
+        "spec compliance",
+        "requirements mapping",
+        "compliance check",
+        "implementation coverage",
+        "spec vs code",
+        "requirement audit",
+        "compliance matrix",
+        "gap analysis",
+        "spec gap"
+      ],
+      "has_scripts": true,
+      "has_references": true,
+      "chaining": {
+        "produces": ["compliance-matrix", "gap-report"],
+        "consumes_from": ["spec-analyzer", "spec-creator"],
+        "chains_to": ["validator", "orchestrator"],
+        "chains_from": ["spec-analyzer"],
+        "patterns": ["producer", "sequential-pipeline"]
+      },
+      "path": "skills/spec-compliance/SKILL.md"
     }
   ],
   "commands": [
@@ -922,6 +990,11 @@
       "name": "auto-debug",
       "description": "Autonomous debugging loop. Collects error context, spawns debugger agent repeatedly, cycles through triage-research-fix-verify until all errors resolved. Crash recovery via session checkpoints.",
       "path": "commands/auto-debug.md"
+    },
+    {
+      "name": "auto-audit",
+      "description": "Autonomous audit-remediate loop. Audits codebase against spec, identifies gaps, invokes orchestrator to implement missing features, re-audits until compliant. Crash recovery via session checkpoints.",
+      "path": "commands/auto-audit.md"
     }
   ],
   "shared": {
