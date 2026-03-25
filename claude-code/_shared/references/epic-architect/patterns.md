@@ -212,7 +212,7 @@ After brownfield task completion:
 | **Undocumented rollback** | Stuck if issues arise | Document rollback at each phase |
 | **Modifying and testing together** | Tests may pass broken code | Tests first, then modifications |
 
-**See [refactor-epic-example.md](refactor-epic-example.md) for complete brownfield refactoring example.**
+**See [examples.md#refactor-epic-example](examples.md#refactor-epic-example) for complete brownfield refactoring example.**
 
 ---
 
@@ -255,7 +255,7 @@ For code modernization, architectural improvements, and tech debt reduction:
   --acceptance "Rollback tested at each phase"
 ```
 
-**See [refactor-epic-example.md](refactor-epic-example.md) for complete example.**
+**See [examples.md#refactor-epic-example](examples.md#refactor-epic-example) for complete example.**
 
 ---
 

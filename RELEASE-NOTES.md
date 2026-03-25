@@ -8,7 +8,7 @@
 ## Unreleased (Post-v1.0.0)
 
 **Changes since**: 2026-02-12 (v1.0.0)
-**Last updated**: 2026-03-03
+**Last updated**: 2026-03-25
 
 This section documents all changes made after v1.0.0 that are not yet tagged in a release. These changes represent significant improvements to pipeline reliability, session management, agent communication, and security posture.
 
@@ -60,15 +60,21 @@ Epic-architect now assigns a `dispatch_hint` field to every decomposed task, pro
 
 #### `.orchestrate/` Session Folder Structure
 
-Each auto-orchestrate session creates a per-session directory at `.orchestrate/<session-id>/` with four subdirectories:
+Each auto-orchestrate session creates a per-session directory at `.orchestrate/<session-id>/` with stage-based subdirectories:
 
 ```
 .orchestrate/
 └── <session-id>/
-    ├── research/          # Researcher output files
-    ├── architecture/      # Epic-architect decomposition plans
-    ├── specs/             # Spec-creator outputs
-    └── logs/              # Session logs, docker checkpoints
+    ├── checkpoint.json    # Session checkpoint (task state, iteration history)
+    ├── proposed-tasks.json
+    ├── stage-0/           # Researcher output (Stage 0)
+    ├── stage-1/           # Epic-architect plans (Stage 1)
+    ├── stage-2/           # Spec-creator output (Stage 2)
+    ├── stage-3/           # Implementer output (Stage 3)
+    ├── stage-4/           # Test writer output (Stage 4)
+    ├── stage-4.5/         # Codebase stats output (Stage 4.5)
+    ├── stage-5/           # Validator output (Stage 5)
+    └── stage-6/           # Documentor output (Stage 6)
 ```
 
 All session artifacts are co-located with the project, eliminating the need for global `~/.claude/` writes.
@@ -76,6 +82,72 @@ All session artifacts are co-located with the project, eliminating the need for 
 #### No-Auto-Commit Policy
 
 `dev-workflow` phases G3 and G4 now generate conventional commit messages and display copy-pasteable `git add`/`git commit`/`git push` commands **without executing them**. The user reviews and runs commands manually. This eliminates surprise commits during autonomous orchestration sessions.
+
+---
+
+#### Autonomous Debug Subsystem (7th Specialized Agent + Command)
+
+A new `debugger` agent (`agents/debugger.md`, model: opus) and `/auto-debug` command (`commands/auto-debug.md`) provide a cyclic autonomous debugging pipeline:
+
+**Pipeline**: triage → research → root cause + fix → verify → report (cycles until zero errors or iteration limit reached)
+
+**Usage**:
+```
+/auto-debug <error description or "debug all" or paste stack trace>
+/auto-debug debug docker           # Docker-specific debugging
+/auto-debug c                      # Resume most recent debug session
+```
+
+**Key parameters**: `docker` (boolean), `max_iterations` (default 50), `stall_threshold` (default 3), `fix_verify_cycles` (default 5)
+
+**Debugger constraints** (DBG-001 to DBG-012):
+- DBG-001: Evidence-first — every diagnosis cites specific log lines or traces
+- DBG-002: Minimal blast radius — fix ONLY what is broken; no opportunistic cleanup
+- DBG-003: Verify before declaring fixed — re-run test/check after every fix
+- DBG-004: Fix immediately when root cause is found
+- DBG-005: No auto-commit
+- DBG-006: Uses debug-diagnostics skill for structured error categorization
+- DBG-007: Docker awareness — collect `docker compose logs` and container health first
+- DBG-008: Researcher escalation for unfamiliar errors (spawns researcher subagent)
+- DBG-009: Max 3 internal fix-verify iterations per error before escalating
+- DBG-010: Writes structured debug report to `.debug/<session-id>/reports/`
+- DBG-011: Single error focus — one error at a time, starting with root error
+- DBG-012: Preserve evidence — never delete diagnostic data
+
+**Session directory**: `.debug/<session-id>/reports/` (project-local, parallel to `.orchestrate/`)
+
+Supported by the new `debug-diagnostics` skill for structured error categorization.
+
+---
+
+#### Autonomous Audit Subsystem (8th Specialized Agent + Command)
+
+A new `auditor` agent (`agents/auditor.md`, model: opus) and `/auto-audit` command (`commands/auto-audit.md`) provide an audit-remediate loop that verifies a codebase against a specification document:
+
+**Pipeline**: audit → gap analysis → remediate (via orchestrator) → re-audit (cycles until compliance threshold met or cycle limit reached)
+
+**Usage**:
+```
+/auto-audit path/to/spec.md                # Audit against spec
+/auto-audit path/to/spec.md scope=B       # Backend scope
+/auto-audit c                              # Resume most recent audit session
+```
+
+**Key parameters**: `scope` (F/B/S), `max_audit_cycles` (default 5), `max_orchestrate_iterations` (default 100), `docker` (boolean), `compliance_threshold` (default 90%)
+
+**Auditor constraints** (AUD-001 to AUD-008):
+- AUD-001: Read-only operation — NEVER modifies project files or Docker state
+- AUD-002: Spec-first — reads spec document before scanning codebase
+- AUD-003: Evidence-based verdicts — every PASS/PARTIAL/MISSING/FAIL cites file paths or command output
+- AUD-004: Uses spec-compliance skill for structured compliance checking
+- AUD-005: Dual output — human-readable audit-report-<cycle>.md AND machine-readable gap-report.json
+- AUD-006: No auto-commit
+- AUD-007: Complete coverage — every requirement in the spec gets a verdict
+- AUD-008: Docker conditional — Docker auditing only when DOCKER_MODE is true
+
+**Session directory**: `.audit/<session-id>/` (project-local)
+
+Supported by the new `spec-compliance` skill for requirements extraction and compliance scoring.
 
 ---
 
@@ -131,7 +203,7 @@ All session artifacts are co-located with the project, eliminating the need for 
 | Component | Change |
 |-----------|--------|
 | Stage 0 | Now MANDATORY — researcher must run before epic-architect; previously optional |
-| Agent count | 5 → 6 (added researcher) |
+| Agent count | 5 → 8 (added researcher, debugger, auditor) |
 | dev-workflow G3/G4 | Message-generation-only — no longer auto-commits or auto-pushes |
 | Orchestrator communication | Receives task state via spawn prompt; proposes updates via PROPOSED_ACTIONS (not direct TaskCreate/TaskUpdate) |
 | Epic-architect task caps | Enforces LIMIT-001/LIMIT-002 (50-task ceiling); generates broader consolidated tasks |
@@ -395,7 +467,7 @@ The orchestrator agent may not have access to the Task tool in all permission mo
 - Complex work requiring subagent delegation is documented for manual completion
 - The orchestrator logs `[GAP-CRIT-001] Task tool unavailable` in its output
 
-**Workaround**: Invoke agents directly via their slash commands or skills instead of relying on auto-orchestrate delegation.
+**Workaround**: The file-based task proposal protocol (`PROPOSED_ACTIONS` + `.orchestrate/<session-id>/proposed-tasks.json`) now provides a fully implemented workaround. See CHANGELOG.md Unreleased section for details.
 
 **Status**: Architectural constraint under investigation. See `claude-code/agents/TOOL-AVAILABILITY.md` for details.
 

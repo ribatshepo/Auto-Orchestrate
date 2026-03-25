@@ -893,7 +893,7 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns and file paths.
 
 **documentor** (Stage 6 — mandatory after stable implementation):
 - Pipeline: docs-lookup -> docs-write -> docs-review.
-- Update ARCHITECTURE.md, COOKBOOK.md, relevant docs.
+- Update ARCHITECTURE.md, INTEGRATION.md, relevant docs.
 ```
 
 ---

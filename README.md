@@ -1,4 +1,4 @@
-# Auto-Orchestrate 
+# Auto-Orchestrate
 
 Multi-agent orchestration framework that extends Claude Code with autonomous software engineering workflows.
 
@@ -11,8 +11,9 @@ The system enforces strict quality gates, manages context budgets across agent h
 ## Features
 
 - **7-stage autonomous pipeline** — Research, planning, specification, implementation, testing, validation, and documentation stages with mandatory completion gates
-- **6 specialized agents** — Orchestrator, implementer, documentor, epic-architect, session-manager, and researcher, each with defined roles and constraints
-- **33 task-specific skills** — Testing, security auditing, documentation, DevOps, Docker validation, refactoring, CI/CD, dependency analysis, and more
+- **8 specialized agents** — Orchestrator, implementer, documentor, epic-architect, session-manager, researcher, debugger, and auditor, each with defined roles and constraints
+- **2 autonomous subsystems** — `/auto-debug` for cyclic error-fix loops; `/auto-audit` for spec-compliance verification loops
+- **35 task-specific skills** — Testing, security auditing, documentation, DevOps, Docker validation, refactoring, CI/CD, dependency analysis, debugging diagnostics, spec compliance, and more
 - **Session management with crash recovery** — Checkpoint-based sessions that persist across interruptions and can be resumed
 - **Task decomposition with parallel execution** — Epic-architect decomposes work into dependency graphs for optimized scheduling (Program planning)
 - **Zero-error gates and mandatory validation** — Security audits, compliance checks, and technical debt measurement enforced before completion
@@ -30,8 +31,8 @@ The system enforces strict quality gates, manages context budgets across agent h
 Clone the repository and run the install script:
 
 ```bash
-git clone https://github.com/ribatshepo/Auto-Orchestrate .git
-cd Auto-Orchestrate 
+git clone https://github.com/ribatshepo/Auto-Orchestrate.git
+cd Auto-Orchestrate
 chmod +x install-claude-config.sh
 ./install-claude-config.sh
 ```
@@ -39,8 +40,8 @@ chmod +x install-claude-config.sh
 The install script copies the following into `~/.claude/`:
 
 - `agents/` — Agent definition files
-- `skills/` — All 33 skill directories
-- `commands/` — Command definitions (auto-orchestrate)
+- `skills/` — All 35 skill directories
+- `commands/` — Command definitions (auto-orchestrate, auto-debug, auto-audit)
 - `_shared/` — Protocols, templates, references, and style guides
 - `manifest.json` — Component registry used for agent routing
 - `settings.json` — Permission and configuration settings
@@ -100,6 +101,26 @@ Sessions are checkpointed automatically in `.orchestrate/<session-id>/checkpoint
 
 You can also use the shorthand `/auto-orchestrate c` to quickly resume the most recent in-progress session.
 
+### Autonomous debugging
+
+Debug errors autonomously with a cyclic triage-fix-verify loop:
+
+```
+/auto-debug paste-error-here
+/auto-debug debug docker           # Docker-specific debugging
+/auto-debug c                      # Resume most recent debug session
+```
+
+### Autonomous audit
+
+Verify a codebase against a specification document:
+
+```
+/auto-audit path/to/spec.md
+/auto-audit path/to/spec.md scope=B    # Backend scope
+/auto-audit c                          # Resume most recent audit session
+```
+
 ## Architecture Overview
 
 ```
@@ -118,6 +139,22 @@ orchestrator  (agent) ──> session-manager
     |
     v
 Completion (all mandatory gates passed)
+
+/auto-debug  (command)
+    |
+    v
+debugger  (agent) ──> debug-diagnostics
+    |── researcher (optional: unfamiliar errors)
+    v
+Fix verified ──> Debug report in .debug/<session-id>/
+
+/auto-audit  (command)
+    |
+    v
+auditor  (agent) ──> spec-compliance
+    |
+    v
+Compliance report ──> Gap found? ──> orchestrator (remediation) ──> Re-audit
 ```
 
 
@@ -162,11 +199,16 @@ See `claude-code/ARCHITECTURE.md` for the full constraint matrix.
 | documentor | docs-lookup, docs-write, docs-review | Documentation specialist; chains skills for full docs workflow |
 | session-manager | workflow-start/end/dash/focus/next/plan | Manages session lifecycle, checkpoints, and crash recovery |
 | researcher | researcher (skill), docs-lookup | Internet-enabled research for best practices, CVEs, package analysis |
+| debugger | debug-diagnostics | Autonomous debugger: triage, research, fix, verify with minimal blast radius; supports Docker debugging mode |
+| auditor | spec-compliance | Read-only spec compliance auditor; produces compliance report + gap-report.json; never modifies code |
 
 ### Skills (by domain)
 
 **Quality and Validation**
 validator, docker-validator, test-writer-pytest, test-gap-analyzer, security-auditor, codebase-stats
+
+**Debugging and Auditing**
+debug-diagnostics, spec-compliance
 
 **Code Implementation**
 task-executor, library-implementer-python, production-code-workflow
@@ -189,7 +231,7 @@ skill-lookup, skill-creator, dev-workflow, python-venv-manager
 ## Project Structure
 
 ```
-Auto-Orchestrate /
+Auto-Orchestrate/
 ├── README.md                    # This file
 ├── LICENSE                      # MIT License
 ├── SECURITY.md                  # Security policy and vulnerability reporting
@@ -209,23 +251,27 @@ Auto-Orchestrate /
     ├── manifest.json            # Component registry (agent/skill routing)
     ├── settings.json            # Configuration and permissions
     │
-    ├── agents/                  # Agent definitions (6 agents)
+    ├── agents/                  # Agent definitions (8 agents)
     │   ├── orchestrator.md
     │   ├── epic-architect.md
     │   ├── implementer.md
     │   ├── documentor.md
     │   ├── researcher.md
-    │   └── session-manager.md
+    │   ├── session-manager.md
+    │   ├── debugger.md
+    │   └── auditor.md
     │
     ├── commands/                # Command definitions
-    │   └── auto-orchestrate.md  # Autonomous orchestration loop
+    │   ├── auto-orchestrate.md  # Autonomous orchestration loop
+    │   ├── auto-debug.md        # Autonomous debug loop
+    │   └── auto-audit.md        # Autonomous audit loop
     │
-    ├── skills/                  # Skill definitions (33 skills)
+    ├── skills/                  # Skill definitions (35 skills)
     │   ├── codebase-stats/
     │   ├── cicd-workflow/
     │   ├── dependency-analyzer/
     │   ├── docker-validator/
-    │   ├── ... (33 skill directories total)
+    │   ├── ... (35 skill directories total)
     │   └── _shared/             # Shared Python libraries
     │
     └── _shared/                 # Shared resources

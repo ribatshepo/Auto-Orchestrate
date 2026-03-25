@@ -20,6 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Previously only documentor and session-manager had declared skills
 - **Skill reference enforcement** — All 20 skills with `references/` or `scripts/` directories now mandate loading those files. 9 previously unreferenced scripts were added to their SKILL.md files: pipeline_validator.py, dockerfile_linter.py, placeholder_parser.py, placeholder_scanner.py, complexity_analyzer.py, quick_validate.py, spec_validator.py, spec_scaffolder.py, task_validator.py. `_shared/python/validate_manifest.py` now referenced by skill-creator
 
+- **Autonomous debug subsystem** — New `/auto-debug` command (`commands/auto-debug.md`) drives a cyclic triage-research-root-cause-fix-verify loop. Accepts `error_description`, optional `docker` flag, `max_iterations` (default 50), `stall_threshold` (default 3), and `fix_verify_cycles` (default 5) arguments. Session artifacts written to `.debug/<session-id>/reports/`.
+
+- **Debugger agent** — New `debugger` agent (`agents/debugger.md`, model: opus) enforces DBG-001 through DBG-012 constraints: evidence-first diagnosis, minimal blast radius, verify-before-declaring-fixed, no auto-commit, skill-driven diagnosis via debug-diagnostics, Docker-aware collection, researcher escalation for unfamiliar errors, structured debug report output.
+
+- **Autonomous audit subsystem** — New `/auto-audit` command (`commands/auto-audit.md`) drives an audit-remediate cycle against a spec document. Accepts `spec_path`, `scope` flag (F/B/S), `max_audit_cycles` (default 5), `max_orchestrate_iterations` (default 100), `docker` flag, and `compliance_threshold` (default 90%) arguments.
+
+- **Auditor agent** — New `auditor` agent (`agents/auditor.md`, model: opus) enforces AUD-001 through AUD-008 constraints: read-only operation, spec-first analysis, evidence-based verdicts, skill-driven via spec-compliance, structured dual output (human audit report + machine gap report). Writes to `.audit/<session-id>/` directory.
+
+- **debug-diagnostics skill** — New skill (`skills/debug-diagnostics/SKILL.md`) for structured error categorization, used exclusively by the debugger agent. Includes `references/error-categories.md`.
+
+- **spec-compliance skill** — New skill (`skills/spec-compliance/SKILL.md`) for requirements extraction and compliance scoring, used exclusively by the auditor agent. Includes `references/compliance-patterns.md`.
+
+- **.debug/ and .audit/ session directories** — Debug sessions store artifacts in `.debug/<session-id>/reports/` (project-local), mirroring the `.orchestrate/` convention used by auto-orchestrate. `.audit/<session-id>/` is the equivalent for audit sessions.
+
 ### Changed
 
 - **auto-orchestrate.md optimized** — Reduced from 984 to 824 lines (-16%): defined Pipeline Stage Reference table once (was repeated 3x), removed changelog artifacts, consolidated display formats, compressed Step 4 sub-steps
@@ -61,7 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Stages 0, 1, 2 mandatory** — Orchestrator now mandates Stages 0 (research), 1 (epic architecture), and 2 (specifications) before advancing to implementation (Stage 3); previously only Stage 0 was mandatory
 - **Max iterations default** — `MAX_ITERATIONS` increased from 15 to 100 for enhanced orchestration capability
-- **Agent count** — System now has 6 specialized agents (was 5): orchestrator, epic-architect, implementer, documentor, session-manager, researcher
+- **Agent count** — System now has 8 specialized agents (was 6): orchestrator, epic-architect, implementer, documentor, session-manager, researcher, debugger, auditor
 - **dev-workflow G3/G4** — Replaced auto-commit and auto-push with message-generation-only workflow
 - **Orchestrator communication protocol** — Orchestrator now receives task state via spawn prompt (`## Current Task State` section) instead of calling TaskList, and proposes task updates via `PROPOSED_ACTIONS` return value instead of TaskCreate/TaskUpdate (commit `6993c4b`)
 - **Epic-architect task caps** — Epic-architect updated to enforce task count limits and propose broader, consolidated tasks rather than fine-grained individual tasks (commit `6993c4b`)
@@ -215,4 +229,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Commits**: 5 commits on main branch as of v1.0.0
 - **Schema Version**: 1.0.0
 
-[1.0.0]: https://github.com/ribatshepo/Auto-Orchestrate /releases/tag/v1.0.0
+[1.0.0]: https://github.com/ribatshepo/Auto-Orchestrate/releases/tag/v1.0.0

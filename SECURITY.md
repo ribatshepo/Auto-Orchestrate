@@ -17,7 +17,7 @@ We take the security of Auto-Orchestrate seriously. If you believe you have foun
 Instead, please report them via:
 
 1. **GitHub Security Advisories** (preferred):  
-   Navigate to the [Security tab](https://github.com/ribatshepo/Auto-Orchestrate /security/advisories) and click "Report a vulnerability"
+   Navigate to the [Security tab](https://github.com/ribatshepo/Auto-Orchestrate/security/advisories) and click "Report a vulnerability"
 
 2. **Email** (alternative):  
    Contact the maintainer directly through the GitHub profile email
@@ -116,13 +116,27 @@ The branch protection script manages GitHub branch protection rules via the `gh`
 2. **No Sandboxing**:  
    Skills and agents execute in the same environment as the Claude Code process. There is no sandboxing or containerization. Malicious skills could potentially perform arbitrary file operations or subprocess execution.
 
+### Debugger Agent (`debugger`)
+
+The debugger agent has Write, Edit, and Bash access and is explicitly designed to modify project files. Additional security considerations:
+
+- **Minimal blast radius (DBG-002)**: Debugger is constrained to fix ONLY the identified broken component — it must not refactor or clean up unrelated code
+- **Evidence-first (DBG-001)**: All changes must be traceable to a specific error log, stack trace, or test failure cited in the debug report
+- **No auto-commit (DBG-005)**: Debugger outputs suggested commit messages but never executes git commit or git push
+- **Audit trail**: All debug reports written to `.debug/<session-id>/reports/` provide a per-change evidence trail
+
+**User Responsibilities**:
+- Review `.debug/<session-id>/reports/` after each debug session
+- Verify that fix scope matches the error description before accepting changes
+- Use `/auto-debug` with specific error descriptions, not vague "fix everything" objectives, to constrain blast radius
+
 ## Best Practices
 
-When using Auto-Orchestrate :
+When using Auto-Orchestrate:
 
 1. **Review Code Before Execution**: Always review generated code before running it, especially for security-sensitive tasks
 2. **Limit Autonomous Mode Scope**: Use specific, well-defined objectives for `/auto-orchestrate` rather than vague requests
-3. **Session Checkpoints**: Regularly review session checkpoint files in `~/.claude/sessions/` to ensure expected behavior
+3. **Session Checkpoints**: Regularly review session checkpoint files in `.orchestrate/<session-id>/checkpoint.json` (project-local) to ensure expected behavior. The `~/.claude/sessions/` path is a legacy read-only fallback for sessions started before the path migration; new sessions no longer write there.
 4. **File Scope Discipline**: The orchestrator enforces file scope discipline (MAIN-009) — verify that agents only modify files within the task scope
 5. **Backup Critical Data**: While the system includes backup mechanisms, maintain independent backups of critical codebases
 
@@ -135,7 +149,7 @@ All agent actions are recorded per-session in `.orchestrate/<session-id>/` direc
 - Task state changes
 - Errors and warnings
 
-Review the `.orchestrate/` session directories and `~/.claude/sessions/` checkpoint files regularly to monitor autonomous orchestration behavior.
+Review the `.orchestrate/` session directories regularly to monitor autonomous orchestration behavior. Debug session artifacts are stored in `.debug/<session-id>/` and audit artifacts in `.audit/<session-id>/`. The `~/.claude/sessions/` path is a legacy read-only fallback only.
 
 ## Contact
 
@@ -143,4 +157,4 @@ For non-security issues, please open a GitHub issue.
 
 For general questions, see the project README and documentation.
 
-**Last Updated**: 2026-02-12
+**Last Updated**: 2026-03-25

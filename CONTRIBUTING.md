@@ -1,8 +1,8 @@
-# Contributing to Auto-Orchestrate 
+# Contributing to Auto-Orchestrate
 
 Thank you for your interest in contributing. This guide covers everything you need to get started: dev setup, how to create skills or modify agents, testing, code style, and the PR process.
 
-See [ARCHITECTURE.md](claude-code/ARCHITECTURE.md) for the system architecture and [COOKBOOK.md](claude-code/COOKBOOK.md) for common patterns and recipes.
+See [ARCHITECTURE.md](claude-code/ARCHITECTURE.md) for the system architecture and [INTEGRATION.md](claude-code/INTEGRATION.md) for installation and integration patterns.
 
 ---
 
@@ -15,6 +15,7 @@ See [ARCHITECTURE.md](claude-code/ARCHITECTURE.md) for the system architecture a
 5. [Testing](#testing)
 6. [Code Style](#code-style)
 7. [Pull Request Process](#pull-request-process)
+8. [Adding a New Command](#adding-a-new-command)
 
 ---
 
@@ -29,8 +30,8 @@ See [ARCHITECTURE.md](claude-code/ARCHITECTURE.md) for the system architecture a
 ### Clone and install
 
 ```bash
-git clone https://github.com/ribatshepo/Auto-Orchestrate .git
-cd Auto-Orchestrate 
+git clone https://github.com/ribatshepo/Auto-Orchestrate.git
+cd Auto-Orchestrate
 chmod +x install-claude-config.sh
 ./install-claude-config.sh
 ```
@@ -49,19 +50,18 @@ All tests should pass. If any fail, check that Python 3.10+ is your active inter
 
 After making changes to skill scripts or agent definitions, re-run the installer to push changes into `~/.claude/`. The installer is idempotent and always backs up first.
 
-
-
 ---
 
 ## Project Layout
 
 ```
-Auto-Orchestrate /
+Auto-Orchestrate/
 ├── install-claude-config.sh     # Copies claude-code/ → ~/.claude/
 ├── uninstall-claude-config.sh   # Removes ~/.claude/ installed files
 └── claude-code/
     ├── agents/                  # Agent definitions (Markdown)
-    ├── commands/                # Slash command definitions (Markdown)
+    ├── commands/                # Slash command definitions (auto-orchestrate.md,
+    │                            #   auto-debug.md, auto-audit.md)
     ├── skills/                  # Skill definitions (Markdown + Python scripts)
     │   └── _shared/python/      # Shared Python library (layered)
     │       ├── layer0/          # Foundation (colors, constants, exit codes)
@@ -117,6 +117,8 @@ claude-code/skills/<skill-name>/
 
 6. **Re-install** to push changes: `./install-claude-config.sh`
 
+> **References subdirectory**: Skills that need lookup tables, pattern libraries, or reference data should place those files in `skills/<name>/references/`. Several skills use this pattern (e.g., `debug-diagnostics/references/error-categories.md`, `spec-compliance/references/compliance-patterns.md`). Reference files are loaded at the start of the SKILL.md `## Before You Begin` section.
+
 ### Manifest entry format
 
 ```json
@@ -147,6 +149,46 @@ Agents are defined in `claude-code/agents/<agent-name>.md`. They are Markdown fi
 2. Add the agent entry to `manifest.json` under `"agents"`.
 3. Update `ARCHITECTURE.md` to document the new agent's role.
 4. Re-install: `./install-claude-config.sh`
+
+---
+
+## Adding a New Command
+
+Commands are Markdown files in `claude-code/commands/` with YAML frontmatter. They are slash commands invoked directly in Claude Code (e.g., `/auto-debug`).
+
+### Command frontmatter
+
+```yaml
+---
+name: my-command
+description: |
+  One-line summary of what the command does.
+triggers:
+  - keyword trigger 1
+  - keyword trigger 2
+arguments:
+  - name: my_arg
+    type: string
+    required: true
+    description: What this argument controls.
+---
+```
+
+### Command body
+
+Commands contain their own constraint table (immutable rules), execution loop logic, and session management. Follow the pattern in `auto-debug.md` for cyclic commands or `auto-orchestrate.md` for linear stage-based commands.
+
+### Registration
+
+After creating `commands/my-command.md`, register it in `manifest.json`:
+```json
+{
+  "name": "my-command",
+  "description": "...",
+  "path": "commands/my-command.md"
+}
+```
+Add to the `"commands"` array. Run `python3 claude-code/skills/_shared/python/validate_manifest.py` to confirm registration.
 
 ---
 

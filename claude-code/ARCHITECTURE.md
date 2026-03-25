@@ -2,8 +2,8 @@
 
 Comprehensive architecture documentation for the Claude Code plugins system.
 
-**Last Updated**: 2026-03-23 (STAGE_CEILING enforcement, CHAIN-001, agent-skill mandate audit, skill reference enforcement, auto-orchestrate/orchestrator optimization)
-**Components**: 6 agents | 33 skills | 1 command | 4 protocols | 2 templates
+**Last Updated**: 2026-03-25 (debugger agent, auditor agent, auto-debug command, auto-audit command, debug-diagnostics skill, spec-compliance skill)
+**Components**: 8 agents | 35 skills | 3 commands | 4 protocols | 2 templates
 
 ---
 
@@ -21,13 +21,14 @@ The plugins system extends Claude Code with specialized agents, skills, and work
 ┌─────────────────────────────────────────────────────────────────┐
 │                      COMMANDS LAYER                             │
 │  /workflow-start /workflow-dash /workflow-focus /workflow-next    │
-│  /workflow-end /workflow-plan /refactor-analyzer /auto-orchestrate│
+│  /workflow-end /workflow-plan /auto-orchestrate /auto-debug      │
+│  /auto-audit /refactor-analyzer                                  │
 ├─────────────────────────────────────────────────────────────────┤
 │                       AGENTS LAYER                              │
-│  orchestrator │ documentor │ epic-architect │ implementer │ session-manager │ researcher │
+│  orchestrator │ documentor │ epic-architect │ implementer │ session-manager │ researcher │ debugger │ auditor │
 ├─────────────────────────────────────────────────────────────────┤
 │                       SKILLS LAYER                              │
-│  33 specialized skills organized by category                    │
+│  35 specialized skills organized by category                    │
 ├─────────────────────────────────────────────────────────────────┤
 │                      PROTOCOL LAYER                             │
 │  subagent-protocol  │  task-system  │  skill-chaining-patterns  │
@@ -72,10 +73,13 @@ claude-code/
 │   ├── epic-architect.md                      (283 lines)
 │   ├── implementer.md                         (335 lines)
 │   ├── session-manager.md                     (371 lines)
-│   └── researcher.md                          (162 lines)
+│   ├── researcher.md                          (162 lines)
+│   ├── debugger.md
+│   └── auditor.md
 ├── skills/
 │   ├── codebase-stats/SKILL.md                (351 lines)
 │   ├── dependency-analyzer/SKILL.md           (352 lines)
+│   ├── debug-diagnostics/SKILL.md
 │   ├── dev-workflow/SKILL.md                  (486 lines)
 │   ├── docs-lookup/SKILL.md                   (66 lines)
 │   ├── docs-review/SKILL.md                   (172 lines)
@@ -90,6 +94,7 @@ claude-code/
 │   ├── skill-creator/SKILL.md                 (361 lines)
 │   ├── skill-lookup/SKILL.md                  (81 lines)
 │   ├── spec-creator/SKILL.md                  (175 lines)
+│   ├── spec-compliance/SKILL.md
 │   ├── task-executor/SKILL.md                 (224 lines)
 │   ├── test-gap-analyzer/SKILL.md             (462 lines)
 │   ├── test-writer-pytest/SKILL.md            (497 lines)
@@ -108,7 +113,9 @@ claude-code/
 │   ├── workflow-next/SKILL.md                 (136 lines)
 │   └── workflow-plan/SKILL.md                 (277 lines)
 └── commands/
-    └── auto-orchestrate.md
+    ├── auto-orchestrate.md
+    ├── auto-debug.md
+    └── auto-audit.md
 ```
 
 ---
@@ -139,7 +146,7 @@ claude-code/
            v                        v                        v
     ┌─────────────┐         ┌─────────────┐         ┌─────────────┐
     │   AGENTS    │         │   SKILLS    │         │  COMMANDS   │
-    │  (6 files)  │         │ (33 dirs)   │         │  (1 file)   │
+    │  (8 files)  │         │ (35 dirs)   │         │  (3 files)  │
     └──────┬──────┘         └──────┬──────┘         └─────────────┘
            │                       │
            │   ┌───────────────────┼───────────────────┐
@@ -161,8 +168,8 @@ claude-code/
 
 | Source Type | References `skill-boilerplate` | References `protocols` |
 |-------------|-------------------------------|------------------------|
-| Skills (32) | 77 (avg 2.5 per skill) | 5 |
-| Agents (6) | 1 | 7 |
+| Skills (35) | 77 (avg 2.2 per skill) | 5 |
+| Agents (8) | 1 | 7 |
 | Protocols (4) | 2 | 3 (internal) |
 
 ---
@@ -664,6 +671,81 @@ active -> /workflow-end -> ended
 
 **Skill Delegation**: None — executes directly using WebSearch and WebFetch tools.
 
+---
+
+### 4.7 Debugger
+
+**Purpose**: Autonomous error diagnosis and fixing via cyclic triage-research-root-cause-fix-verify pipeline.
+
+**Key Constraints (DBG-001 to DBG-012)**:
+- Evidence-first: every diagnosis cites specific log lines or stack traces
+- Minimal blast radius: fix ONLY what is broken (no opportunistic cleanup)
+- Verify before declaring fixed: re-run test/check after every fix
+- Researcher escalation: spawns researcher for unfamiliar/external-dependency errors
+- Docker awareness: collects container logs and health before diagnosing
+- No auto-commit: outputs suggested commit message only
+- Session output: `.debug/<session-id>/reports/` (project-local)
+
+**Mandatory Skill**: debug-diagnostics (Phase 1 — error categorization)
+
+**Decision Flow**:
+```
+Error input
+    |
+    v
+debug-diagnostics (Phase 1: categorize error)
+    |
+    Is error familiar?
+    +-- YES --> Fix immediately
+    +-- NO  --> Spawn researcher --> Fix
+        |
+        v
+    Verify (re-run test / check endpoint / check docker)
+        |
+        Pass? --YES--> Write debug report --> DONE
+           |
+          NO (< 3 retries) --> Loop back
+           |
+          NO (>= 3 retries) --> Escalate to user
+```
+
+### 4.8 Auditor
+
+**Purpose**: Read-only spec compliance audit. Reads spec document, scans codebase, produces compliance report + machine-readable gap report. Never modifies code.
+
+**Key Constraints (AUD-001 to AUD-008)**:
+- Read-only operation: no Write, Edit, or state-changing commands
+- Spec-first: reads spec before scanning codebase
+- Evidence-based verdicts: every PASS/PARTIAL/MISSING/FAIL cites file + line
+- Complete coverage: every requirement in spec gets a verdict
+- Dual output: audit-report-<cycle>.md + gap-report.json
+- Docker conditional: Docker auditing only when DOCKER_MODE is true
+
+**Mandatory Skill**: spec-compliance (structured requirements extraction and compliance mapping)
+
+**Decision Flow**:
+```
+spec_path input
+    |
+    v
+Read spec document
+    |
+    v
+spec-compliance skill (extract requirements, build compliance matrix)
+    |
+    v
+Scan codebase (Glob/Grep per requirement)
+    |
+Docker mode?
+    +-- YES --> service_discovery.py (read-only Docker audit)
+    +-- NO  --> skip Docker
+        |
+        v
+Write audit-report-<cycle>.md + gap-report.json to .audit/<session-id>/
+    |
+    v
+Return compliance score + gap list to auto-audit
+```
 
 ## 5. Skills Catalog
 
@@ -1334,7 +1416,7 @@ When scope is not `custom`, the full scope specification (Appendix A/B of auto-o
 
 ### Skills -> Templates
 
-All 33 skills reference `skill-boilerplate.md` sections:
+All 35 skills reference `skill-boilerplate.md` sections:
 - `#task-integration` (20 skills)
 - `#subagent-protocol` (20 skills)
 - `#manifest-entry` (20 skills)
@@ -1655,7 +1737,7 @@ The `_shared/` directory contains cross-cutting resources that skills and agents
 
 | File | Purpose | Reference Count |
 |------|---------|-----------------|
-| `skill-boilerplate.md` | 7-step execution sequence, manifest entry format | 68 references across 33 skills |
+| `skill-boilerplate.md` | 7-step execution sequence, manifest entry format | 68 references across 35 skills |
 | `anti-patterns.md` | Common mistakes to avoid by category | 6 references |
 
 **References** (2 agent-specific directories):
@@ -1707,9 +1789,9 @@ jq '._meta.totalAgents, ._meta.totalSkills, ._meta.totalCommands' claude-code/ma
 ```
 
 **Component Verification**:
-- [ ] All 6 agents documented (orchestrator, documentor, epic-architect, implementer, session-manager, researcher)
-- [ ] All 33 skills cataloged
-- [ ] All 1 command referenced (auto-orchestrate)
+- [ ] All 8 agents documented (orchestrator, implementer, epic-architect, documentor, session-manager, researcher, debugger, auditor)
+- [ ] All 35 skills cataloged
+- [ ] All 3 commands referenced (auto-orchestrate, auto-debug, auto-audit)
 - [ ] All 4 protocols described
 - [ ] All 2 templates explained
 - [ ] Cross-reference counts accurate

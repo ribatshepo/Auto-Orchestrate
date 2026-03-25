@@ -79,6 +79,9 @@ Claude Code operates in different permission modes that affect tool availability
 | **implementer** | NO (conflicts with IMPL-002) | YES (required) | Partial | Requires Write/Edit access; will fail without auto-accept |
 | **documentor** | Partial | YES | YES | Can operate with approval for each Write/Edit |
 | **session-manager** | Partial | YES (preferred) | YES | Session file writes need approval in manual mode |
+| **researcher** | YES | YES | YES | Read-only (WebSearch/WebFetch); fully compatible with all modes |
+| **debugger** | NO (conflicts with DBG-002/DBG-004) | YES (required) | Partial | Requires Write/Edit to apply fixes; plan mode conflicts with "fix immediately" constraint |
+| **auditor** | YES | YES | YES | Read-only — AUD-001 prohibits all writes; always compatible |
 
 ### orchestrator
 
@@ -135,7 +138,7 @@ Claude Code operates in different permission modes that affect tool availability
 ### session-manager
 
 **Preferred Mode**: Auto-Accept
-**Constraints**: Needs write access to `~/.claude/sessions/` and `~/.claude/manifest.json`
+**Constraints**: Needs write access to `.orchestrate/<session-id>/` (project-local primary path) and `~/.claude/manifest.json`. Legacy `~/.claude/sessions/` is a read-only fallback for crash recovery of pre-migration sessions only.
 
 **Behavior by Mode**:
 - **Plan Mode**: Session management doesn't fit plan-review workflow
@@ -143,6 +146,44 @@ Claude Code operates in different permission modes that affect tool availability
 - **Manual Approval**: Partial — user must approve each session file write (interrupts boot sequence)
 
 **Known Issues**: Boot infrastructure (Step 0) may stall in manual mode awaiting session file write approval
+
+### researcher
+
+**Preferred Mode**: Any (fully compatible with all modes)
+**Constraints**: Read-only — uses WebSearch and WebFetch; no file writes
+
+**Behavior by Mode**:
+- **Plan Mode**: Full functionality — research is read-only
+- **Auto-Accept**: Full functionality
+- **Manual Approval**: Full functionality — no write operations to approve
+
+**Known Issues**: None
+
+### debugger
+
+**Preferred Mode**: Auto-Accept (REQUIRED)
+**Constraints**: DBG-002 (minimal blast radius), DBG-004 (fix immediately) require Write/Edit access
+
+**Behavior by Mode**:
+- **Plan Mode**: INCOMPATIBLE — debugger applies targeted fixes immediately (DBG-004); plan mode approval conflicts with fix-immediately constraint
+- **Auto-Accept**: Full functionality — diagnoses errors, applies fixes, verifies, writes debug reports
+- **Manual Approval**: DEGRADED — each fix requires Write/Edit approval, breaking the fix-verify loop. Partial compatibility if user approves promptly.
+
+**Known Issues**:
+- Plan mode fundamentally conflicts with debugger's "fix immediately" constraint (DBG-004)
+- Recommend: Use `/auto-debug` which operates in auto-accept mode
+
+### auditor
+
+**Preferred Mode**: Any (fully compatible with all modes)
+**Constraints**: AUD-001 (read-only) — auditor NEVER writes to project files
+
+**Behavior by Mode**:
+- **Plan Mode**: Full functionality — audit is entirely read-only (Glob/Grep/Read only)
+- **Auto-Accept**: Full functionality
+- **Manual Approval**: Full functionality — no write operations to approve
+
+**Known Issues**: None. Note that if auto-audit enters the remediation phase (spawning orchestrator to fix gaps), that phase requires Auto-Accept for implementer subagents.
 
 ## Skill Compatibility Matrix
 
@@ -162,9 +203,11 @@ Claude Code operates in different permission modes that affect tool availability
 | refactor-analyzer | YES | YES | YES | Analysis phase only |
 | refactor-executor | Partial | YES | Partial | File writes need approval/auto-accept |
 | security-auditor | YES | YES | YES | Read-only scanning |
+| spec-compliance | YES | YES | YES | Read-only analysis; always compatible |
 | test-gap-analyzer | YES | YES | YES | Analysis + generates test stubs |
 | error-standardizer | Partial | YES | Partial | Modifies code files |
 | dependency-analyzer | YES | YES | YES | Read-only analysis |
+| debug-diagnostics | NO | YES (required) | Partial | Used by debugger; requires Write for fix application |
 | cicd-workflow | Partial | YES | YES | Creates CI files |
 | docker-workflow | Partial | YES | YES | Creates Dockerfiles |
 | dev-workflow | Partial | YES (preferred) | Partial | Commits need auto-accept |
@@ -193,7 +236,7 @@ Claude Code operates in different permission modes that affect tool availability
 
 **Recommended Setup**:
 1. Use Auto-Accept mode (permission granted in Step 0a)
-2. Grant session folder access (`~/.claude/sessions/`, `~/.claude/plans/`)
+2. Grant session folder access (`.orchestrate/`, `~/.claude/sessions/` legacy fallback, `~/.claude/plans/`)
 3. Accept "no clarifying questions" policy (command makes assumptions)
 
 **Expected Behavior**:
@@ -203,6 +246,36 @@ Claude Code operates in different permission modes that affect tool availability
 - Full autonomous operation
 
 **Known Limitation**: Task tool may still be unavailable (GAP-CRIT-001), but Write/Edit/Bash work without approval prompts.
+
+### For `/auto-debug` Command
+
+**Recommended Setup**:
+1. Use Auto-Accept mode (requires Write/Edit/Bash for applying fixes)
+2. Ensure Docker daemon access if debugging Docker services
+3. Grant project directory write access (debugger applies targeted fixes)
+
+**Expected Behavior**:
+- debugger spawned in Auto-Accept mode
+- Applies minimal-blast-radius fixes to specific files
+- Spawns researcher subagent for unfamiliar errors (WebSearch/WebFetch)
+- Never commits or pushes — outputs suggested commit message only
+
+**Known Limitation**: Task tool may still be unavailable (GAP-CRIT-001).
+
+### For `/auto-audit` Command
+
+**Recommended Setup**:
+1. Auto-Accept mode is NOT required — auditor is read-only (AUD-001)
+2. Manual Approval mode works; each audit step is non-destructive
+3. If compliance gaps are found, auto-audit will spawn orchestrator for remediation — that phase requires Auto-Accept for implementer subagents
+
+**Expected Behavior**:
+- auditor runs in any permission mode (read-only)
+- Produces audit-report-<cycle>.md and gap-report.json
+- On gaps found: auto-audit spawns orchestrator in remediation phase
+- compliance_threshold (default 90%) governs when loop exits
+
+**Known Limitation**: Remediation phase inherits auto-orchestrate limitations (GAP-CRIT-001).
 
 ### For Manual Agent Invocation
 
@@ -293,6 +366,6 @@ To verify agent behavior across modes:
 
 ---
 
-**Last Updated**: 2026-02-11 (Iteration 2 remediation)
+**Last Updated**: 2026-03-25 (added researcher, debugger, auditor agents; auto-debug and auto-audit command sections; debug-diagnostics and spec-compliance skills)
 **Related Gaps**: GAP-MED-002, GAP-CRIT-001
 **Status**: Documented (live testing required for verification)

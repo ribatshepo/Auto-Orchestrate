@@ -263,7 +263,7 @@ Fix-loop: validate->report->fix->revalidate (max 3 per IMPL-009).
 ```
 Pipeline: docs-lookup -> docs-write -> docs-review
 Maintain-don't-duplicate: update existing docs, never create duplicates.
-Update ARCHITECTURE.md, COOKBOOK.md, or relevant docs.
+Update ARCHITECTURE.md, INTEGRATION.md, or relevant docs.
 ```
 
 ## Self-Audit Gate (MANDATORY before returning)

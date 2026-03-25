@@ -2,8 +2,8 @@
 
 Step-by-step guide for integrating the plugins system with Claude Code.
 
-**Version**: 1.0.0
-**Last Updated**: 2026-02-18
+**Version**: 1.1.0
+**Last Updated**: 2026-03-25
 
 ---
 
@@ -71,7 +71,7 @@ After installation, components are immediately available:
 
 ### 3.1 Full Installation
 
-Install all 32 skills, 5 agents, and 1 command:
+Install all 35 skills, 8 agents, and 3 commands:
 
 ```bash
 # Create directories if they don't exist
@@ -129,6 +129,20 @@ cp -r claude-code/skills/library-implementer-python ~/.claude/skills/
 cp claude-code/agents/implementer.md ~/.claude/agents/
 ```
 
+**Debugging subsystem:**
+```bash
+cp -r claude-code/skills/debug-diagnostics ~/.claude/skills/
+cp claude-code/agents/debugger.md ~/.claude/agents/
+cp claude-code/commands/auto-debug.md ~/.claude/commands/
+```
+
+**Audit subsystem:**
+```bash
+cp -r claude-code/skills/spec-compliance ~/.claude/skills/
+cp claude-code/agents/auditor.md ~/.claude/agents/
+cp claude-code/commands/auto-audit.md ~/.claude/commands/
+```
+
 ### 3.3 Development Mode (Symlinks)
 
 For active development, use symlinks to edit skills in place:
@@ -162,7 +176,7 @@ ln -sf "$(pwd)/claude-code/commands" ~/.claude/commands
 ### 4.1 Skills Verification
 
 ```bash
-# Count installed skills (should be 32)
+# Count installed skills (should be 35)
 ls -d ~/.claude/skills/*/ 2>/dev/null | wc -l
 
 # Verify each skill has SKILL.md
@@ -200,7 +214,7 @@ triggers:
 ### 4.2 Agents Verification
 
 ```bash
-# List installed agents (should be 5)
+# List installed agents (should be 8)
 ls ~/.claude/agents/*.md
 
 # Verify agent frontmatter exists
@@ -224,7 +238,9 @@ ls ~/.claude/commands/
 Expected structure:
 ```
 commands/
-└── auto-orchestrate.md
+├── auto-orchestrate.md
+├── auto-debug.md
+└── auto-audit.md
 ```
 
 ### 4.4 Quick Test
@@ -357,15 +373,20 @@ After installation, your `~/.claude/` should look like:
 │   ├── documentor.md
 │   ├── epic-architect.md
 │   ├── implementer.md
-│   └── session-manager.md
+│   ├── session-manager.md
+│   ├── researcher.md
+│   ├── debugger.md
+│   └── auditor.md
 ├── skills/
 │   ├── researcher/
 │   │   └── SKILL.md
 │   ├── docs-write/
 │   │   └── SKILL.md
-│   └── ... (32 total)
+│   └── ... (35 total)
 └── commands/
-    └── auto-orchestrate.md
+    ├── auto-orchestrate.md
+    ├── auto-debug.md
+    └── auto-audit.md
 ```
 
 ---
@@ -394,7 +415,13 @@ cp -r claude-code/skills/researcher ~/.claude/skills/
 
 ### 7.2 Uninstalling
 
-**Uninstall all components:**
+**Uninstall all components (recommended):**
+```bash
+./uninstall-claude-config.sh --dry-run    # Preview what will be removed
+./uninstall-claude-config.sh --yes        # Execute removal without prompts
+```
+
+**Manual alternative (all components):**
 ```bash
 rm -rf ~/.claude/skills/*
 rm -rf ~/.claude/agents/*
@@ -489,9 +516,9 @@ Claude: [Summarizes session progress]
 
 | Category | Count | Location |
 |----------|-------|----------|
-| Skills | 32 | `~/.claude/skills/` |
-| Agents | 5 | `~/.claude/agents/` |
-| Commands | 1 | `~/.claude/commands/` |
+| Skills | 35 | `~/.claude/skills/` |
+| Agents | 8 | `~/.claude/agents/` |
+| Commands | 3 | `~/.claude/commands/` |
 
 ### Skill Categories
 
@@ -515,8 +542,9 @@ Claude: [Summarizes session progress]
 | `/workflow-focus` | Set/show task focus |
 | `/workflow-next` | Get next task suggestion |
 | `/workflow-plan` | Plan mode manager |
-| `/refactor-analyzer` | Refactoring assistance |
 | `/auto-orchestrate` | Autonomous orchestration loop |
+| `/auto-debug` | Autonomous cyclic error-fix-verify loop |
+| `/auto-audit` | Autonomous spec compliance audit-remediate loop |
 
 ---
 
