@@ -54,7 +54,7 @@ arguments:
 | DBG-LOOP-006 | **Docker auto-detection** — If `error_description` contains "docker", "container", "compose", "dockerfile", or "port" (case-insensitive), auto-set `docker: true`. Log `[DBG-LOOP-006] Docker mode auto-enabled`. |
 | DBG-LOOP-007 | **Error history immutability** — Only append to `error_history`; never modify existing entries. |
 | DBG-LOOP-008 | **Fix-verify cycle tracking** — Track per-error fix-verify attempts. After `fix_verify_cycles` failures for the same error, escalate to user with full diagnostic context. |
-| PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. Never leave extended silence. |
+| PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. Never leave extended silence. See `commands/CONVENTIONS.md` for format. |
 | MANIFEST-001 | **Manifest-driven pipeline** — The debugger MUST read `~/.claude/manifest.json` at boot and use it as the authoritative registry for skill discovery. Auto-debug passes the manifest path in every debugger spawn. |
 
 ## Execution Guard — AUTO-DEBUG IS A LOOP CONTROLLER, NOT A WORKER
@@ -214,16 +214,21 @@ mkdir -p .debug/${SESSION_ID}/logs
 ### 2b. Check for existing debug sessions
 
 ```bash
-find .debug -name "checkpoint.json" -exec grep -l '"status": "in_progress"' {} \; 2>/dev/null
+# CROSS-003: Scope scan to current working directory only
+find "$(pwd)"/.debug -name "checkpoint.json" -exec grep -l '"status": "in_progress"' {} \; 2>/dev/null
 ```
 
+**CWD filter**: Only consider sessions under the current working directory.
+
 For EVERY in-progress session: set `"status": "superseded"`, add `"superseded_at"` and `"superseded_by"`. Non-destructive — never delete. If superseded session's `original_error` matches current: **resume** (skip to Step 3).
+
+Also update `.sessions/index.json` at the project root: set the superseded session's status to `"superseded"` and add `"superseded_at"`. See `commands/SESSIONS-REGISTRY.md` for the registry format and write protocol.
 
 ### 2c. Create new session
 
 **Session ID**: `auto-dbg-<DATE>-<8-char-slug>` (slug from error description).
 
-Create parent tracking task via `TaskCreate`, then write checkpoint to `.debug/<session-id>/checkpoint.json`:
+Create parent tracking task via `TaskCreate` (if unavailable, log `[CROSS-001] TaskCreate unavailable — setting parent_task_id: null` and continue with `parent_task_id: null`), then write checkpoint to `.debug/<session-id>/checkpoint.json`:
 
 ```json
 {
@@ -308,6 +313,8 @@ Before spawning, verify:
 
 Spawn EXACTLY ONE agent: `Agent(subagent_type: "debugger")` using the **Appendix A** template. Never spawn multiple debuggers in parallel. Never spawn non-debugger agents from this loop.
 
+> **Note (CROSS-006)**: Single-spawn enforcement is prompt-level only. No API-level guard exists. Monitor for violations in iteration history.
+
 ---
 
 ## Step 4: Process Results and Loop
@@ -331,6 +338,7 @@ Extract from the DONE block:
 | `Fix-Verify-Cycles` | Yes | Number of internal cycles |
 | `New-Errors` | Yes | New errors found, or "none" |
 | `Research-Escalated` | No | YES or NO |
+| `Researcher-Status` | No | FULL (all queries succeeded), PARTIAL (some queries failed, e.g. WebSearch unavailable), or NONE (no researcher spawned). When PARTIAL: log `[AD-BREAK-002] Researcher returned partial results — debug quality may be degraded` |
 | `Docker-Mode` | No | YES or NO |
 | `Git-Commit-Message` | No | Suggested commit message |
 | `Debug-Report` | No | Path to debug report |
@@ -367,7 +375,29 @@ If DONE block is missing or unparseable, treat as FAIL with `New-Errors: "Debugg
     - Type "skip" to move to next error
     - Type "stop" to end debug session
     ```
-  - Wait for user input before continuing
+  - Wait for user input (timeout: 60 seconds). If no response within timeout, apply default action:
+    - Default: `skip` (move to next error, log `[AD-INEFF-003] Escalation timeout — skipping error E-<id>`)
+    - Configurable via `escalation_default` parameter: `skip` | `abort` | `continue`
+
+
+### 4.2a Error Fingerprinting (AD-GAP-002)
+
+Error identity is determined by fingerprint, NOT by error ID assignment order. Two errors are the **same error** if they share the same fingerprint.
+
+**Fingerprint fields** (all required for identity):
+- `exception_type`: The exception class or error code (e.g., `ConnectionRefusedError`, `HTTP 500`)
+- `normalized_message`: Error message with variable parts stripped (file paths, ports, timestamps → `<path>`, `<port>`, `<timestamp>`)
+- `source_file`: The file where the error originates (from stack trace top frame)
+
+**Excluded from identity** (changes to these do NOT create a new error):
+- Line number (may shift after edits)
+- Stack trace depth
+- Timestamp
+- Container ID or process ID
+
+**Fingerprint hash**: `SHA-256(exception_type + ":" + normalized_message + ":" + source_file)` truncated to 16 hex chars.
+
+When a new error appears, compute its fingerprint. If the fingerprint matches an existing error in `error_history`, reuse that error's ID and increment its cycle count. If no match, assign a new error ID.
 
 ### 4.3 Display updated error board
 
@@ -398,8 +428,10 @@ Update checkpoint with current state: `iteration`, `errors_active`, `errors_reso
 ### 4.6 Stall detection
 
 Compare current vs previous iteration:
-- Same `errors_active` count AND same `errors_resolved` count = increment `stall_counter`
-- Any change (error resolved, new error found, different error being worked) = reset `stall_counter` to 0
+- Same `errors_active` count AND same `errors_resolved` count AND same `fix_verify_attempts` values = increment `stall_counter`
+- Any change (error resolved, new error found, different error being worked, `fix_verify_attempts` incremented for any error) = reset `stall_counter` to 0
+
+**Stall signals** include: error counts, resolved counts, AND `fix_verify_attempts` per error. A fix attempt that fails verification is still progress (the debugger tried something new).
 
 ### 4.7 Evaluate termination (see Step 5)
 
@@ -486,6 +518,7 @@ Runs at the START of every invocation:
 2. Scan for `"status": "in_progress"` checkpoints in `.debug/*/checkpoint.json`
 3. If found: same/no input → **Resume**; different input → supersede, start fresh
 4. If not found → proceed normally
+5. Cross-command awareness: read `.sessions/index.json` (if present) to detect active sessions from other commands. Log any `in_progress` cross-command sessions found. See `commands/SESSIONS-REGISTRY.md`.
 
 ### Resume
 
@@ -497,7 +530,7 @@ Runs at the START of every invocation:
 
 ## Appendix A: Debugger Spawn Prompt Template
 
-Use `Agent(subagent_type: "debugger")` with this prompt:
+Use `Agent(subagent_type: "debugger", max_turns: 30)` with this prompt:
 
 ```
 ## Debug Session Context
@@ -572,6 +605,7 @@ NEVER git commit/push. Make reasonable assumptions.
 - DBG-009: Max 3 internal fix-verify cycles, then return FAIL
 - DBG-011: One error at a time
 - DBG-012: Preserve all diagnostic data
+- DBG-013: When spawning researcher for package/dependency errors, include directive: "Verify LATEST stable version via WebSearch (RES-011, RES-012). Do NOT rely on training data for version numbers."
 
 ## Session Isolation
 SESSION_ID: <session_id>. All output files go to .debug/<session_id>/.

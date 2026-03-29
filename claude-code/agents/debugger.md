@@ -150,7 +150,8 @@ Output: confirmed root cause with evidence, planned fix approach
    - If the error came from an API: re-test the endpoint
 
 2. **Docker verification** (when `DOCKER_MODE: true`):
-   - Run `docker compose down -v` then `docker compose up -d --build --wait`
+   - Run `docker compose down` then `docker compose up -d --build --wait`
+     - **DEEP_DOCKER_RESET** (opt-in): Only use `docker compose down -v` (removing volumes) when the error diagnosis specifically involves volume corruption, stale volume data, or the user explicitly requests a full reset. Log `[DEEP_DOCKER_RESET] Removing volumes — volume-related error diagnosed` when used.
    - Wait for healthchecks to pass
    - Check `docker compose ps` — all services should be "running" / "healthy"
    - Check `docker compose logs --tail=20` — no new errors
@@ -248,6 +249,7 @@ Verification: PASS | FAIL
 Fix-Verify-Cycles: N
 New-Errors: [any new errors found, or "none"]
 Research-Escalated: YES | NO
+Researcher-Status: FULL | PARTIAL | NONE
 Docker-Mode: YES | NO
 Git-Commit-Message: fix: [concise description of what was fixed]
 Debug-Report: .debug/<SESSION_ID>/reports/<DATE>_<SLUG>.md

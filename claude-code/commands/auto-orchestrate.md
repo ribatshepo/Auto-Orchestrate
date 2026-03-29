@@ -55,7 +55,7 @@ arguments:
 | ID | Rule |
 |----|------|
 | AUTO-001 | **Orchestrator-only gateway** — Spawn ONLY `subagent_type: "orchestrator"`. Never spawn implementer, documentor, etc. directly. If 2 consecutive retries return empty output, abort with `[AUTO-001]` message. |
-| AUTO-002 | **Mandatory stage completion** — Cannot declare `completed` unless `stages_completed` includes 0, 1, 2, 4.5, 5, and 6. |
+| AUTO-002 | **Mandatory stage completion** — Cannot declare `completed` unless `stages_completed` includes 0, 1, 2, 4.5, 5, and 6. Stage 4 (test-writer-pytest) is optional — included only when the epic-architect (Stage 1) produces test tasks. If no Stage 4 tasks exist, Stage 4 is considered implicitly complete. |
 | AUTO-003 | **Stage monotonicity** — `current_pipeline_stage` only increases or holds. Keep high-water mark on regression. |
 | AUTO-004 | **Post-implementation stage gate** — If Stage 3 done but 4.5/5/6 missing for 1+ iterations, set `mandatory_stage_enforcement: true` and inject missing-stage tasks. |
 | AUTO-005 | **Checkpoint-before-spawn** — Write checkpoint to disk before every orchestrator spawn. |
@@ -64,7 +64,7 @@ arguments:
 | AUTO-007 | **Iteration history immutability** — Only append to `iteration_history`; never modify existing entries. |
 | CEILING-001 | **Stage ceiling enforcement** — Calculate `STAGE_CEILING` from `stages_completed` before every spawn (Step 3a). Orchestrator MUST NOT work above STAGE_CEILING. Auto-fix missing `blockedBy` chains. |
 | CHAIN-001 | **Mandatory blockedBy chains** — Every proposed task for Stage N (N > 0) must include `blockedBy` referencing at least one Stage N-1 task. Auto-orchestrate validates and auto-fixes in Step 4.2. |
-| PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. Never leave extended silence. |
+| PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. Never leave extended silence. See `commands/CONVENTIONS.md` for format. |
 | PROGRESS-002 | **In-progress blocks completion** — Tasks with status `in_progress` mean background agents are still working. NEVER evaluate termination, declare completion, or mark stages done while `in_progress > 0`. Display running task count prominently. |
 | DISPLAY-001 | **Task board at every iteration** — Show full task board with individual tasks grouped by stage at iteration start (Step 3) and post-iteration (Step 4.3). |
 | SCOPE-001 | **Scope specification passthrough** — When scope is not `custom`, pass FULL scope spec (Appendix A/B) VERBATIM through every layer. Never summarize. |
@@ -178,6 +178,16 @@ Command arguments are **human-authored input**: preserve context, don't reinterp
 
 Record: `"scope": { "flag": "<letter>", "resolved": "<scope>", "layers": [...] }`
 
+### 0e. Manifest Validation
+
+Verify that `~/.claude/manifest.json` exists and contains the `orchestrator` agent definition:
+
+```bash
+test -f ~/.claude/manifest.json && grep -q '"orchestrator"' ~/.claude/manifest.json && echo "PASS" || echo "FAIL"
+```
+
+If FAIL: abort with `[AO-GAP-002] Manifest missing or orchestrator agent not found at ~/.claude/manifest.json. Cannot proceed.`
+
 ---
 
 ## Step 1: Enhance User Input (Inline)
@@ -232,17 +242,22 @@ mkdir -p ~/.claude/sessions  # legacy fallback
 ### 2b. Supersede existing in-progress sessions
 
 ```bash
-grep -rl '"status": "in_progress"' .orchestrate/*/checkpoint.json 2>/dev/null
+# CROSS-003: Scope scan to current working directory only
+grep -rl '"status": "in_progress"' "$(pwd)"/.orchestrate/*/checkpoint.json 2>/dev/null
 grep -rl '"status": "in_progress"' ~/.claude/sessions/auto-orc-*.json 2>/dev/null
 ```
 
+**CWD filter**: Only consider sessions whose checkpoint file is under the current working directory. Sessions from other projects are ignored. Log: `[CROSS-003] Filtered session scan to CWD: $(pwd)`
+
 For EVERY in-progress session: set `"status": "superseded"`, add `"superseded_at"` and `"superseded_by"`. Non-destructive — never delete. If superseded session's `original_input` matches current: **resume** (skip to Step 3).
+
+Also update `.sessions/index.json` at the project root: set the superseded session's status to `"superseded"` and add `"superseded_at"`. See `commands/SESSIONS-REGISTRY.md` for the registry format and write protocol.
 
 ### 2c. Create new session
 
 **Session ID**: `auto-orc-<DATE>-<8-char-slug>` (slug from user input).
 
-Create parent tracking task via `TaskCreate`, then:
+Create parent tracking task via `TaskCreate` (if available; if TaskCreate fails, log `[CROSS-001] TaskCreate unavailable — setting parent_task_id: null` and continue with `parent_task_id: null`), then:
 
 ```bash
 mkdir -p .orchestrate/<session-id>/{stage-0,stage-1,stage-2,stage-3,stage-4,stage-4.5,stage-5,stage-6}
@@ -299,7 +314,7 @@ STAGE_CEILING = the maximum pipeline stage the orchestrator may work on. Calcula
 | 0 done, 1 not | 1 |
 | {0,1} done, 2 not | 2 |
 | {0,1,2} done, 3 not | 3 |
-| {0,1,2,3} done, 4.5 not | 4.5 |
+| {0,1,2,3} done, 4/4.5 not | 4.5 (Stage 4 optional — see AUTO-002) |
 | {0,1,2,4.5} done, 5 not | 5 |
 | {0,1,2,4.5,5} done, 6 not | 6 |
 | All done | 6 |
@@ -349,6 +364,8 @@ Before spawning, verify ALL of these conditions. If ANY fails, you are off-track
 
 Spawn EXACTLY ONE agent: `Agent(subagent_type: "orchestrator")` using the **Appendix C** template. Never spawn multiple orchestrators in parallel. Never spawn non-orchestrator agents from this loop.
 
+> **Note (CROSS-006)**: Single-spawn enforcement is prompt-level only. No API-level guard exists. Monitor for violations in iteration history.
+
 ---
 
 ## Step 4: Process Results and Loop
@@ -361,6 +378,8 @@ After orchestrator returns, execute these sub-steps with visible progress at eac
 
 **4.2 Process task proposals** `[STEP 4.2]`:
 - Read `.orchestrate/<session-id>/proposed-tasks.json` and parse `PROPOSED_ACTIONS` from return text
+- **Precedence rule**: If BOTH sources contain tasks, the file (`proposed-tasks.json`) takes precedence. `PROPOSED_ACTIONS` from return text is used ONLY as fallback when the file is missing, empty, or contains `"tasks": []`. Log: `[STEP 4.2] Source: file` or `[STEP 4.2] Source: return-text (file empty/missing)`
+- **Deduplication**: If both sources are present, merge by `subject` field — file version wins on conflict. Log duplicates: `[STEP 4.2] Deduplicated <N> tasks (file wins)`
 - **blockedBy chain validation (CHAIN-001)**: Every task for Stage N (N > 0) must reference Stage N-1. Auto-fix missing chains: `[CHAIN-FIX] Added blockedBy to "<subject>"`
 - Create via `TaskCreate`, set `blockedBy` via `TaskUpdate`
 - Write `proposed-tasks-processed-<iteration>.json` with enriched content (skip if empty)
@@ -407,6 +426,7 @@ After orchestrator returns, execute these sub-steps with visible progress at eac
   - Stage 0: `researcher`, no blockedBy
   - Stage 1: `epic-architect`, blockedBy Stage 0
   - Stage 2: `spec-creator`, blockedBy Stage 1
+  - Stage 4: `test-writer-pytest`, blockedBy Stage 3 (**optional** — inject only if epic-architect produced test tasks)
   - Stage 4.5: `codebase-stats`, blockedBy Stage 3
   - Stage 5: `validator`, blockedBy Stage 4.5
   - Stage 6: `documentor`, blockedBy Stage 5
@@ -425,13 +445,15 @@ Evaluate in order (ONLY when zero tasks are `in_progress`):
 
 | # | Condition | Status |
 |---|-----------|--------|
-| 1 | All tasks completed AND `stages_completed` includes 0,1,2,4.5,5,6 | `completed` |
+| 1 | All tasks completed AND `stages_completed` includes 0,1,2,4.5,5,6 (Stage 4 optional — see AUTO-002) | `completed` |
 | 1a | All tasks completed BUT mandatory stages missing | Inject tasks, retry once. If still missing: `completed_stages_incomplete` |
 | 2 | `iteration >= MAX_ITERATIONS` | `max_iterations_reached` |
 | 3 | No progress for `STALL_THRESHOLD` consecutive iterations | `stalled` |
 | 4 | All remaining tasks blocked AND zero `in_progress` | `all_blocked` |
 
 **Stall detection**: Same pending+completed counts for 2 consecutive iterations = stall. However, `in_progress` tasks reset the stall counter (work is actively happening). `tasks_partial_continued` also resets counter.
+
+**In-progress ceiling (AO-INEFF-001)**: Track per-task `in_progress_iterations` count. If any task remains `in_progress` for 5 consecutive iterations without completing, treat it as failed: set status to `failed`, log `[AO-INEFF-001] Task #<id> "<subject>" stuck in_progress for 5 iterations — marking failed`, and do NOT let it reset the stall counter.
 
 ### On Termination
 
@@ -483,6 +505,7 @@ Runs at the START of every invocation:
 2. Scan for `"status": "in_progress"` checkpoints
 3. If found: same/no input → **Resume**; different input → supersede, start fresh
 4. If not found → proceed normally
+5. Cross-command awareness: read `.sessions/index.json` (if present) to detect active sessions from other commands. Log any `in_progress` cross-command sessions found. See `commands/SESSIONS-REGISTRY.md`.
 
 ### Resume
 
@@ -684,11 +707,11 @@ Every list and table must support:
 
 ## Appendix C: Orchestrator Spawn Prompt Template
 
-Use `Task(subagent_type: "orchestrator", max_turns: 30)` with this prompt:
+Use `Agent(subagent_type: "orchestrator", max_turns: 30)` with this prompt:
 
 ```
 ## MANDATORY FIRST ACTION (before boot)
-Write `.orchestrate/<SESSION_ID>/proposed-tasks.json` with task proposals for ALL pipeline stages (0-6). If no new tasks: write `{"session_id": "<SESSION_ID>", "iteration": <N>, "tasks": []}`.
+Write `.orchestrate/<SESSION_ID>/proposed-tasks.json` atomically: write to `.orchestrate/<SESSION_ID>/proposed-tasks.tmp.json` first, then rename to `proposed-tasks.json`. This prevents partial reads if auto-orchestrate reads during write. If no new tasks: write `{"session_id": "<SESSION_ID>", "iteration": <N>, "tasks": []}`.
 
 Format:
 ```json
@@ -862,6 +885,10 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns and file paths.
 - Check CVEs (RES-005), latest stable versions.
 - MUST research implementation risks and produce Risks & Remedies (RES-009).
 - Packages with unpatched HIGH/CRITICAL CVEs = BLOCKED — list alternatives (RES-010).
+- MUST recommend LATEST stable versions of all packages/images, not just CVE-free ones (RES-011).
+- MUST verify version numbers via WebSearch against official registries — training-data versions are PROHIBITED as sole source (RES-012).
+- Output MUST include a "Recommended Versions" table: package name, version, source URL, date checked.
+- If implementer triggers feedback (IMPL-FEEDBACK), re-spawn researcher with targeted version/API query (RES-013). Max 2 re-research iterations per package.
 - Output: .orchestrate/<SESSION_ID>/stage-0/YYYY-MM-DD_<slug>.md
 
 **epic-architect** (Stage 1 — mandatory, after researcher):
@@ -880,6 +907,7 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns and file paths.
 **implementer** (Stage 3):
 - IMPL-001: No placeholders. IMPL-006: Enterprise production-ready. IMPL-008: 0 security issues. IMPL-013/MAIN-014: No auto-commit.
 - IMPL-014: MUST read Stage 0 research. Apply all remedies. MUST NOT use CVE-blocked packages. Pin to CVE-free versions.
+- IMPL-015: MUST use exact versions from researcher's "Recommended Versions" table. If the recommended version's API differs from expected patterns, emit `[IMPL-FEEDBACK] Package: {name}@{version}, Issue: {description}` and HALT — orchestrator re-spawns researcher (RES-013). Max 2 feedback loops; after 2nd, proceed with best info or escalate to user.
 
 **codebase-stats** (Stage 4.5 — mandatory after implementation):
 - TODO/FIXME/HACK counts, large files, complex functions. Compare against previous.

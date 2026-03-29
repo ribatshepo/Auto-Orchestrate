@@ -2,7 +2,7 @@
 
 Comprehensive architecture documentation for the Claude Code plugins system.
 
-**Last Updated**: 2026-03-25 (debugger agent, auditor agent, auto-debug command, auto-audit command, debug-diagnostics skill, spec-compliance skill)
+**Last Updated**: 2026-03-29 (audit remediation complete: 23/23 items, health score 95/100; added CONVENTIONS.md, SESSIONS-REGISTRY.md, TOOL-AVAILABILITY.md to commands/; CVE-free policy additions: RES-011..RES-013, IMPL-015, DBG-013, FEEDBACK-LOOP-001)
 **Components**: 8 agents | 35 skills | 3 commands | 4 protocols | 2 templates
 
 ---
@@ -115,7 +115,10 @@ claude-code/
 └── commands/
     ├── auto-orchestrate.md
     ├── auto-debug.md
-    └── auto-audit.md
+    ├── auto-audit.md
+    ├── CONVENTIONS.md          (command conventions, PROGRESS-001 format)
+    ├── SESSIONS-REGISTRY.md    (cross-command session registry)
+    └── TOOL-AVAILABILITY.md    (tool availability per execution context)
 ```
 
 ---
@@ -440,7 +443,7 @@ This directory is project-local. `~/.claude/sessions/` is retained as a read-onl
 **File naming convention**: All output files written to stage directories MUST use date-prefixed filenames: `YYYY-MM-DD_<descriptor>.<ext>` (e.g. `2026-03-04_research-findings.md`).
 
 **References**:
-- `claude-code/_shared/references/TOOL-AVAILABILITY.md` — Full tool availability matrix and workarounds
+- `claude-code/commands/TOOL-AVAILABILITY.md` — Full tool availability matrix and workarounds (see also: `commands/CONVENTIONS.md`, `commands/SESSIONS-REGISTRY.md`)
 - `claude-code/agents/orchestrator.md` — Orchestrator file-based protocol
 - `claude-code/agents/epic-architect.md` — Task proposal output format
 - `claude-code/commands/auto-orchestrate.md` — Task management proxy implementation
@@ -519,7 +522,7 @@ Three sub-mechanisms support AUTO-004:
 
 **Purpose**: Fast implementation agent that implements, reviews, and fixes code in a single pass.
 
-**Core Constraints (IMPL-001 to IMPL-012)**:
+**Core Constraints (IMPL-001 to IMPL-015)**:
 - No placeholders -- all code must be production-ready
 - Don't ask -- make reasonable decisions and proceed
 - Don't explain -- just write code
@@ -532,6 +535,9 @@ Three sub-mechanisms support AUTO-004:
 - No anti-patterns -- code must not match anti-patterns table
 - Context budget discipline (turn count tracking, checkpoints, hard-exit)
 - **Single-file scope (IMPL-012)** -- targets exactly ONE file per invocation (SFI-001 enforcement)
+- Git-Commit-Message in DONE block (IMPL-013) -- always output a suggested commit message; never auto-commit
+- MUST read and apply researcher findings (IMPL-014) -- read Stage 0 output before writing any code; blocked packages are FORBIDDEN; pin exact CVE-free versions confirmed by researcher
+- **CVE-free enforcement (IMPL-015)** -- if a required package has an unpatched HIGH/CRITICAL CVE, STOP and invoke FEEDBACK-LOOP-001 before proceeding; document the alternative used
 
 **Single-File Implementer Pattern (SFI-001)** — **UPDATED 2026-02-12**:
 
@@ -657,7 +663,7 @@ active -> /workflow-end -> ended
 
 **Tools**: Read, Glob, Grep, Bash, WebSearch, WebFetch
 
-**Constraints (RES-001 to RES-008)**:
+**Constraints (RES-001 to RES-013)**:
 - RES-001: Evidence-based — every claim cites a source (URL, file path, or tool output)
 - RES-002: Current — prefer sources ≤2 years old; explicitly flag older sources
 - RES-003: Relevant — answer only the research questions; no tangential exploration
@@ -666,6 +672,11 @@ active -> /workflow-end -> ended
 - RES-006: Structured output — follow the standard output format with all required sections
 - RES-007: Manifest entry — always append to `~/.claude/MANIFEST.jsonl` with 3–7 one-sentence key_findings
 - RES-008: **Mandatory internet research** — MUST use WebSearch+WebFetch every session. Codebase-only analysis is a VIOLATION. MUST perform at least 3 WebSearch queries per session (e.g. `"<tech> best practices <year>"`, `"<package> CVE site:nvd.nist.gov"`, `"<pattern> production examples"`). If WebSearch is unavailable, return `status: "partial"` with reason. Do NOT silently skip internet research.
+- RES-009: **CVE-blocked packages** — packages with unpatched HIGH/CRITICAL CVEs MUST be listed in the research output as BLOCKED, with recommended CVE-free alternatives specified
+- RES-010: **Risks & Remedies section** — research output MUST include a structured Risks & Remedies section mapping each risk to a remedy, severity level, and which pipeline stage applies the remedy
+- RES-011: **Package version pinning** — for every dependency referenced, specify the exact CVE-free version confirmed via NVD/GitHub Security Advisories; never recommend unpinned or "latest" versions
+- RES-012: **Transitive dependency audit** — CVE checks MUST cover direct AND transitive dependencies; flag any transitive chain that includes a HIGH/CRITICAL CVE
+- RES-013: **Re-audit trigger** — if the implementer or debugger encounters a new package not in the original research, they MUST trigger a FEEDBACK-LOOP-001 cycle before proceeding
 
 **Output**: Research findings file at `.orchestrate/<SESSION_ID>/stage-0/YYYY-MM-DD_<slug>.md` and manifest entry with `key_findings`.
 
@@ -677,7 +688,7 @@ active -> /workflow-end -> ended
 
 **Purpose**: Autonomous error diagnosis and fixing via cyclic triage-research-root-cause-fix-verify pipeline.
 
-**Key Constraints (DBG-001 to DBG-012)**:
+**Key Constraints (DBG-001 to DBG-013)**:
 - Evidence-first: every diagnosis cites specific log lines or stack traces
 - Minimal blast radius: fix ONLY what is broken (no opportunistic cleanup)
 - Verify before declaring fixed: re-run test/check after every fix
@@ -685,6 +696,7 @@ active -> /workflow-end -> ended
 - Docker awareness: collects container logs and health before diagnosing
 - No auto-commit: outputs suggested commit message only
 - Session output: `.debug/<session-id>/reports/` (project-local)
+- **CVE re-audit (DBG-013)** -- when a fix introduces or upgrades a package, invoke FEEDBACK-LOOP-001 to re-audit that package before marking the fix complete
 
 **Mandatory Skill**: debug-diagnostics (Phase 1 — error categorization)
 
@@ -708,6 +720,23 @@ debug-diagnostics (Phase 1: categorize error)
            |
           NO (>= 3 retries) --> Escalate to user
 ```
+
+### FEEDBACK-LOOP-001: Implementer → Researcher CVE Re-Audit Protocol
+
+**Trigger**: Any of the following events during Stage 3 or Stage 5 (debug/fix) invoke this protocol:
+- Implementer encounters a package not covered by Stage 0 research (RES-013)
+- Implementer finds a package with an unpatched HIGH/CRITICAL CVE (IMPL-015)
+- Debugger introduces or upgrades a package as part of a fix (DBG-013)
+
+**4-Step Protocol**:
+1. **PAUSE** — the implementer or debugger immediately halts further code changes
+2. **ESCALATE** — spawn a `researcher` sub-task scoped to the specific package(s) flagged, producing a mini Stage-0 findings file at `.orchestrate/<SESSION_ID>/stage-0/YYYY-MM-DD_<slug>-reaudit.md`
+3. **EVALUATE** — if the researcher confirms a CVE-free alternative exists, update the implementation plan to use that alternative; if no alternative exists, escalate to the orchestrator as a BLOCKED task
+4. **RESUME** — once the researcher confirms a safe version/alternative, the implementer or debugger resumes with the CVE-free package pinned to the exact version specified
+
+**Iteration cap**: Maximum 2 FEEDBACK-LOOP-001 cycles per task. If still unresolved after 2 cycles, mark task BLOCKED and surface to human review.
+
+
 
 ### 4.8 Auditor
 
@@ -1644,7 +1673,7 @@ All components integrate via the Task tools:
 │                 (orchestrator proposes via PROPOSED_ACTIONS)     │
 │                                                                 │
 │  NOTE: Subagents do NOT have access to these tools.             │
-│  See _shared/references/TOOL-AVAILABILITY.md (GAP-CRIT-001)                │
+│  See commands/TOOL-AVAILABILITY.md (GAP-CRIT-001)                           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

@@ -65,7 +65,7 @@ arguments:
 | AUD-LOOP-007 | **Cycle history immutability** — Only append to `cycle_history`; never modify existing entries. |
 | AUD-LOOP-008 | **Remediation scope injection** — Gap findings from the auditor are injected VERBATIM into the orchestrator spawn prompt. Never summarize, filter, or reinterpret gaps. |
 | AUD-LOOP-009 | **Phase ordering** — Phase A (audit) ALWAYS precedes Phase B (remediation) within a cycle. Never remediate without auditing first. |
-| PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. |
+| PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. See `commands/CONVENTIONS.md` for format. |
 | MANIFEST-001 | **Manifest-driven pipeline** — Read `~/.claude/manifest.json` at boot. Pass manifest path to all agent spawns. |
 
 ## Execution Guard — AUTO-AUDIT IS A META-LOOP CONTROLLER, NOT A WORKER
@@ -124,7 +124,7 @@ Phase B: REMEDIATE (spawn orchestrator)                        │
 | `MAX_AUDIT_CYCLES` | 5 | Max audit-remediate-reaudit cycles |
 | `MAX_ORCHESTRATE_ITERATIONS` | 100 | Max orchestrator spawns per remediation phase |
 | `COMPLIANCE_THRESHOLD` | 90 | Minimum compliance % for ACCEPTABLE verdict |
-| `STALL_THRESHOLD` | 2 | Consecutive no-improvement cycles before stall |
+| `STALL_THRESHOLD` | 3 | Consecutive no-improvement cycles before stall |
 | `CHECKPOINT_DIR` | `.audit/<session-id>/` | Session checkpoint directory |
 
 ---
@@ -166,7 +166,18 @@ If ANY keyword found AND `docker` argument not explicitly set:
 
 ### 0c. Scope Resolution
 
-Same as auto-orchestrate: parse scope flag (F/B/S) if provided. This scope is passed through to the orchestrator during remediation.
+| Flag | Resolved | Layers |
+|------|----------|--------|
+| `F`/`f` | `frontend` | `["frontend"]` |
+| `B`/`b` | `backend` | `["backend"]` |
+| `S`/`s` | `fullstack` | `["backend", "frontend"]` |
+| *(omitted)* | `custom` | `[]` |
+
+**Preprocessing**: Strip surrounding quotes recursively, then trim whitespace.
+
+This scope is passed through to the orchestrator during remediation.
+
+Record: `"scope": { "flag": "<letter>", "resolved": "<scope>", "layers": [...] }`
 
 ### 0d. Inline Processing Rule
 
@@ -211,16 +222,21 @@ mkdir -p .audit/${SESSION_ID}
 ### 2b. Check for existing audit sessions
 
 ```bash
-find .audit -name "checkpoint.json" -exec grep -l '"status": "in_progress"' {} \; 2>/dev/null
+# CROSS-003: Scope scan to current working directory only
+find "$(pwd)"/.audit -name "checkpoint.json" -exec grep -l '"status": "in_progress"' {} \; 2>/dev/null
 ```
 
+**CWD filter**: Only consider sessions under the current working directory.
+
 For EVERY in-progress session: set `"status": "superseded"`, add `"superseded_at"` and `"superseded_by"`. Non-destructive — never delete. If superseded session's `spec_path` matches current: **resume** (skip to Step 3).
+
+Also update `.sessions/index.json` at the project root: set the superseded session's status to `"superseded"` and add `"superseded_at"`. See `commands/SESSIONS-REGISTRY.md` for the registry format and write protocol.
 
 ### 2c. Create new session
 
 **Session ID**: `auto-aud-<DATE>-<8-char-slug>` (slug from spec filename).
 
-Create parent tracking task via `TaskCreate`, then write checkpoint to `.audit/<session-id>/checkpoint.json`:
+Create parent tracking task via `TaskCreate` (if unavailable, log `[CROSS-001] TaskCreate unavailable — setting parent_task_id: null` and continue with `parent_task_id: null`), then write checkpoint to `.audit/<session-id>/checkpoint.json`:
 
 ```json
 {
@@ -234,7 +250,7 @@ Create parent tracking task via `TaskCreate`, then write checkpoint to `.audit/<
   "max_audit_cycles": 5,
   "max_orchestrate_iterations": 100,
   "compliance_threshold": 90,
-  "stall_threshold": 2,
+  "stall_threshold": 3,
   "docker_mode": false,
   "spec_path": "<path>",
   "scope": { "flag": null, "resolved": "custom", "layers": [] },
@@ -284,6 +300,8 @@ Before spawning, verify:
 ### 3c. Spawn auditor
 
 Spawn EXACTLY ONE agent: `Agent(subagent_type: "auditor")` using the **Appendix A** template.
+
+> **Note (CROSS-006)**: Single-spawn enforcement is prompt-level only. No API-level guard exists. Monitor for violations in iteration history.
 
 ---
 
@@ -374,6 +392,14 @@ Read the gap report from `.audit/<session-id>/gap-report.json`.
 
 Convert gap findings into an orchestrator task description (AUD-LOOP-008 — verbatim injection):
 
+**Token budget check**: Before injection, estimate the gap report token count. If the gap report exceeds approximately 4,000 tokens (~3,000 words):
+1. Sort gaps by severity (MUST > SHOULD > MAY) then by status (FAIL > MISSING > PARTIAL)
+2. Inject the top-N gaps (enough to fit within 4K tokens) verbatim
+3. Append: `[TRUNCATED] Full gap report: .audit/<session-id>/gap-report.json — <M> additional gaps not included. Orchestrator should read full report at this path.`
+4. Log: `[AA-INEFF-001] Gap report truncated: <N> of <total> gaps injected (4K token budget)`
+
+If within budget, inject verbatim per AUD-LOOP-008.
+
 See **Appendix B** for the full remediation spawn template.
 
 ### 5c. Display remediation banner
@@ -403,9 +429,12 @@ Record remediation in cycle_history:
 {
   "cycle": N,
   "phase": "remediation",
-  "orchestrator_summary": "<first 500 chars of orchestrator output>",
+  "orchestrator_summary": "<first 1000 chars of orchestrator output>",
+  "orchestrate_session_dir": ".orchestrate/<orchestrator-session-id>/",
   "tasks_completed": [],
-  "tasks_pending": []
+  "tasks_pending": [],
+  "files_modified": [],
+  "stages_reached": []
 }
 ```
 
@@ -431,7 +460,8 @@ Evaluate in order:
 
 **Stall detection**: Compare compliance_score with previous cycle:
 - Same or worse score → increment `stall_counter`
-- Any improvement (even 0.1%) → reset `stall_counter` to 0
+- Improvement < 1.0% (absolute) → increment `stall_counter` (epsilon improvement does not count as progress). Log: `[AA-BREAK-002] Compliance improved by only <delta>% (< 1% minimum) — counting as stall`
+- Improvement >= 1.0% (absolute) → reset `stall_counter` to 0
 
 ### On Termination
 
@@ -496,6 +526,7 @@ Runs at the START of every invocation:
 2. Scan for `"status": "in_progress"` checkpoints in `.audit/*/checkpoint.json`
 3. If found: same/no spec_path → **Resume**; different spec_path → supersede, start fresh
 4. If not found → proceed normally
+5. Cross-command awareness: read `.sessions/index.json` (if present) to detect active sessions from other commands. Log any `in_progress` cross-command sessions found. See `commands/SESSIONS-REGISTRY.md`.
 
 ### Resume
 
@@ -509,7 +540,7 @@ Runs at the START of every invocation:
 
 ## Appendix A: Auditor Spawn Prompt Template
 
-Use `Agent(subagent_type: "auditor")` with this prompt:
+Use `Agent(subagent_type: "auditor", max_turns: 15)` with this prompt:
 
 ```
 ## Audit Session Context
@@ -658,6 +689,7 @@ Do NOT call EnterPlanMode. NEVER git commit/push.
 ## Instructions
 1. Focus ONLY on the gaps identified above. Do not re-implement working features.
 2. Follow the standard pipeline: research → architect → spec → implement → validate → doc.
+3a. When delegating to orchestrator, include directive: "Researcher MUST verify LATEST stable versions via WebSearch (RES-011, RES-012). Implementer MUST use researcher's Recommended Versions table (IMPL-015). Feedback loop enabled (RES-013)."
 3. Propose tasks via .orchestrate/<SESSION_ID>/proposed-tasks.json.
 4. Spawn subagents to do ALL work. Never implement yourself.
 5. NO AUTO-COMMIT: Never git commit/push.
