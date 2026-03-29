@@ -92,6 +92,34 @@ Task descriptions: 2-5 sentences of high-level intent only — NOT code or step-
 
 All output files: `YYYY-MM-DD_<descriptor>.<ext>`.
 
+**Step -0.5 (CI ENGINE PROBE):** Check for CI engine module availability and set the `HAS_CI_ENGINE` flag. This MUST happen before any stage spawning.
+
+```
+# --- CI Engine Probe ---
+# Check if CI engine modules exist at lib/ci_engine/
+# Required modules: ooda_controller, stage_metrics_collector, retrospective_analyzer,
+#                   improvement_recommender, baseline_manager
+#
+# if all CI engine modules are importable:
+#     HAS_CI_ENGINE = True
+#     Initialize: OODAController, StageMetricsCollector
+#     Load: improvement_targets.json (for PDCA Plan phase injection)
+# else:
+#     HAS_CI_ENGINE = False
+#     All CI behavior becomes no-op. Pipeline runs identically to pre-CI behavior.
+#
+# Import guard pattern:
+# try:
+#     from ci_engine.ooda_controller import OODAController
+#     from ci_engine.stage_metrics_collector import StageMetricsCollector
+#     from ci_engine.retrospective_analyzer import RetrospectiveAnalyzer
+#     from ci_engine.improvement_recommender import ImprovementRecommender
+#     from ci_engine.baseline_manager import BaselineManager
+#     HAS_CI_ENGINE = True
+# except ImportError:
+#     HAS_CI_ENGINE = False
+```
+
 **Step 0 (BOOT-INFRA):** Spawn `session-manager` (max_turns: 10) to set up `.orchestrate/<session_id>/` and `~/.claude/sessions/`, probe manifest.
 
 **Step 1 (MANIFEST-001 — MANDATORY):** Read `~/.claude/manifest.json`. This is the **authoritative registry** for the entire pipeline.
@@ -266,6 +294,249 @@ Maintain-don't-duplicate: update existing docs, never create duplicates.
 Update ARCHITECTURE.md, INTEGRATION.md, or relevant docs.
 ```
 
+## CI Feedback Hooks: PDCA Meta-Loop (Cross-Run)
+
+> All sections below are guarded by `if HAS_CI_ENGINE:` — when CI engine modules are absent, all CI behavior is no-op and the pipeline runs unchanged.
+
+The PDCA loop operates across pipeline runs. Each complete run (Stage 0 through Stage 6) constitutes one PDCA cycle.
+
+### Plan Phase (before Stage 0)
+
+```
+if HAS_CI_ENGINE:
+    targets_path = ".orchestrate/knowledge_store/improvements/improvement_targets.json"
+    if file_exists(targets_path) and is_valid_json(targets_path):
+        targets = read_json(targets_path)
+        # Inject into Stage 0 researcher spawn prompt (after standard instructions):
+        #
+        #   ## Continuous Improvement: Targeted Investigation
+        #
+        #   The following improvement targets were identified from previous pipeline runs.
+        #   You MUST investigate each target and include findings in your research output.
+        #   Prioritize targets by their `priority` field (1 = highest priority).
+        #
+        #   <contents of improvement_targets.json>
+        #
+        #   For each target:
+        #   1. Investigate the root cause described in the `action` field.
+        #   2. Research solutions, alternatives, or mitigations.
+        #   3. Include your findings in a dedicated "Improvement Target Findings" section.
+    elif file_exists(targets_path) and not is_valid_json(targets_path):
+        log("[CI-WARN] improvement_targets.json is malformed; skipping injection")
+    # If file does not exist: proceed with standard research prompt (first-run path)
+```
+
+### Do Phase (Stages 0-6)
+
+Execute the pipeline as normal. Each stage emits telemetry via Stage Telemetry Hooks (see below). No changes to existing pipeline flow.
+
+### Check Phase (after pipeline completion)
+
+```
+if HAS_CI_ENGINE:
+    # Run retrospective analysis on the completed run
+    # Input: stage_telemetry.jsonl, run_summary.json, stage_baselines.json
+    # Output: retro.json, updated improvement_log.jsonl
+    RetrospectiveAnalyzer.analyze_run(session_id, knowledge_store_path)
+    # If RetrospectiveAnalyzer unavailable:
+    #   log("[CI-WARN] RetrospectiveAnalyzer not available; skipping Check phase")
+```
+
+### Act Phase (after Check phase)
+
+```
+if HAS_CI_ENGINE:
+    # Generate updated improvement targets from cross-run analysis
+    # Input: improvement_log.jsonl, failure_patterns.json
+    # Output: updated improvement_targets.json (targets with evidence_runs >= 3)
+    ImprovementRecommender.generate_targets(knowledge_store_path)
+
+    # Refresh rolling 10-run baseline averages
+    # Output: updated stage_baselines.json
+    BaselineManager.update_baselines(knowledge_store_path)
+    # If either component unavailable:
+    #   log("[CI-WARN] <component> not available; skipping Act phase")
+```
+
+---
+
+## CI Feedback Hooks: OODA Within-Run Loop (Failure Classification)
+
+> Guarded by `if HAS_CI_ENGINE:` — falls back to existing retry-3-times-then-fail behavior when absent.
+
+The OODA loop governs real-time response to stage outcomes during a single pipeline run.
+
+### Invocation
+
+After every stage completion (success or failure), invoke the OODA controller:
+
+```
+if HAS_CI_ENGINE:
+    ooda_decision = OODAController.run(stage_result)
+    # stage_result must contain: stage_name, status, duration_seconds,
+    #   error_count, retry_count, error_messages
+    # Optional: token_input, token_output, spec_compliance_score,
+    #   research_completeness_score
+else:
+    # Existing behavior: retry on failure up to 3 times, then fail
+```
+
+### Decision Codes
+
+| Code | Meaning | When Selected |
+|------|---------|---------------|
+| `continue` | Advance to next pipeline stage | Stage succeeded; orientation is `nominal` or `degraded` with no errors |
+| `retry` | Re-execute same stage (with optional enhanced prompt) | `transient` or `hallucination` failure; retry_count < 3 |
+| `fallback_to_spec` | Loop back to Stage 2 (spec-creator) to revise spec | `spec_gap` failure classification |
+| `surface_to_user` | Halt pipeline, present failure report to user | `dependency` failure, retries exhausted, or unclassifiable failure (confidence < 0.3) |
+
+### Decision Tree
+
+```
+observe(stage_result)
+  → orient(observation, baselines, failure_patterns)
+      ├── nominal → continue
+      ├── degraded (no errors) → continue (log warning)
+      ├── degraded/anomalous (with errors) →
+      │     classify_failure(error_messages, stage, context)
+      │       ├── transient + retries left → retry
+      │       ├── hallucination + retries left → retry (enhanced prompt)
+      │       ├── spec_gap → fallback_to_spec
+      │       ├── dependency → surface_to_user
+      │       └── unknown / low confidence → surface_to_user
+      └── retries exhausted (any category) → surface_to_user
+```
+
+### Integration with root_cause_classifier
+
+The OODA Orient phase integrates with `root_cause_classifier.classify_failure()` for failure categorization. Known failure patterns from `failure_patterns.json` are checked first (cached classification); novel failures are classified via keyword heuristics:
+- `ImportError`/`ModuleNotFoundError` -> `dependency` (0.9 confidence)
+- `timeout`/`429`/`503` -> `transient` (0.7 confidence)
+- `ambiguous`/`missing requirement` -> `spec_gap` (0.6 confidence)
+- Output contradicts spec -> `hallucination` (0.6 confidence)
+- No match -> `unknown` (confidence < 0.3)
+
+---
+
+## CI Feedback Hooks: Stage Telemetry Hooks
+
+> Guarded by `if HAS_CI_ENGINE:` — all hook emissions are no-ops when CI engine is absent.
+
+7 telemetry hooks provide the data substrate for both OODA and PDCA loops. All hook payloads are written as JSONL lines to `stage_telemetry.jsonl`. Hook emission MUST NOT block pipeline progression.
+
+| # | Hook ID | Trigger Point |
+|---|---------|--------------|
+| 1 | `hook:stage:before` | Immediately before spawning any stage subagent. Calls `StageMetricsCollector.record_stage_start()`. |
+| 2 | `hook:stage:after:success` | After stage returns `"success"`. Records duration, tokens, KPIs. Calls `record_stage_end()`. |
+| 3 | `hook:stage:after:failure` | After stage returns `"failure"` or `"partial"`. Records errors. Triggers OODA loop. |
+| 4 | `hook:stage:retry` | Before re-spawning after OODA `retry` decision. Calls `record_stage_retry()`. |
+| 5 | `hook:stage:fallback` | Before executing OODA `fallback_to_spec`. Records spec gap target. |
+| 6 | `hook:stage:escalate` | Before executing OODA `surface_to_user`. Records full failure context. |
+| 7 | `hook:run:complete` | After all stages complete or run terminates. Triggers PDCA Check + Act phases. |
+
+### Hook Integration with Execution Loop
+
+```
+if HAS_CI_ENGINE:
+    # Before spawn:
+    emit_hook("stage:before", stage_name, agent, task)
+    metrics_collector.record_stage_start(stage_name)
+
+    # After spawn — on success:
+    emit_hook("stage:after:success", stage_name, result)
+    metrics_collector.record_stage_end(stage_name, "success", ...)
+    ooda_decision = ooda_controller.run(observation_from(result))  # → "continue"
+
+    # After spawn — on failure:
+    emit_hook("stage:after:failure", stage_name, result)
+    metrics_collector.record_stage_end(stage_name, "failure", ...)
+    ooda_decision = ooda_controller.run(observation_from(result))
+
+    if ooda_decision == "retry":
+        emit_hook("stage:retry", stage_name, retry_count)
+        metrics_collector.record_stage_retry(stage_name)
+        # Re-enter loop for same task
+
+    elif ooda_decision == "fallback_to_spec":
+        emit_hook("stage:fallback", stage_name, spec_gap)
+        propose_task("Revise spec for: {spec_gap}", stage=2)
+
+    elif ooda_decision == "surface_to_user":
+        emit_hook("stage:escalate", stage_name, failure_context)
+        output_failure_report(failure_context)
+        # Halt pipeline
+
+    # After all stages:
+    emit_hook("run:complete", session_id, aggregate_metrics)
+    # Trigger PDCA Check + Act phases
+```
+
+---
+
+## CI Feedback Hooks: research_completeness_score Blocking Gate
+
+> Guarded by `if HAS_CI_ENGINE:` — gate is open by default when CI engine is absent.
+
+### Rule
+
+If `research_completeness_score` from Stage 0 is **< 70**, the pipeline MUST NOT advance to Stage 1. This is a hard blocking gate.
+
+### Calculation
+
+`research_completeness_score = sum(section_weight * section_present) * 100`
+
+Where `section_present` = 1 if section exists with >50 chars of substantive content.
+
+| # | Section | Weight |
+|---|---------|--------|
+| 1 | Executive Summary | 0.10 |
+| 2 | Core Technical Research | 0.20 |
+| 3 | Tooling / Library Analysis | 0.15 |
+| 4 | Architecture / Design Patterns | 0.15 |
+| 5 | Risks & Remedies | 0.15 |
+| 6 | CVE / Security Assessment | 0.10 |
+| 7 | Recommended Versions Table | 0.10 |
+| 8 | References | 0.05 |
+
+**Total weights: 1.00** | Score range: 0-100 | Blocking threshold: < 70
+
+### Blocking Behavior
+
+```
+if HAS_CI_ENGINE:
+    if research_completeness_score < 70:
+        log("[CI-BLOCK] research_completeness_score={score} < 70. Stage 1 blocked.")
+        emit_hook("stage:after:failure", stage_0, {score: score})
+        # OODA classifies as spec_gap
+        if stage_0_retry_count < 3:
+            # OODA decision: retry with enhanced prompt:
+            #   "Your previous research scored {score}/100. Missing sections:
+            #    {missing_sections}. You MUST address these gaps."
+        else:
+            # OODA decision: surface_to_user with missing section report
+```
+
+---
+
+## Backward Compatibility (CI Engine)
+
+All CI engine sections in this file are wrapped with `if HAS_CI_ENGINE:` guards. When CI engine modules are absent (`HAS_CI_ENGINE = False`):
+
+| Condition | Behavior |
+|-----------|----------|
+| `knowledge_store/` directory missing | Pipeline runs normally. No telemetry. No OODA. No PDCA. |
+| `improvement_targets.json` missing | Stage 0 spawned with standard prompt (no injection). |
+| `stage_baselines.json` missing | OODA Orient uses defaults: `nominal` for success, `anomalous` for failure. |
+| `failure_patterns.json` missing | OODA skips pattern matching; uses keyword heuristics only. |
+| `OODAController` not importable | Existing ad-hoc error handling (retry up to 3, then fail). |
+| `RetrospectiveAnalyzer` not importable | Check phase skipped with `[CI-WARN]` log. |
+| `ImprovementRecommender` not importable | Act phase skipped with `[CI-WARN]` log. |
+| `StageMetricsCollector` not importable | No telemetry emitted. Pipeline unchanged. |
+
+An optional `ci_engine_enabled: false` flag in session configuration overrides `HAS_CI_ENGINE` and disables all CI behavior even when modules are present.
+
+---
+
 ## Self-Audit Gate (MANDATORY before returning)
 
 If ANY is false, go back and fix NOW:
@@ -278,6 +549,10 @@ If ANY is false, go back and fix NOW:
 - [ ] All proposed tasks have proper `blockedBy` chains
 - [ ] Full pipeline followed without skipped stages (MAIN-012)
 - [ ] Execution summary output
+- [ ] CI Engine probe ran at boot (Step -0.5) and `HAS_CI_ENGINE` flag set
+- [ ] If `HAS_CI_ENGINE`: PDCA Check + Act phases triggered after run completion
+- [ ] If `HAS_CI_ENGINE`: OODA controller invoked after every stage completion
+- [ ] If `HAS_CI_ENGINE`: `research_completeness_score` gate enforced for Stage 0 -> Stage 1
 
 ```
 ═══════════════════════════════════════════════════════════
