@@ -1,5 +1,9 @@
 # Auto Orchestrate
 .orchestrate
+.domain
+.debug
+.audit
+.sessions
 protect-branches.sh
 
 # Byte-compiled / optimized / DLL files

@@ -146,6 +146,43 @@ if not HAS_CI_ENGINE and any([HAS_OODA, HAS_METRICS, HAS_RETRO, HAS_RECOMMENDER,
     log("[CI-WARN] Partial CI engine — running in degraded mode")
 ```
 
+**Step -0.25 (DOMAIN MEMORY PROBE):** Check for domain memory at `.domain/` directory in the project root.
+
+```
+# --- Domain Memory Probe ---
+DOMAIN_MEMORY_DIR = ".domain"
+HAS_DOMAIN_MEMORY = Path(DOMAIN_MEMORY_DIR).is_dir()
+
+if not HAS_DOMAIN_MEMORY:
+    # Create .domain/ on first run — domain memory is always available
+    os.makedirs(DOMAIN_MEMORY_DIR, exist_ok=True)
+    HAS_DOMAIN_MEMORY = True
+    log("[DOMAIN] Initialized domain memory at .domain/")
+else:
+    log("[DOMAIN] Domain memory available at .domain/")
+```
+
+**Domain memory is project-level, cross-session, cross-command.** All 6 stores are JSONL append-only:
+- `research_ledger.jsonl` — Prior research findings (query before Stage 0 to avoid re-research)
+- `decision_log.jsonl` — Architecture decisions with rationale (query before Stage 1)
+- `pattern_library.jsonl` — Success patterns and anti-patterns (query before Stage 3)
+- `fix_registry.jsonl` — Error → fix mappings (query during OODA and before debugging)
+- `codebase_analysis.jsonl` — Per-file risk and analysis cache (query before Stage 5)
+- `user_preferences.jsonl` — User corrections and preferences (query at all stages)
+
+**Reading domain memory:** Before each stage, query the relevant store for prior knowledge:
+- Before Stage 0: `search("research_ledger", "<task_topic>")` — if prior research exists, include summary in researcher prompt
+- Before Stage 1: `query_latest("decision_log", 5)` — show recent decisions for context
+- Before Stage 3: `get_patterns("<domain>")` — inject known patterns into implementer prompt
+- During OODA: `lookup_fix("<error_fingerprint>")` — if known fix exists, suggest it in enhanced_prompt
+
+**Writing domain memory:** After each stage completes, persist learned knowledge:
+- After Stage 0: Append key findings to `research_ledger`
+- After Stage 1: Append decomposition decisions to `decision_log`
+- After Stage 3: Append discovered patterns to `pattern_library`
+- After fix verified: Append error→fix mapping to `fix_registry`
+- After Stage 5: Append file analyses to `codebase_analysis`
+
 **Step 0 (BOOT-INFRA):** Spawn `session-manager` (max_turns: 10) to set up `.orchestrate/<session_id>/` and `~/.claude/sessions/`, probe manifest.
 
 **Step 1 (MANIFEST-001 — MANDATORY):** Read `~/.claude/manifest.json`. This is the **authoritative registry** for the entire pipeline.

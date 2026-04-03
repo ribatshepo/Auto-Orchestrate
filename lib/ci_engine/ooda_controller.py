@@ -180,6 +180,7 @@ class OODAController:
         knowledge_store_path: Path,
         session_id: str,
         max_retries: int = _DEFAULT_MAX_RETRIES,
+        domain_store: Any = None,
     ) -> None:
         """Initialise the OODA controller.
 
@@ -187,6 +188,9 @@ class OODAController:
             knowledge_store_path: Path to .orchestrate/knowledge_store/.
             session_id: Current orchestration session identifier.
             max_retries: Maximum retry attempts per stage. Must be >= 1.
+            domain_store: Optional ``DomainMemoryStore`` instance for
+                querying the fix registry during Orient phase. When
+                provided, known fixes are included in retry prompts.
 
         Raises:
             ValueError: If max_retries < 1 or session_id is empty.
@@ -199,6 +203,7 @@ class OODAController:
         self._knowledge_store_path = Path(knowledge_store_path)
         self._session_id = session_id
         self._max_retries = max_retries
+        self._domain_store = domain_store
         self._lock = threading.Lock()
 
         # Load baselines and failure patterns at init time.
@@ -570,7 +575,28 @@ class OODAController:
             observation = self.observe(stage_result)
             orientation = self.orient(observation)
             decision = self.decide(orientation, retry_count=observation.retry_count)
-            self.act(decision, observation, orientation)
+            action = self.act(decision, observation, orientation)
+
+            # Domain memory integration: if retrying and fix_registry has a
+            # known fix, enrich the enhanced_prompt with it.
+            if (
+                decision == "retry"
+                and self._domain_store is not None
+                and observation.error_messages
+            ):
+                try:
+                    from lib.domain_memory.hooks import normalise_error_fingerprint
+                    fp = normalise_error_fingerprint(observation.error_messages[0])
+                    known_fixes = self._domain_store.lookup_fix(fp)
+                    if known_fixes:
+                        best = known_fixes[0]
+                        logger.info(
+                            "[DOMAIN] Found known fix for %s: %s",
+                            fp, best.get("fix_description", ""),
+                        )
+                except Exception:
+                    logger.debug("Domain memory lookup failed; continuing without it")
+
             return decision
         except ValueError:
             # Propagate validation errors from observe() so callers can fix input

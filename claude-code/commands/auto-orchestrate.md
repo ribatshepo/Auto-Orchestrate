@@ -188,6 +188,16 @@ test -f ~/.claude/manifest.json && grep -q '"orchestrator"' ~/.claude/manifest.j
 
 If FAIL: abort with `[AO-GAP-002] Manifest missing or orchestrator agent not found at ~/.claude/manifest.json. Cannot proceed.`
 
+### 0f. Domain Memory Initialization
+
+Ensure the `.domain/` directory exists at the project root:
+
+```bash
+mkdir -p .domain
+```
+
+This directory persists **cross-session, cross-command** domain knowledge (research findings, error→fix mappings, patterns, architecture decisions, codebase analysis, user preferences). All stores are append-only JSONL with file locking for concurrency safety. Pass `DOMAIN_MEMORY_DIR=.domain` in the orchestrator spawn prompt.
+
 ---
 
 ## Step 1: Enhance User Input (Inline)

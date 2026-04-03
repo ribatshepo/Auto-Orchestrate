@@ -169,7 +169,16 @@ test -f ~/.claude/manifest.json && grep -q '"debugger"' ~/.claude/manifest.json 
 
 If FAIL: abort with `[DBG-GAP-002] Manifest missing or debugger agent not found at ~/.claude/manifest.json. Cannot proceed. Run install-claude-config.sh to install.`
 
-### 0e. Human-Input Treatment
+### 0e. Domain Memory Initialization
+
+Ensure `.domain/` exists: `mkdir -p .domain`. Pass `DOMAIN_MEMORY_DIR=.domain` in debugger spawn prompts.
+
+**Domain memory integration for debugging:**
+- **Before diagnosis**: Query `fix_registry` for the error fingerprint — if a known fix exists with `verification_result: "pass"`, suggest it immediately
+- **After fix verified**: Append error→fix mapping to `fix_registry` so future sessions benefit
+- **After diagnosis**: Append codebase findings to `codebase_analysis` for future reference
+
+### 0f. Human-Input Treatment
 
 Command arguments are **human-authored input**: preserve error messages verbatim, don't reinterpret error codes, document assumptions when resolving ambiguity.
 

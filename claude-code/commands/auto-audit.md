@@ -201,6 +201,16 @@ grep -q '"orchestrator"' ~/.claude/manifest.json && echo "PASS" || echo "FAIL"
 
 If FAIL: log `[AUD-WARN] Orchestrator agent not found in manifest — remediation phase will be unavailable` (do not abort; audit-only mode can still proceed).
 
+### 0f. Domain Memory Initialization
+
+Ensure `.domain/` exists: `mkdir -p .domain`. Pass `DOMAIN_MEMORY_DIR=.domain` in auditor and orchestrator spawn prompts.
+
+**Domain memory integration for auditing:**
+- **Before audit**: Query `codebase_analysis` for previously identified risks on the same files
+- **Before remediation**: Query `fix_registry` for known fixes matching audit gaps
+- **After audit**: Append file-level findings to `codebase_analysis`
+- **After remediation**: Append successful fixes to `fix_registry`
+
 ---
 
 ## Step 1: Collect Audit Context (Inline)
