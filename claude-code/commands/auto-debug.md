@@ -167,7 +167,7 @@ Verify that `~/.claude/manifest.json` exists and contains the `debugger` agent d
 test -f ~/.claude/manifest.json && grep -q '"debugger"' ~/.claude/manifest.json && echo "PASS" || echo "FAIL"
 ```
 
-If FAIL: abort with `[DBG-GAP-002] Manifest missing or debugger agent not found at ~/.claude/manifest.json. Cannot proceed. Run install-claude-config.sh to install.`
+If FAIL: abort with `[DBG-GAP-002] Manifest missing or debugger agent not found at ~/.claude/manifest.json. Cannot proceed. Run install.sh to install.`
 
 ### 0e. Domain Memory Initialization
 

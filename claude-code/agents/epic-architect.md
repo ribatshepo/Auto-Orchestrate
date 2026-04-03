@@ -265,6 +265,7 @@ When spawned to split an oversized task.
 - [ ] All other tasks: ≤ 3 files, ≤ ~600 lines
 - [ ] Total tasks ≤ 20 per epic
 - [ ] Proposals written to `.orchestrate/<session-id>/proposed-tasks.json`
+- [ ] `stage-receipt.json` written to `.orchestrate/<session-id>/stage-1/` (RECEIPT-001)
 
 ## Input/Output
 

@@ -32,8 +32,8 @@ See [ARCHITECTURE.md](claude-code/ARCHITECTURE.md) for the system architecture a
 ```bash
 git clone https://github.com/ribatshepo/Auto-Orchestrate.git
 cd Auto-Orchestrate
-chmod +x install-claude-config.sh
-./install-claude-config.sh
+chmod +x install.sh
+./install.sh
 ```
 
 The installer copies all files from `claude-code/` into `~/.claude/` and backs up your existing config first.
@@ -56,8 +56,8 @@ After making changes to skill scripts or agent definitions, re-run the installer
 
 ```
 Auto-Orchestrate/
-├── install-claude-config.sh     # Copies claude-code/ → ~/.claude/
-├── uninstall-claude-config.sh   # Removes ~/.claude/ installed files
+├── install.sh     # Copies claude-code/ → ~/.claude/
+├── uninstall.sh   # Removes ~/.claude/ installed files
 └── claude-code/
     ├── agents/                  # Agent definitions (Markdown)
     ├── commands/                # Slash command definitions (auto-orchestrate.md,
@@ -115,7 +115,7 @@ claude-code/skills/<skill-name>/
    - `dispatch_triggers` — keywords agents use to route to this skill
    - `path` — relative path to `SKILL.md`
 
-6. **Re-install** to push changes: `./install-claude-config.sh`
+6. **Re-install** to push changes: `./install.sh`
 
 > **References subdirectory**: Skills that need lookup tables, pattern libraries, or reference data should place those files in `skills/<name>/references/`. Several skills use this pattern (e.g., `debug-diagnostics/references/error-categories.md`, `spec-compliance/references/compliance-patterns.md`). Reference files are loaded at the start of the SKILL.md `## Before You Begin` section.
 
@@ -148,7 +148,7 @@ Agents are defined in `claude-code/agents/<agent-name>.md`. They are Markdown fi
 1. Create `claude-code/agents/<agent-name>.md` following the structure of an existing agent.
 2. Add the agent entry to `manifest.json` under `"agents"`.
 3. Update `ARCHITECTURE.md` to document the new agent's role.
-4. Re-install: `./install-claude-config.sh`
+4. Re-install: `./install.sh`
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Audit Date**: 2026-02-12  
 **Auditor**: Orchestrator Agent (GAP-CRIT-001 emergency fallback mode)  
-**Scope**: Install script (`install-claude-config.sh`) and Python shared library (`claude-code/skills/_shared/python/`)  
+**Scope**: Install script (`install.sh`) and Python shared library (`claude-code/skills/_shared/python/`)  
 **Methodology**: Manual code review for common security vulnerabilities
 
 ---
@@ -26,7 +26,7 @@ The Auto-Orchestrate v1.0.0 codebase was audited for security vulnerabilities wi
 ### Files Audited
 
 **Install Script**:
-- `install-claude-config.sh` (120 lines)
+- `install.sh` (120 lines)
 
 **Python Library** (sampled for representative coverage):
 - `layer0/` — Foundation modules (exit_codes, colors, constants)
@@ -45,7 +45,7 @@ The Auto-Orchestrate v1.0.0 codebase was audited for security vulnerabilities wi
 
 ### F1: Install Script — Path Injection Protection (INFORMATIONAL)
 
-**File**: `install-claude-config.sh`  
+**File**: `install.sh`  
 **Lines**: 19-20  
 **Severity**: Informational  
 **Status**: No action required
@@ -73,7 +73,7 @@ No change needed. This follows standard Unix/Linux conventions. Users running th
 
 ### F2: Install Script — TOCTOU Race Condition (LOW)
 
-**File**: `install-claude-config.sh`  
+**File**: `install.sh`  
 **Lines**: 41-48 (`backup_if_exists` function)  
 **Severity**: Low  
 **Status**: Acceptable risk
@@ -221,7 +221,7 @@ if allow_insecure and parsed.scheme == "http":
 
 ### F6: Install Script — No Checksum Verification (INFORMATIONAL)
 
-**File**: `install-claude-config.sh`  
+**File**: `install.sh`  
 **Severity**: Informational  
 **Status**: Enhancement opportunity
 
@@ -338,7 +338,7 @@ None. All findings are informational or low-severity.
 
 ### Short-Term (v1.1.0)
 
-1. **F2**: Add `-P` flag to `cp` in `install-claude-config.sh` to prevent symlink following
+1. **F2**: Add `-P` flag to `cp` in `install.sh` to prevent symlink following
 2. **F5**: Add warning log message when `allow_insecure=True` is used for webhooks
 3. **F7**: Add length limits to identifiers and message payloads in messaging module
 

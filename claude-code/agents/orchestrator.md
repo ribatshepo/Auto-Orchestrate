@@ -96,7 +96,7 @@ All output files: `YYYY-MM-DD_<descriptor>.<ext>`.
 
 ```
 # --- CI Engine Probe (Granular) ---
-# Check each CI engine module independently at lib/ci_engine/
+# Modules live at ~/.claude/lib/ci_engine/ (installed by install.sh)
 # This allows partial degradation instead of all-or-nothing.
 #
 # Module-level availability:
@@ -107,31 +107,31 @@ HAS_RECOMMENDER = False
 HAS_BASELINES = False
 
 try:
-    from ci_engine.ooda_controller import OODAController
+    from lib.ci_engine.ooda_controller import OODAController
     HAS_OODA = True
 except ImportError:
     log("[CI-WARN] ooda_controller not available — OODA loop disabled")
 
 try:
-    from ci_engine.stage_metrics_collector import StageMetricsCollector
+    from lib.ci_engine.stage_metrics_collector import StageMetricsCollector
     HAS_METRICS = True
 except ImportError:
     log("[CI-WARN] stage_metrics_collector not available — telemetry disabled")
 
 try:
-    from ci_engine.retrospective_analyzer import RetrospectiveAnalyzer
+    from lib.ci_engine.retrospective_analyzer import RetrospectiveAnalyzer
     HAS_RETRO = True
 except ImportError:
     log("[CI-WARN] retrospective_analyzer not available — Check phase disabled")
 
 try:
-    from ci_engine.improvement_recommender import ImprovementRecommender
+    from lib.ci_engine.improvement_recommender import ImprovementRecommender
     HAS_RECOMMENDER = True
 except ImportError:
     log("[CI-WARN] improvement_recommender not available — Act phase disabled")
 
 try:
-    from ci_engine.baseline_manager import BaselineManager
+    from lib.ci_engine.baseline_manager import BaselineManager
     HAS_BASELINES = True
 except ImportError:
     log("[CI-WARN] baseline_manager not available — baseline updates disabled")

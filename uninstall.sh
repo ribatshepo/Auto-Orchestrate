@@ -59,6 +59,7 @@ COMPONENTS=(
   "$CLAUDE_DIR/agents"
   "$CLAUDE_DIR/commands"
   "$CLAUDE_DIR/_shared"
+  "$CLAUDE_DIR/lib"
   "$CLAUDE_DIR/manifest.json"
   "$CLAUDE_DIR/settings.json"
 )

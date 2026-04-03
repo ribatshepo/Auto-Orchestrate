@@ -93,7 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **README.md agent count** — Corrected agent count from 5 to 6 throughout `README.md` to include the researcher agent; directory tree now explicitly lists `researcher.md`
 - **README.md manifest.schema.json path** — Fixed schema file reference to point to `_shared/schemas/manifest.schema.json` instead of a root-level path that did not exist
 - **agents/TOOL-AVAILABILITY.md redirect notice** — Added a redirect notice at the top of `agents/TOOL-AVAILABILITY.md` directing readers to the canonical version at `_shared/references/TOOL-AVAILABILITY.md`
-- **install-claude-config.sh documentation install** — Install script now copies documentation files (`ARCHITECTURE.md`, `INTEGRATION.md`, `PERMISSION-MODES.md`) to `~/.claude/` during installation
+- **install.sh documentation install** — Install script now copies documentation files (`ARCHITECTURE.md`, `INTEGRATION.md`, `PERMISSION-MODES.md`) to `~/.claude/` during installation
 
 ## [1.0.0] - 2026-02-12
 
@@ -118,7 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Python shared library** (`skills/_shared/python/`) with layered architecture (layer0-layer3) and zero external dependencies
 - **Session isolation** via SESSION_ID scoping of checkpoint files
 - **Workflow commands** (`/workflow-start`, `/workflow-end`, `/workflow-dash`, `/workflow-focus`, `/workflow-next`, `/workflow-plan`)
-- **Install script** (`install-claude-config.sh`) with automatic backup of existing `~/.claude/` configuration
+- **Install script** (`install.sh`) with automatic backup of existing `~/.claude/` configuration
 - **Manifest-based component registry** (`manifest.json`) for agent/skill routing with 481-line schema
 - **Documentation system** with architecture docs, integration guide, permission modes reference, and agent/skill definitions
 - **Anti-pattern detection** across output, research, implementation, testing, validation, and security domains

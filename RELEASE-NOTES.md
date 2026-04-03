@@ -225,7 +225,7 @@ Supported by the new `spec-compliance` skill for requirements extraction and com
 - **ARCHITECTURE.md** — Updated to reflect 6 agents, added researcher agent documentation, revised session management section, updated mandatory stage descriptions
 - **README.md** — Agent count corrected (5 → 6), directory tree updated with `researcher.md`, manifest schema path fixed to `_shared/schemas/manifest.schema.json`
 - **agents/TOOL-AVAILABILITY.md** — Redirect notice added pointing to canonical `_shared/references/TOOL-AVAILABILITY.md`
-- **install-claude-config.sh** — Now copies documentation files (`ARCHITECTURE.md`, `INTEGRATION.md`, `PERMISSION-MODES.md`) to `~/.claude/` during installation
+- **install.sh** — Now copies documentation files (`ARCHITECTURE.md`, `INTEGRATION.md`, `PERMISSION-MODES.md`) to `~/.claude/` during installation
 
 ---
 
@@ -410,8 +410,8 @@ git clone https://github.com/ribatshepo/Auto-Orchestrate.git
 cd Auto-Orchestrate
 
 # Run the install script (auto-backs up existing ~/.claude/ config)
-chmod +x install-claude-config.sh
-./install-claude-config.sh
+chmod +x install.sh
+./install.sh
 ```
 
 The install script copies:

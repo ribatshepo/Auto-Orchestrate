@@ -189,6 +189,8 @@ Before DONE, verify:
 - Input validated at boundaries; logging for key operations
 - Scope-appropriate pipeline ran and passed
 - MEDIUM/LARGE: security-auditor reports 0 vulnerabilities
+- `stage-receipt.json` written to stage directory with files_modified list (RECEIPT-001, per `_shared/protocols/output-standard.md`)
+- `changes.md` written to stage directory listing all modified/created files
 
 ## Error Recovery
 

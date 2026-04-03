@@ -33,8 +33,8 @@ Clone the repository and run the install script:
 ```bash
 git clone https://github.com/ribatshepo/Auto-Orchestrate.git
 cd Auto-Orchestrate
-chmod +x install-claude-config.sh
-./install-claude-config.sh
+chmod +x install.sh
+./install.sh
 ```
 
 The install script copies the following into `~/.claude/`:
@@ -239,8 +239,8 @@ Auto-Orchestrate/
 ├── RELEASE-NOTES.md             # v1.0.0 release notes
 ├── SECURITY-AUDIT-v1.0.0.md     # Security audit report for v1.0.0
 ├── protect-branches.sh          # GitHub branch protection manager
-├── install-claude-config.sh     # Installer script
-├── uninstall-claude-config.sh   # Uninstaller script
+├── install.sh     # Installer script
+├── uninstall.sh   # Uninstaller script
 │
 ├── .orchestrate/                # Per-session orchestration output (gitignored)
 │

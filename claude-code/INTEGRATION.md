@@ -28,7 +28,7 @@ Before installing the plugins system, ensure you have:
 **Recommended:** Use the install script for a one-command setup:
 
 ```bash
-./install-claude-config.sh
+./install.sh
 ```
 
 This installs all skills, agents, commands, shared resources, manifest, and settings in one step.
@@ -322,7 +322,7 @@ Default values (if not configured):
 The plugins system requires broad tool permissions so agents and skills can operate without prompting the user on every tool call. A `settings.json` file configures these permissions.
 
 **Install:**
-A default `settings.json` is shipped with the repository at `claude-code/settings.json`. The recommended installation method is `install-claude-config.sh`, which copies it along with all other components. For manual installation, copy it directly:
+A default `settings.json` is shipped with the repository at `claude-code/settings.json`. The recommended installation method is `install.sh`, which copies it along with all other components. For manual installation, copy it directly:
 ```bash
 cp claude-code/settings.json ~/.claude/settings.json
 ```
@@ -417,8 +417,8 @@ cp -r claude-code/skills/researcher ~/.claude/skills/
 
 **Uninstall all components (recommended):**
 ```bash
-./uninstall-claude-config.sh --dry-run    # Preview what will be removed
-./uninstall-claude-config.sh --yes        # Execute removal without prompts
+./uninstall.sh --dry-run    # Preview what will be removed
+./uninstall.sh --yes        # Execute removal without prompts
 ```
 
 **Manual alternative (all components):**

@@ -188,3 +188,4 @@ Spawn received → Decompose into sub-questions → Multi-source research (Web+C
 - [ ] Output file at `OUTPUT_DIR/DATE_SLUG.md` (RES-006)
 - [ ] Manifest appended with 3–7 key_findings (RES-007)
 - [ ] `needs_followup` set correctly
+- [ ] `stage-receipt.json` written to `OUTPUT_DIR/` (RECEIPT-001, per `_shared/protocols/output-standard.md`)

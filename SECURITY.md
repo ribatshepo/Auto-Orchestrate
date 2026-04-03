@@ -49,7 +49,7 @@ Please include the following information in your report:
 
 ## Security Considerations
 
-### Install Script (`install-claude-config.sh`)
+### Install Script (`install.sh`)
 
 The install script performs file operations in the user's home directory (`~/.claude/`). Key security properties:
 

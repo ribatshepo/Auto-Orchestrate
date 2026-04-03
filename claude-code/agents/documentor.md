@@ -75,6 +75,8 @@ Before finishing, verify:
 - [ ] Added deprecation notices if consolidating
 - [ ] Cross-references updated; no orphaned docs
 - [ ] Style compliance verified (Phase 4 completed)
+- [ ] `stage-receipt.json` written to stage directory with files modified (RECEIPT-001, per `_shared/protocols/output-standard.md`)
+- [ ] `changes.md` written to stage directory listing all documentation files updated
 
 ## Output Format
 
