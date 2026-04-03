@@ -19,17 +19,24 @@ Tool availability in Claude Code is determined by the **built-in agent type defi
 
 ## Tool Availability Matrix (Actual Runtime)
 
-| Agent | Declared Tools | Actually Available | NOT Available |
-|-------|---------------|-------------------|---------------|
-| orchestrator | Read, Glob, Grep, Bash, Task | Read, Glob, Grep, Bash | Task*, TaskCreate, TaskList, TaskUpdate, TaskGet |
-| epic-architect | Read, Glob, Grep, Bash, Task | Read, Glob, Grep, Bash | Task*, TaskCreate, TaskList, TaskUpdate, TaskGet |
-| implementer | Read, Write, Edit, Bash, Glob, Grep, Task | Read, Write, Edit, Bash, Glob, Grep | Task*, TaskCreate, TaskList, TaskUpdate, TaskGet |
-| documentor | Read, Glob, Grep, Edit, Write, Task | Read, Glob, Grep, Edit, Write | Task*, TaskCreate, TaskList, TaskUpdate, TaskGet |
-| session-manager | Read, Glob, Grep, Bash, Task | Read, Glob, Grep, Bash | Task*, TaskCreate, TaskList, TaskUpdate, TaskGet |
+| Agent | Actually Available | NOT Available | Spawned By |
+|-------|-------------------|---------------|------------|
+| orchestrator | Read, Glob, Grep, Bash | Task*, TaskCreate/List/Update/Get | auto-orchestrate, auto-audit |
+| epic-architect | Read, Glob, Grep, Bash | Task*, TaskCreate/List/Update/Get | orchestrator |
+| researcher | Read, Glob, Grep, Bash, WebSearch, WebFetch | Task*, TaskCreate/List/Update/Get | orchestrator |
+| implementer | Read, Write, Edit, Bash, Glob, Grep | Task*, TaskCreate/List/Update/Get | orchestrator |
+| documentor | Read, Glob, Grep, Edit, Write | Task*, TaskCreate/List/Update/Get | orchestrator |
+| debugger | Read, Write, Edit, Bash, Glob, Grep | Task*, TaskCreate/List/Update/Get | auto-debug |
+| auditor | Read, Glob, Grep, Bash | Task*, TaskCreate/List/Update/Get | auto-audit |
+| session-manager | Read, Glob, Grep, Bash | Task*, TaskCreate/List/Update/Get | orchestrator |
 
 \* Task tool availability is unreliable — declared but not consistently provisioned at runtime when spawned via auto-orchestrate.
 
-**Key Finding**: TaskCreate, TaskList, TaskUpdate, and TaskGet are NEVER available to subagents. Only the auto-orchestrate loop (main Claude Code instance) has these tools.
+**Key Findings**:
+- TaskCreate, TaskList, TaskUpdate, and TaskGet are **NEVER** available to any subagent. Only the loop controllers (auto-orchestrate, auto-debug, auto-audit) have these tools.
+- The **researcher** agent uniquely has WebSearch and WebFetch for internet research.
+- The **auditor** agent is read-only — it has no Write or Edit tools.
+- The **debugger** agent has the same write tools as the implementer (it fixes code).
 
 ## Workaround: File-Based Task Proposal Protocol
 
@@ -111,23 +118,50 @@ It does NOT:
 - Cannot call TaskList → receives relevant task context in spawn prompt
 - Task proposals follow the JSON format above
 
-### Implementer
-- Cannot call TaskUpdate → reports completion status in return value
-- Can read/write/edit files (its core function works correctly)
+### Researcher
+- Cannot call TaskCreate → findings written to `stage-0/YYYY-MM-DD_<slug>.md`
+- HAS WebSearch and WebFetch (only agent with internet access)
+- Writes `stage-receipt.json` on completion (per output-standard.md RECEIPT-001)
 
-### Auto-Orchestrate Loop (Main Claude Code Instance)
-- HAS TaskCreate, TaskList, TaskUpdate, TaskGet (sole gateway for task management)
-- Reads task proposals from `.orchestrate/<session-id>/proposed-tasks.json`
-- Passes task state to orchestrator in spawn prompt
-- Executes task updates based on orchestrator return values
-- Is the ONLY entity that can create, list, update, or get tasks
+### Implementer
+- Cannot call TaskUpdate → reports completion status in return value (DONE block)
+- Can read/write/edit files (its core function works correctly)
+- Writes `stage-receipt.json` + `changes.md` to stage directory
+
+### Debugger
+- Cannot call TaskCreate → error fixes tracked via `.debug/<session-id>/error-history.jsonl`
+- Can read/write/edit files (fixes code directly)
+- Queries `.domain/fix_registry.jsonl` for known fixes before diagnosing
+- Writes fixes to `.domain/fix_registry.jsonl` after verification
+
+### Auditor
+- Cannot call TaskCreate → writes gap-report.json to `.audit/<session-id>/cycle-<N>/`
+- Read-only: has NO Write or Edit tools — never modifies project files
+- Writes `stage-receipt.json` per audit cycle
+
+### Session-Manager
+- Cannot call TaskCreate → coordinates via workflow-* skill state machine
+- Sets up `.orchestrate/<session-id>/` directory structure at boot
+
+### Loop Controllers (auto-orchestrate, auto-debug, auto-audit)
+- HAVE TaskCreate, TaskList, TaskUpdate, TaskGet (sole gateways for task management)
+- Read task proposals from file-based protocols
+- Pass task state to agents in spawn prompts
+- Execute task updates based on agent return values
+- Are the ONLY entities that can create, list, update, or get tasks
+- Initialize `.domain/` directory for domain memory
 
 ## See Also
 
-- claude-code/agents/orchestrator.md — Orchestrator with fallback protocol
-- claude-code/agents/epic-architect.md — File-based task proposal output
-- claude-code/commands/auto-orchestrate.md — Task management proxy
-- claude-code/ARCHITECTURE.md — System architecture
+- `agents/orchestrator.md` — Orchestrator with fallback protocol
+- `agents/epic-architect.md` — File-based task proposal output
+- `agents/debugger.md` — Debug agent with fix_registry integration
+- `agents/auditor.md` — Read-only audit agent
+- `commands/auto-orchestrate.md` — Task management proxy (orchestration)
+- `commands/auto-debug.md` — Task management proxy (debugging)
+- `commands/auto-audit.md` — Task management proxy (auditing)
+- `_shared/protocols/output-standard.md` — Unified output file naming and stage receipts
+- `ARCHITECTURE.md` — System architecture
 
 ## Status
 

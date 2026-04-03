@@ -1,41 +1,78 @@
-# Plugins Architecture
+# Auto-Orchestrate Architecture
 
-Comprehensive architecture documentation for the Claude Code plugins system.
+Comprehensive architecture documentation for the Auto-Orchestrate system.
 
-**Last Updated**: 2026-03-29 (audit remediation complete: 23/23 items, health score 95/100; added CONVENTIONS.md, SESSIONS-REGISTRY.md, TOOL-AVAILABILITY.md to commands/; CVE-free policy additions: RES-011..RES-013, IMPL-015, DBG-013, FEEDBACK-LOOP-001)
-**Components**: 8 agents | 35 skills | 3 commands | 4 protocols | 2 templates
+**Last Updated**: 2026-04-03
+**Components**: 8 agents | 35 skills | 3 commands | 6 protocols | 2 templates | 9 CI engine modules | 4 domain memory modules
 
 ---
 
 ## 1. System Overview
 
-The plugins system extends Claude Code with specialized agents, skills, and workflow commands. It follows a layered architecture where:
+Auto-Orchestrate is a multi-layer autonomous pipeline system with built-in continuous improvement. It follows a layered architecture:
 
-- **Commands** provide user-facing slash command interface
-- **Agents** orchestrate complex multi-step workflows
-- **Skills** perform concrete, atomic tasks
-- **Protocols** define communication contracts between layers
-- **Templates** provide reusable patterns for skill creation
+- **Commands** provide autonomous loop controllers (`/auto-orchestrate`, `/auto-debug`, `/auto-audit`) and interactive workflow commands
+- **Agents** orchestrate complex multi-step workflows via subagent delegation
+- **Skills** perform concrete, atomic tasks with Python scripts
+- **CI Engine** provides within-run (OODA) and cross-run (PDCA) feedback loops
+- **Domain Memory** persists project knowledge across all sessions and commands
+- **Protocols** define communication contracts, output standards, and skill chaining rules
+- **Shared Library** provides layered Python utilities (layer0-3) used by all scripts
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      COMMANDS LAYER                             │
-│  /workflow-start /workflow-dash /workflow-focus /workflow-next    │
-│  /workflow-end /workflow-plan /auto-orchestrate /auto-debug      │
-│  /auto-audit /refactor-analyzer                                  │
-├─────────────────────────────────────────────────────────────────┤
-│                       AGENTS LAYER                              │
-│  orchestrator │ documentor │ epic-architect │ implementer │ session-manager │ researcher │ debugger │ auditor │
-├─────────────────────────────────────────────────────────────────┤
-│                       SKILLS LAYER                              │
-│  35 specialized skills organized by category                    │
-├─────────────────────────────────────────────────────────────────┤
-│                      PROTOCOL LAYER                             │
-│  subagent-protocol  │  task-system  │  skill-chaining-patterns  │
-├─────────────────────────────────────────────────────────────────┤
-│                      TEMPLATE LAYER                             │
-│          skill-boilerplate    │    anti-patterns                │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                           COMMANDS LAYER                                │
+│  /auto-orchestrate  /auto-debug  /auto-audit                            │
+│  /workflow-start  /workflow-dash  /workflow-focus  /workflow-next        │
+│  /workflow-end  /workflow-plan  /refactor-analyzer                      │
+├──────────────────────────────────────────────────────────────────────────┤
+│                            AGENTS LAYER                                 │
+│  orchestrator │ epic-architect │ implementer │ researcher                │
+│  documentor   │ session-manager│ debugger    │ auditor                   │
+├──────────────────────────────────────────────────────────────────────────┤
+│                            SKILLS LAYER                                 │
+│  35 specialized skills (each with SKILL.md + optional Python scripts)   │
+├────────────────────────────────┬─────────────────────────────────────────┤
+│       CI ENGINE (lib/)         │        DOMAIN MEMORY (lib/)            │
+│  OODA loop (within-run)        │  .domain/ (cross-session)              │
+│  PDCA loop (cross-run)         │  6 JSONL stores:                       │
+│  8 root cause categories       │    research, decisions, patterns,      │
+│  Telemetry + baselines         │    fixes, analysis, preferences        │
+│  Improvement recommender       │  SQLite index + hooks                  │
+├────────────────────────────────┴─────────────────────────────────────────┤
+│                          PROTOCOL LAYER                                 │
+│  subagent-protocol │ output-standard │ output-schemas                   │
+│  skill-chaining    │ chain-contracts │ task-system                      │
+├──────────────────────────────────────────────────────────────────────────┤
+│                     SHARED PYTHON LIBRARY                               │
+│  layer0 (constants) │ layer1 (I/O) │ layer2 (validation) │ layer3 (ops)│
+├──────────────────────────────────────────────────────────────────────────┤
+│                       PERSISTENT STATE                                  │
+│  .orchestrate/  │  .debug/  │  .audit/  │  .domain/  │  .sessions/     │
+│  (per-session)  │(per-debug)│(per-audit)│ (project)  │  (registry)     │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+```
+User Input ──→ Command (loop controller) ──→ Orchestrator Agent
+                                                    │
+                 ┌──────────────────────────────────┤
+                 │                                  │
+                 v                                  v
+          Stage Agents                      CI Engine (optional)
+    (researcher, implementer,          (OODA: observe→orient→
+     validator, documentor...)          decide→act per stage)
+                 │                                  │
+                 v                                  v
+          Stage Outputs                    Telemetry + Baselines
+    (.orchestrate/stage-N/)            (.orchestrate/knowledge_store/)
+                 │                                  │
+                 v                                  v
+         Stage Receipts ──────────→ Domain Memory (.domain/)
+    (stage-receipt.json)           (research, fixes, patterns persist
+                                    across ALL future sessions)
 ```
 
 ---
@@ -164,36 +201,35 @@ claude-code/
                     │  (registry of all components) │
                     └───────────────┬───────────────┘
                                     │
-           ┌────────────────────────┼────────────────────────┐
-           │                        │                        │
-           v                        v                        v
-    ┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-    │   AGENTS    │         │   SKILLS    │         │  COMMANDS   │
-    │  (8 files)  │         │ (35 dirs)   │         │  (3 files)  │
-    └──────┬──────┘         └──────┬──────┘         └─────────────┘
-           │                       │
-           │   ┌───────────────────┼───────────────────┐
-           │   │                   │                   │
-           v   v                   v                   v
-    ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
-    │ subagent-       │   │ skill-          │   │ task-system-    │
-    │ protocol-base   │<──│ boilerplate     │──>│ integration     │
-    └────────┬────────┘   └────────┬────────┘   └─────────────────┘
-             │                     │
-             v                     v
-    ┌─────────────────┐   ┌─────────────────┐
-    │ skill-chaining- │   │ anti-patterns   │
-    │ patterns        │   └─────────────────┘
-    └─────────────────┘
+        ┌───────────────┬───────────┼───────────┬───────────────┐
+        │               │           │           │               │
+        v               v           v           v               v
+ ┌─────────────┐ ┌─────────────┐ ┌─────────┐ ┌─────────────┐ ┌──────────┐
+ │   AGENTS    │ │   SKILLS    │ │COMMANDS │ │  CI ENGINE  │ │  DOMAIN  │
+ │  (8 files)  │ │ (35 dirs)   │ │(3 files)│ │  (9 modules)│ │  MEMORY  │
+ └──────┬──────┘ └──────┬──────┘ └─────────┘ └──────┬──────┘ │(4 modules│
+        │               │                           │        └──────────┘
+        │   ┌───────────┼───────────┐               │
+        │   │           │           │               │
+        v   v           v           v               v
+ ┌────────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐
+ │ subagent-      │ │ output-  │ │ skill-   │ │ knowledge    │
+ │ protocol-base  │ │ standard │ │ chaining │ │ store writer │
+ └────────────────┘ └──────────┘ └──────────┘ └──────────────┘
+ ┌────────────────┐ ┌──────────┐ ┌──────────┐
+ │ output-schemas │ │ chain-   │ │ task-    │
+ │                │ │ contracts│ │ system   │
+ └────────────────┘ └──────────┘ └──────────┘
 ```
 
 ### Cross-Reference Frequency
 
-| Source Type | References `skill-boilerplate` | References `protocols` |
-|-------------|-------------------------------|------------------------|
-| Skills (35) | 77 (avg 2.2 per skill) | 5 |
-| Agents (8) | 1 | 7 |
-| Protocols (4) | 2 | 3 (internal) |
+| Source Type | References `protocols` | References `lib/` |
+|-------------|------------------------|-------------------|
+| Skills (35) | 5 | 0 (use shared Python library) |
+| Agents (8) | 7 | 2 (orchestrator, debugger) |
+| Commands (3) | 3 | 3 (CI engine + domain memory) |
+| Protocols (6) | 3 (internal) | 0 |
 
 ---
 
@@ -227,22 +263,37 @@ claude-code/
 
 **Decision Flow**:
 ```
-START
+BOOT
+  │
+  ├─ Step -0.5: CI Engine probe (granular: HAS_OODA, HAS_METRICS, etc.)
+  ├─ Step -0.25: Domain Memory probe (.domain/ init)
+  ├─ Step 0: Session-manager (set up .orchestrate/<session>/)
+  ├─ Step 1: Read manifest.json (MANIFEST-001 routing registry)
   │
   v
-┌─────────────────┐
-│ Active session? │
-└────────┬────────┘
-    yes/   \no
-       v      v
-┌──────────┐  ┌───────────────────┐
-│ Focus    │  │ Check manifest    │
-│ exists?  │  │ needs_followup?   │
-└────┬─────┘  └─────────┬─────────┘
-  yes/ \no        yes/   \no
-     v    v          v       v
-[Resume] [Query  [Create   [Request
- task]   manifest] session] direction]
+PIPELINE LOOP (respects STAGE_CEILING)
+  │
+  ├─ Step -1: Write proposed-tasks.json (MANDATORY first action)
+  │
+  ├─ Stage 0 (researcher) ──→ Domain memory: query research_ledger
+  │   └─ If HAS_RECOMMENDER: inject improvement_targets.json
+  ├─ Stage 1 (epic-architect) ──→ Task decomposition
+  ├─ Stage 2 (spec-creator) ──→ Specifications
+  ├─ Stage 3 (implementer) ──→ Code (to project files)
+  ├─ Stage 4 (test-writer) ──→ Tests (conditional)
+  ├─ Stage 4.5 (codebase-stats) ──→ Metrics
+  ├─ Stage 5 (validator) ──→ Compliance check
+  ├─ Stage 6 (documentor) ──→ Docs update
+  │
+  ├─ After EACH stage:
+  │   ├─ Write stage-receipt.json (RECEIPT-001)
+  │   ├─ If HAS_OODA: OODA loop (continue/retry/fallback/surface)
+  │   └─ Domain memory: persist learned knowledge via hooks
+  │
+  └─ After ALL stages:
+      ├─ If HAS_RETRO: RetrospectiveAnalyzer (Check phase)
+      ├─ If HAS_RECOMMENDER: ImprovementRecommender (Act phase)
+      └─ If HAS_BASELINES: BaselineManager (update rolling averages)
 ```
 
 **Delegated Skills**:
@@ -1343,44 +1394,59 @@ When scope is not `custom`, the full scope specification (Appendix A/B of auto-o
 /auto-orchestrate [scope-flag] <description>
          │
          v
-┌─────────────────────┐
+┌──────────────────────┐
 │ Step 0: Permission   │──> Scope resolution (F/B/S/custom)
-│ grant + scope flags │
-└────────┬────────────┘
+│ + manifest validate  │    Manifest check (MANIFEST-001)
+│ + domain memory init │    mkdir -p .domain/
+└────────┬─────────────┘
          │
          v
-┌─────────────────────┐
-│ Step 1: Enhance     │──> Inline (no EnterPlanMode)
-│ prompt (structured) │    Custom template OR scope-templated
-└────────┬────────────┘
+┌──────────────────────┐
+│ Step 1: Enhance      │──> Inline prompt structuring
+│ prompt (structured)  │
+└────────┬─────────────┘
          │
          v
-┌─────────────────────┐
-│ Step 2: Initialize  │──> Supersede old sessions
-│ session checkpoint  │    Create .orchestrate/<session-id>/
-└────────┬────────────┘
+┌──────────────────────┐
+│ Step 2: Initialize   │──> Supersede old sessions
+│ session + checkpoint │    Create .orchestrate/<session-id>/
+│ + STAGE_CEILING calc │    Atomic checkpoint write
+└────────┬─────────────┘
          │
          v
-┌─────────────────────┐
-│ Step 3: Spawn       │<──────────────────┐
-│ orchestrator        │   (iteration N)   │
-│ (display task board)│                   │
-└────────┬────────────┘                   │
-         │                                │
-         v                                │
-┌─────────────────────┐    no             │
-│ Step 4: Check       │──────────────────>│
-│ completion + loop   │   (checkpoint)    │
-└────────┬────────────┘                   │
-         │ yes                            │
-         v                                │
-┌─────────────────────┐                   │
-│ Step 5: Termination │    stall?─────> FAIL
-│ + final report      │
-└─────────────────────┘
+┌──────────────────────┐
+│ Step 3: Spawn        │<─────────────────────────────┐
+│ orchestrator         │   (iteration N)              │
+│ (task board display) │                              │
+│ CI: probe + inject   │   improvement_targets.json   │
+│ improvement targets  │   into Stage 0 researcher    │
+└────────┬─────────────┘                              │
+         │                                            │
+         v                                            │
+┌──────────────────────┐                              │
+│ Step 4: Process      │   Task proposals:            │
+│ proposals + validate │   CHAIN-001 (blockedBy)      │
+│ + checkpoint         │   DISPATCH-001 (hint check)  │
+└────────┬─────────────┘                              │
+         │                                            │
+         v                                            │
+┌──────────────────────┐    not done                  │
+│ Step 5: Evaluate     │─────────────────────────────>│
+│ termination          │   (checkpoint + continue)    │
+└────────┬─────────────┘                              │
+         │ done                                       │
+         v                                            │
+┌──────────────────────┐                              │
+│ CI: Check + Act      │   RetrospectiveAnalyzer      │
+│ (post-run PDCA)      │   ImprovementRecommender ────┘
+│                      │   BaselineManager
+│ Termination report   │
+└──────────────────────┘
+
+Terminal states: completed | max_iterations_reached | stalled | all_blocked | user_stopped
 ```
 
-**Checkpoint Storage**: Primary at `.orchestrate/<session-id>/checkpoint.json` (project-local); legacy fallback at `~/.claude/sessions/<session-id>.json` (read-only for crash recovery). Each session creates stage-based subdirectories: `stage-0/` through `stage-6/`.
+**Storage**: `.orchestrate/<session-id>/checkpoint.json` (atomic write). Each stage directory gets `stage-receipt.json` on completion. Session-level `MANIFEST.jsonl` tracks all outputs.
 
 **Core Constraints (AUTO-001 to AUTO-007, CEILING-001, CHAIN-001, PROGRESS-001, DISPLAY-001, SCOPE-001, SCOPE-002)**:
 
@@ -1501,36 +1567,47 @@ All 35 skills reference `skill-boilerplate.md` sections:
 This diagram shows how slash commands relate to each other in typical session workflows:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    SESSION LIFECYCLE                            │
-│                                                                 │
-│  /auto-orchestrate (wraps full lifecycle autonomously)         │
-│    /workflow-plan -> /workflow-start <----------> /workflow-end │
-│      │                  │                            ^          │
-│      │                  v                            │          │
-│      │        ┌──────────────────┐                   │          │
-│      │        │ /workflow-focus  │<- /workflow-next   │          │
-│      │        └────────┬────────┘                    │          │
-│      │                 │                             │          │
-│      │                 v                             │          │
-│      │              [WORK] ──────────────────────────┘          │
-│                                                                 │
-│                   /workflow-dash (context for all)              │
-│                   /refactor-analyzer (independent)              │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    THREE AUTONOMOUS COMMANDS                            │
+│                                                                         │
+│  /auto-orchestrate          /auto-debug           /auto-audit           │
+│  ┌─────────────────┐       ┌──────────────┐       ┌──────────────┐     │
+│  │ Research→Arch→  │       │ Triage→Fix→  │       │ Audit→Remed→ │     │
+│  │ Spec→Impl→Test→│       │ Verify loop  │       │ Re-audit loop│     │
+│  │ Validate→Docs  │       │ (.debug/)    │       │ (.audit/)    │     │
+│  │ (.orchestrate/)│       └──────────────┘       └──────────────┘     │
+│  └─────────────────┘                                                    │
+│         │                         │                       │             │
+│         └─────────────────────────┼───────────────────────┘             │
+│                                   v                                     │
+│                         ┌─────────────────┐                             │
+│                         │  .domain/       │  Cross-session knowledge    │
+│                         │  (shared by all │  (research, fixes, patterns,│
+│                         │   3 commands)   │   decisions, analysis,      │
+│                         └─────────────────┘   preferences)              │
+│                                                                         │
+│                    INTERACTIVE WORKFLOW COMMANDS                         │
+│  /workflow-plan → /workflow-start ←→ /workflow-end                     │
+│                       │                    ^                             │
+│                       v                    │                             │
+│               /workflow-focus ← /workflow-next                          │
+│                       │                                                 │
+│                       v                                                 │
+│                    [WORK] ─────────────────┘                            │
+│                                                                         │
+│  /workflow-dash (context for all)  │  /refactor-analyzer (independent) │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Relationship Types**:
-| From | To | Relationship |
-|------|-----|--------------|
-| `/workflow-plan` | `/workflow-start` | Creates tasks that `/workflow-start` displays |
-| `/workflow-start` | `/workflow-focus` | Suggests initial focus target |
-| `/workflow-start` | `/workflow-end` | Session lifecycle pair |
-| `/workflow-next` | `/workflow-focus` | Suggests task, `/workflow-focus` activates it |
-| `/workflow-focus` | Work | Active task guides implementation |
-| `/workflow-dash` | All | Provides context for decision-making |
-| `/refactor-analyzer` | None | Independent utility, usable anytime |
-| `/auto-orchestrate` | All commands | Wraps full session lifecycle autonomously |
+**Command Categories**:
+| Category | Commands | Session Dir | Gateway Agent |
+|----------|----------|-------------|---------------|
+| Autonomous | `/auto-orchestrate` | `.orchestrate/` | orchestrator only |
+| Autonomous | `/auto-debug` | `.debug/` | debugger only |
+| Autonomous | `/auto-audit` | `.audit/` | auditor + orchestrator |
+| Interactive | `/workflow-*` (6 commands) | — | session-manager |
+| Utility | `/refactor-analyzer` | — | — |
+| Shared | `.domain/` | — | All commands read/write |
 
 ---
 
@@ -1551,6 +1628,30 @@ This diagram shows which skills each agent can delegate to:
 │  │   library-implementer-python -> Python libraries         │   │
 │  │   test-writer-pytest --> Tests                           │   │
 │  │   validator -----------> Compliance                      │   │
+│  │   codebase-stats ------> Stage 4.5 metrics               │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                      DEBUGGER                                    │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Mandatory skills:                                        │   │
+│  │   debug-diagnostics -----> Error classification (Ph1)    │   │
+│  │ Domain memory integration:                               │   │
+│  │   fix_registry query ----> Check known fixes before diag │   │
+│  │   fix_registry write ----> Persist fix after verification│   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                      AUDITOR                                     │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Mandatory skills:                                        │   │
+│  │   spec-compliance -------> Requirement extraction +      │   │
+│  │                            compliance matrix (read-only) │   │
+│  │ Outputs (per cycle):                                     │   │
+│  │   YYYY-MM-DD_audit-report.md + gap-report.json          │   │
+│  │   → .audit/<session>/cycle-<N>/                          │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 
@@ -1609,13 +1710,16 @@ This diagram shows which skills each agent can delegate to:
 ```
 
 **Delegation Rules**:
-| Agent | Delegation Style | Depth Limit |
-|-------|-----------------|-------------|
-| Orchestrator | Routes to specialized skills | Level 1 |
-| Documentor | Chains skills sequentially | Level 1 (within chain) |
-| Epic-Architect | Creates tasks, spawns workers | Level 2 (sub-orchestrator) |
-| Implementer | Executes directly (no delegation) | Level 0 |
-| Session-Manager | Coordinates via state machine | Level 1 |
+| Agent | Delegation Style | Depth Limit | Spawned By |
+|-------|-----------------|-------------|------------|
+| Orchestrator | Routes to all stage agents | Level 1 | auto-orchestrate, auto-audit |
+| Epic-Architect | Creates tasks, spawns workers | Level 2 (sub-orch) | orchestrator |
+| Implementer | Executes directly (no delegation) | Level 0 | orchestrator |
+| Researcher | Research + docs-lookup | Level 1 | orchestrator |
+| Documentor | Chains skills sequentially | Level 1 | orchestrator |
+| Debugger | Diagnose + fix + verify loop | Level 0 | auto-debug |
+| Auditor | Read-only compliance analysis | Level 0 | auto-audit |
+| Session-Manager | Coordinates via state machine | Level 1 | orchestrator |
 
 ---
 
@@ -1841,7 +1945,7 @@ jq '._meta.totalAgents, ._meta.totalSkills, ._meta.totalCommands' claude-code/ma
 - [ ] All 8 agents documented (orchestrator, implementer, epic-architect, documentor, session-manager, researcher, debugger, auditor)
 - [ ] All 35 skills cataloged
 - [ ] All 3 commands referenced (auto-orchestrate, auto-debug, auto-audit)
-- [ ] All 4 protocols described
+- [ ] All 6 protocols described
 - [ ] All 2 templates explained
 - [ ] Cross-reference counts accurate
 
