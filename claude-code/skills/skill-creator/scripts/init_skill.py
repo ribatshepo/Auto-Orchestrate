@@ -14,6 +14,10 @@ Examples:
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"))
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_INVALID_ARGS
+from layer1 import emit_error, emit_warning, emit_info
+
 SKILL_TEMPLATE = """---
 name: {skill_name}
 description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
@@ -278,7 +282,7 @@ def main():
         print("  init_skill.py my-new-skill --path skills/public")
         print("  init_skill.py my-api-helper --path skills/private")
         print("  init_skill.py custom-skill --path /custom/location")
-        sys.exit(1)
+        sys.exit(EXIT_INVALID_ARGS)
 
     skill_name = sys.argv[1]
     path = sys.argv[3]
@@ -290,10 +294,16 @@ def main():
     result = init_skill(skill_name, path)
 
     if result:
-        sys.exit(0)
+        sys.exit(EXIT_SUCCESS)
     else:
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unexpected error: {exc}")
+        sys.exit(EXIT_ERROR)

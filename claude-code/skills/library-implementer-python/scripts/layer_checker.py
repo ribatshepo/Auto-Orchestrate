@@ -19,6 +19,10 @@ import ast
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"))
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_INVALID_ARGS
+from layer1 import emit_error, emit_warning, emit_info
+
 
 class ImportVisitor(ast.NodeVisitor):
     """AST visitor to extract import statements."""
@@ -54,7 +58,7 @@ def extract_imports(file_path: Path) -> list[str]:
         visitor.visit(tree)
         return visitor.imports
     except SyntaxError as e:
-        print(f"Syntax error in {file_path}: {e}", file=sys.stderr)
+        emit_warning(f"Syntax error in {file_path}: {e}")
         return []
 
 
@@ -154,8 +158,8 @@ def main():
     args = parser.parse_args()
 
     if not args.library_dir.is_dir():
-        print(f"Error: {args.library_dir} is not a directory", file=sys.stderr)
-        sys.exit(1)
+        emit_error(f"{args.library_dir} is not a directory")
+        sys.exit(EXIT_INVALID_ARGS)
 
     print(f"Checking layer dependencies in: {args.library_dir}")
 
@@ -169,15 +173,21 @@ def main():
         if args.verbose:
             print_dependency_graph(graph)
 
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
     else:
-        print("✅ No layer violations found!")
+        print("No layer violations found!")
 
         if args.verbose:
             print_dependency_graph(graph)
 
-        sys.exit(0)
+        sys.exit(EXIT_SUCCESS)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unexpected error: {exc}")
+        sys.exit(EXIT_ERROR)

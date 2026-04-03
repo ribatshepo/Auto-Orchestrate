@@ -17,11 +17,20 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Add shared library to path
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"),
+)
+
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_DEPENDENCY_ERROR, EXIT_VALIDATION_ERROR  # noqa: E402
+from layer1 import emit_error, emit_warning, emit_info  # noqa: E402
+
 try:
     import yaml
 except ImportError:
-    print("Error: PyYAML required. Install with: pip install pyyaml", file=sys.stderr)
-    sys.exit(1)
+    emit_error("PyYAML required. Install with: pip install pyyaml")
+    sys.exit(EXIT_DEPENDENCY_ERROR)
 
 
 class PipelineValidator:
@@ -50,10 +59,10 @@ class PipelineValidator:
                 self.config = yaml.safe_load(f)
             return True
         except yaml.YAMLError as e:
-            print(f"YAML syntax error: {e}", file=sys.stderr)
+            emit_error(f"YAML syntax error: {e}")
             return False
         except Exception as e:
-            print(f"Error reading file: {e}", file=sys.stderr)
+            emit_error(f"Error reading file: {e}")
             return False
 
     def check_github_actions(self):
@@ -190,19 +199,25 @@ def main():
     args = parser.parse_args()
 
     if not args.pipeline.exists():
-        print(f"Error: {args.pipeline} not found", file=sys.stderr)
-        sys.exit(1)
+        emit_error(f"{args.pipeline} not found")
+        sys.exit(EXIT_ERROR)
 
     validator = PipelineValidator(args.pipeline)
     if not validator.validate():
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
 
     validator.print_report()
 
     # Exit with error if critical issues found
     has_critical = any(sev == "CRITICAL" for sev, _ in validator.issues)
-    sys.exit(1 if has_critical else 0)
+    sys.exit(EXIT_VALIDATION_ERROR if has_critical else EXIT_SUCCESS)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unhandled exception: {exc}")
+        sys.exit(EXIT_ERROR)

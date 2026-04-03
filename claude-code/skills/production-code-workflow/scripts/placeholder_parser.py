@@ -12,9 +12,14 @@ Usage:
     from placeholder_parser import Severity, Issue, Pattern, PATTERNS
 """
 
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"))
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_INVALID_ARGS, EXIT_VALIDATION_ERROR
 
 
 class Severity(Enum):

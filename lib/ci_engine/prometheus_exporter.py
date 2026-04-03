@@ -71,6 +71,10 @@ VALID_ERROR_TYPES: frozenset[str] = frozenset({
     "spec_gap",
     "dependency",
     "hallucination",
+    "resource_exhaustion",
+    "configuration",
+    "permissions",
+    "timeout",
 })
 
 _DEFAULT_PORT = 9090
@@ -558,6 +562,49 @@ class PrometheusExporter:
         exc_tb: Any,
     ) -> None:
         self.stop()
+
+
+# ---------------------------------------------------------------------------
+# Standalone metrics server
+# ---------------------------------------------------------------------------
+
+
+def serve_metrics(
+    registry: Any = None,
+    port: int = _DEFAULT_PORT,
+    addr: str = _DEFAULT_HOST,
+) -> bool:
+    """Start Prometheus HTTP server to expose /metrics endpoint.
+
+    Starts a background HTTP server using prometheus_client's built-in
+    start_http_server. The server runs in a daemon thread and serves
+    metrics at http://{addr}:{port}/metrics.
+
+    Args:
+        registry: Optional CollectorRegistry. If None, uses the
+            prometheus_client default registry.
+        port: TCP port to bind. Default 9090.
+        addr: Bind address. Default "0.0.0.0".
+
+    Returns:
+        True if the server started successfully, False if
+        prometheus_client is unavailable or startup failed.
+    """
+    if not HAS_PROMETHEUS:
+        logger.warning(
+            "prometheus_client not available; metrics server not started"
+        )
+        return False
+    try:
+        from prometheus_client import start_http_server
+        start_http_server(port, addr=addr, registry=registry)
+        logger.info(
+            "Prometheus metrics server started on %s:%d", addr, port
+        )
+        return True
+    except Exception:
+        logger.exception("Failed to start Prometheus metrics server")
+        return False
 
 
 # ---------------------------------------------------------------------------

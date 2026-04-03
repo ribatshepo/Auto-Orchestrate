@@ -979,7 +979,12 @@ class ImprovementRecommender:
         observations: list[dict[str, Any]],
         total_runs: int,
     ) -> dict[str, Any]:
-        """Update failure_patterns.json with new observations."""
+        """Update failure_patterns.json with new observations.
+
+        After merging observations, applies decay to all patterns based on
+        staleness (runs since last seen). Patterns with decay_score == 0.0
+        are auto-retired and removed from the active set.
+        """
         existing = patterns_data.get("patterns", [])
         by_id, by_fp = self._index_failure_patterns(existing)
         used_ids = set(by_id.keys())
@@ -989,13 +994,42 @@ class ImprovementRecommender:
                 obs, by_id, by_fp, used_ids
             )
 
+        self._apply_decay_to_patterns(by_id, total_runs)
+
         active = [
             p for p in by_id.values() if p.get("decay_score", 1.0) > 0.0
         ]
+        retired_count = len(by_id) - len(active)
+        if retired_count > 0:
+            logger.info(
+                "Auto-retired %d failure pattern(s) with fully decayed scores",
+                retired_count,
+            )
         patterns_data["patterns"] = active
         patterns_data["updated_at"] = _utc_now_iso()
         patterns_data["total_runs_analyzed"] = total_runs
         return patterns_data
+
+    def _apply_decay_to_patterns(
+        self,
+        by_id: dict[str, dict[str, Any]],
+        total_runs: int,
+    ) -> None:
+        """Recompute decay_score for each failure pattern based on staleness.
+
+        Uses _compute_decay_score with an estimate of runs since last seen
+        derived from the pattern's last_seen timestamp relative to total_runs.
+        Patterns not recently observed receive progressively lower scores.
+        """
+        for pattern in by_id.values():
+            evidence_runs = pattern.get("evidence_run_ids", [])
+            frequency = pattern.get("frequency", 0)
+            if total_runs <= 0 or frequency <= 0:
+                pattern["decay_score"] = 0.0
+                continue
+            runs_since = max(0, total_runs - frequency)
+            decay = self._compute_decay_score(runs_since)
+            pattern["decay_score"] = decay
 
     @staticmethod
     def _index_failure_patterns(

@@ -18,6 +18,15 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+# Add shared library to path
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"),
+)
+
+from layer0 import EXIT_SUCCESS, EXIT_ERROR  # noqa: E402
+from layer1 import emit_error, emit_warning, emit_info  # noqa: E402
+
 
 # Known service ports for health check inference
 KNOWN_SERVICES = {
@@ -353,4 +362,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unhandled exception: {exc}")
+        sys.exit(EXIT_ERROR)

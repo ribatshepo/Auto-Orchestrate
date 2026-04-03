@@ -251,6 +251,8 @@ grep -rl '"status": "in_progress"' ~/.claude/sessions/auto-orc-*.json 2>/dev/nul
 
 For EVERY in-progress session: set `"status": "superseded"`, add `"superseded_at"` and `"superseded_by"`. Non-destructive — never delete. If superseded session's `original_input` matches current: **resume** (skip to Step 3).
 
+**Stale in_progress task cleanup on resume**: When resuming a session, scan for tasks marked `in_progress`. For each, check the `in_progress_iterations` counter in the checkpoint. If a task has been `in_progress` for >= 5 iterations: mark as `failed`, log `[RESUME] Task #<id> "<subject>" stuck in_progress for <N> iterations — marking failed`. This prevents resume from hanging on zombie tasks.
+
 Also update `.sessions/index.json` at the project root: set the superseded session's status to `"superseded"` and add `"superseded_at"`. See `commands/SESSIONS-REGISTRY.md` for the registry format and write protocol.
 
 ### 2c. Create new session
@@ -263,7 +265,9 @@ Create parent tracking task via `TaskCreate` (if available; if TaskCreate fails,
 mkdir -p .orchestrate/<session-id>/{stage-0,stage-1,stage-2,stage-3,stage-4,stage-4.5,stage-5,stage-6}
 ```
 
-Write checkpoint to `.orchestrate/<session-id>/checkpoint.json` (primary) and `~/.claude/sessions/<session-id>.json` (legacy):
+Write checkpoint **atomically** (write to `checkpoint.tmp.json`, then rename to `checkpoint.json`) to `.orchestrate/<session-id>/checkpoint.json` (primary) and `~/.claude/sessions/<session-id>.json` (legacy):
+
+**Checkpoint schema migration**: On resume (Step 2b), check the `schema_version` field of the loaded checkpoint. If the version is older than the current format (e.g., "0.9.0" vs "1.0.0"), attempt graceful migration: add any missing fields with defaults, log `[MIGRATE] Checkpoint migrated from <old> to <new>`. If migration fails, abort with `[MIGRATE-FAIL] Cannot migrate checkpoint from schema_version <version>. Start a new session.`
 
 ```json
 {
@@ -380,7 +384,8 @@ After orchestrator returns, execute these sub-steps with visible progress at eac
 - Read `.orchestrate/<session-id>/proposed-tasks.json` and parse `PROPOSED_ACTIONS` from return text
 - **Precedence rule**: If BOTH sources contain tasks, the file (`proposed-tasks.json`) takes precedence. `PROPOSED_ACTIONS` from return text is used ONLY as fallback when the file is missing, empty, or contains `"tasks": []`. Log: `[STEP 4.2] Source: file` or `[STEP 4.2] Source: return-text (file empty/missing)`
 - **Deduplication**: If both sources are present, merge by `subject` field — file version wins on conflict. Log duplicates: `[STEP 4.2] Deduplicated <N> tasks (file wins)`
-- **blockedBy chain validation (CHAIN-001)**: Every task for Stage N (N > 0) must reference Stage N-1. Auto-fix missing chains: `[CHAIN-FIX] Added blockedBy to "<subject>"`
+- **blockedBy chain validation (CHAIN-001)**: Every task for Stage N (N > 0) must reference Stage N-1. Auto-fix missing chains: `[CHAIN-FIX] Added blockedBy to "<subject>"`. Validate that referenced blockedBy task IDs actually exist — log orphaned references: `[CHAIN-WARN] Task "<subject>" blockedBy references non-existent task`
+- **dispatch_hint validation (DISPATCH-001)**: For each task, check that `dispatch_hint` matches a known agent name from `manifest.json` agents list OR a known skill name. If invalid: log `[DISPATCH-WARN] Invalid dispatch_hint "<hint>" on task "<subject>" — routing may fail`. Do NOT block task creation; just warn.
 - Create via `TaskCreate`, set `blockedBy` via `TaskUpdate`
 - Write `proposed-tasks-processed-<iteration>.json` with enriched content (skip if empty)
 - Output: `Created <N> tasks, updated <M> (chain-fixed: <K>)`
@@ -481,6 +486,17 @@ Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
 | 4.5 (codebase-stats) | ✓/✗ | #<id> <subject> |
 | 5 (validator) | ✓/✗ | #<id> <subject> |
 | 6 (documentor) | ✓/✗ | #<id> <subject> |
+
+### Terminal State Reference
+
+| Value | Meaning |
+|-------|---------|
+| `completed` | All tasks done, all mandatory stages covered |
+| `completed_stages_incomplete` | All tasks done but mandatory stages missing after retry |
+| `max_iterations_reached` | Hit MAX_ITERATIONS limit |
+| `stalled` | No progress for STALL_THRESHOLD consecutive iterations |
+| `all_blocked` | All remaining tasks blocked, zero in_progress |
+| `user_stopped` | User manually cancelled |
 
 ### Git Commit Instructions
 > Auto-orchestrate NEVER commits automatically. Review and commit manually.

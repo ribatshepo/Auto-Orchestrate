@@ -14,6 +14,10 @@ import ast
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"))
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_INVALID_ARGS
+from layer1 import emit_error, emit_warning, emit_info
+
 
 class ComplexityVisitor(ast.NodeVisitor):
     """Calculate cyclomatic complexity for functions."""
@@ -83,10 +87,10 @@ def analyze_file(file_path: Path) -> list[tuple[str, int, int]]:
         visitor.visit(tree)
         return visitor.functions
     except SyntaxError as e:
-        print(f"Syntax error in {file_path}: {e}", file=sys.stderr)
+        emit_warning(f"Syntax error in {file_path}: {e}")
         return []
     except Exception as e:
-        print(f"Error analyzing {file_path}: {e}", file=sys.stderr)
+        emit_warning(f"Error analyzing {file_path}: {e}")
         return []
 
 
@@ -124,8 +128,8 @@ def main():
     args = parser.parse_args()
 
     if not args.path.exists():
-        print(f"Error: {args.path} not found", file=sys.stderr)
-        sys.exit(1)
+        emit_error(f"{args.path} not found")
+        sys.exit(EXIT_INVALID_ARGS)
 
     files = []
     files = [args.path] if args.path.is_file() else list(args.path.rglob("*.py"))
@@ -145,8 +149,14 @@ def main():
     print(f"\n{'=' * 60}")
     print(f"Total: {total_functions} functions, {total_high_complexity} need refactoring")
 
-    sys.exit(0 if total_high_complexity == 0 else 1)
+    sys.exit(EXIT_SUCCESS if total_high_complexity == 0 else EXIT_ERROR)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unexpected error: {exc}")
+        sys.exit(EXIT_ERROR)

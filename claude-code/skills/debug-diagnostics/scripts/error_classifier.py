@@ -13,7 +13,12 @@ import argparse
 import json
 import re
 import sys
+from pathlib import Path
 from typing import Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"))
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_INVALID_ARGS, EXIT_VALIDATION_ERROR
+from layer1 import emit_error, emit_warning, emit_info
 
 
 PATTERNS = {
@@ -225,12 +230,18 @@ def main():
         text = sys.stdin.read()
 
     if not text.strip():
-        print(json.dumps({"error": "No input provided"}), file=sys.stderr)
-        sys.exit(1)
+        emit_error("No input provided")
+        sys.exit(EXIT_INVALID_ARGS)
 
     result = classify(text)
     print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unhandled exception: {exc}")
+        sys.exit(EXIT_ERROR)

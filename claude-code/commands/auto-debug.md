@@ -159,7 +159,17 @@ If ANY keyword found AND `docker` argument not explicitly set:
 
 Step 1 runs INLINE. Do NOT delegate to agents or use `EnterPlanMode`.
 
-### 0d. Human-Input Treatment
+### 0d. Manifest Validation
+
+Verify that `~/.claude/manifest.json` exists and contains the `debugger` agent definition:
+
+```bash
+test -f ~/.claude/manifest.json && grep -q '"debugger"' ~/.claude/manifest.json && echo "PASS" || echo "FAIL"
+```
+
+If FAIL: abort with `[DBG-GAP-002] Manifest missing or debugger agent not found at ~/.claude/manifest.json. Cannot proceed. Run install-claude-config.sh to install.`
+
+### 0e. Human-Input Treatment
 
 Command arguments are **human-authored input**: preserve error messages verbatim, don't reinterpret error codes, document assumptions when resolving ambiguity.
 
@@ -228,7 +238,7 @@ Also update `.sessions/index.json` at the project root: set the superseded sessi
 
 **Session ID**: `auto-dbg-<DATE>-<8-char-slug>` (slug from error description).
 
-Create parent tracking task via `TaskCreate` (if unavailable, log `[CROSS-001] TaskCreate unavailable — setting parent_task_id: null` and continue with `parent_task_id: null`), then write checkpoint to `.debug/<session-id>/checkpoint.json`:
+Create parent tracking task via `TaskCreate` (if unavailable, log `[CROSS-001] TaskCreate unavailable — setting parent_task_id: null` and continue with `parent_task_id: null`), then write checkpoint **atomically** (write to `.debug/<session-id>/checkpoint.tmp.json`, then rename to `checkpoint.json`) to `.debug/<session-id>/checkpoint.json`:
 
 ```json
 {
@@ -457,6 +467,16 @@ Evaluate in order:
 | 3 | `stall_counter >= STALL_THRESHOLD` | `stalled` |
 | 4 | All active errors are `escalated` AND user said "stop" | `escalated` |
 | 5 | User explicitly requests stop | `user_stopped` |
+
+### Terminal State Reference
+
+| Value | Meaning |
+|-------|---------|
+| `resolved` | All errors fixed, verification passed |
+| `max_iterations_reached` | Hit MAX_ITERATIONS limit |
+| `stalled` | No progress for STALL_THRESHOLD iterations |
+| `escalated` | All active errors escalated, user stopped |
+| `user_stopped` | User manually cancelled |
 
 ### On Termination
 

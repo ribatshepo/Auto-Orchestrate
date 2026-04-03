@@ -39,6 +39,7 @@ _VALID_STAGES = frozenset({
 
 _VALID_FAILURE_CATEGORIES = frozenset({
     "transient", "spec_gap", "dependency", "hallucination",
+    "resource_exhaustion", "configuration", "permissions", "timeout",
 })
 
 _REGRESSION_THRESHOLD_PCT = 20.0
@@ -50,6 +51,10 @@ _MAX_WHY_LENGTH = 200
 _MAX_ACTION_LENGTH = 500
 
 _LOCK_TIMEOUT_SECONDS = 5
+
+_IMPROVEMENT_LOG_MAX_LINES = 500
+_IMPROVEMENT_LOG_RETAIN_LINES = 250
+_IMPROVEMENT_LOG_TTL_RUNS = 30
 
 _write_lock = threading.Lock()
 
@@ -547,12 +552,91 @@ def _write_lines_atomically(
         raise
 
 
+def _rotate_improvement_log(log_path: Path, all_lines: list[str]) -> list[str]:
+    """Rotate the improvement log when it exceeds the max line threshold.
+
+    Renames the current file to ``<name>.1`` as a backup, then returns
+    only the newest ``_IMPROVEMENT_LOG_RETAIN_LINES`` entries for the
+    fresh file.
+    """
+    if len(all_lines) <= _IMPROVEMENT_LOG_MAX_LINES:
+        return all_lines
+
+    archive_path = log_path.with_name(log_path.name + ".1")
+    try:
+        if log_path.is_file():
+            os.replace(str(log_path), str(archive_path))
+            logger.info(
+                "Rotated improvement log to %s (%d lines archived)",
+                archive_path,
+                len(all_lines),
+            )
+    except OSError:
+        logger.warning(
+            "Failed to rotate improvement log to %s", archive_path
+        )
+
+    retained = all_lines[-_IMPROVEMENT_LOG_RETAIN_LINES:]
+    logger.info(
+        "Retained newest %d entries after rotation", len(retained)
+    )
+    return retained
+
+
+def _prune_old_entries(lines: list[str]) -> list[str]:
+    """Remove entries whose run_sequence is more than 30 runs old.
+
+    Determines the current (newest) run_sequence from the last entry
+    that has the field, then filters out entries that are too old.
+    Entries without a ``run_sequence`` field are always retained.
+    """
+    if not lines:
+        return lines
+
+    newest_seq: int | None = None
+    for raw_line in reversed(lines):
+        try:
+            record = json.loads(raw_line)
+            seq = record.get("run_sequence")
+            if seq is not None:
+                newest_seq = int(seq)
+                break
+        except (json.JSONDecodeError, ValueError, TypeError):
+            continue
+
+    if newest_seq is None:
+        return lines
+
+    cutoff = newest_seq - _IMPROVEMENT_LOG_TTL_RUNS
+    pruned: list[str] = []
+    removed = 0
+    for raw_line in lines:
+        try:
+            record = json.loads(raw_line)
+            seq = record.get("run_sequence")
+            if seq is not None and int(seq) < cutoff:
+                removed += 1
+                continue
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+        pruned.append(raw_line)
+
+    if removed > 0:
+        logger.info(
+            "Pruned %d entries older than run_sequence %d (cutoff %d)",
+            removed,
+            newest_seq,
+            cutoff,
+        )
+    return pruned
+
+
 def _append_improvement_entries(
     log_path: Path,
     session_id: str,
     entries: list[dict[str, Any]],
 ) -> None:
-    """Append improvement entries with locking and deduplication."""
+    """Append improvement entries with locking, dedup, TTL, and rotation."""
     if not entries:
         return
 
@@ -565,7 +649,12 @@ def _append_improvement_entries(
         new_lines = _deduplicate_entries(entries, existing_keys)
         if not new_lines:
             return
-        _write_lines_atomically(log_path, existing_lines + new_lines)
+
+        combined = existing_lines + new_lines
+        combined = _prune_old_entries(combined)
+        combined = _rotate_improvement_log(log_path, combined)
+
+        _write_lines_atomically(log_path, combined)
         logger.info(
             "Appended %d improvement entries to %s", len(new_lines), log_path
         )
@@ -826,7 +915,11 @@ class RetrospectiveAnalyzer:
         return _read_jsonl(path)
 
     def _load_run_summary(self) -> dict[str, Any]:
-        """Load run_summary.json for the current session."""
+        """Load run_summary.json for the current session.
+
+        Falls back to reconstructing a minimal summary from telemetry
+        when the file is missing or contains corrupt JSON.
+        """
         path = (
             self.knowledge_store_path
             / "runs"
@@ -834,7 +927,83 @@ class RetrospectiveAnalyzer:
             / "run_summary.json"
         )
         _validate_path_within_store(path, self.knowledge_store_path)
-        return _load_json(path)
+        try:
+            return _load_json(path)
+        except FileNotFoundError:
+            logger.warning(
+                "run_summary.json not found for session %s; "
+                "reconstructing from telemetry",
+                self.session_id,
+            )
+            return self._reconstruct_summary_from_telemetry()
+        except json.JSONDecodeError:
+            logger.warning(
+                "run_summary.json contains invalid JSON for session %s; "
+                "reconstructing from telemetry",
+                self.session_id,
+            )
+            return self._reconstruct_summary_from_telemetry()
+
+    def _reconstruct_summary_from_telemetry(self) -> dict[str, Any]:
+        """Build a minimal run summary from stage_telemetry.jsonl.
+
+        Reads all stage_end events from telemetry and infers the overall
+        run status from individual stage statuses.  Returns a dict
+        compatible with the shape expected by downstream analysis methods.
+        """
+        telemetry_path = (
+            self.knowledge_store_path
+            / "runs"
+            / self.session_id
+            / "stage_telemetry.jsonl"
+        )
+        _validate_path_within_store(
+            telemetry_path, self.knowledge_store_path
+        )
+        events = _read_jsonl_optional(telemetry_path)
+
+        stages: dict[str, dict[str, Any]] = {}
+        for event in events:
+            if event.get("event") != "stage_end":
+                continue
+            stage_name = event.get("stage", "")
+            if not stage_name:
+                continue
+            status = event.get("status", "unknown")
+            stages[stage_name] = {
+                "status": status,
+                "duration_seconds": event.get("duration_seconds"),
+                "errors": event.get("errors", []),
+                "retry_count": event.get("retry_count", 0),
+            }
+
+        statuses = {s.get("status") for s in stages.values()}
+        if not stages:
+            overall_status = "unknown"
+        elif statuses <= {"success"}:
+            overall_status = "success"
+        elif "failure" in statuses or "error" in statuses:
+            overall_status = "failure"
+        else:
+            overall_status = "partial"
+
+        logger.info(
+            "Reconstructed summary from telemetry for session %s "
+            "with %d stages (overall: %s)",
+            self.session_id,
+            len(stages),
+            overall_status,
+        )
+
+        return {
+            "run_id": self.session_id,
+            "session_id": self.session_id,
+            "overall_status": overall_status,
+            "stages": stages,
+            "kpis": {},
+            "completed_at": _utc_now_iso(),
+            "_reconstructed_from_telemetry": True,
+        }
 
     def _load_baselines(self) -> dict[str, Any] | None:
         """Load stage_baselines.json if it exists."""
@@ -1378,6 +1547,15 @@ class RetrospectiveAnalyzer:
 
         return actions
 
+    def _compute_run_sequence(self) -> int:
+        """Determine the 1-based sequence number of the current run."""
+        all_summaries = _collect_run_summaries(self.knowledge_store_path)
+        for idx, summary in enumerate(all_summaries, start=1):
+            sid = summary.get("session_id") or summary.get("run_id", "")
+            if sid == self.session_id:
+                return idx
+        return len(all_summaries) + 1
+
     def _build_log_entries(
         self,
         improvement_actions: list[dict[str, Any]],
@@ -1387,10 +1565,11 @@ class RetrospectiveAnalyzer:
         poorly_by_stage = self._index_poorly_by_stage(what_went_poorly)
         recent_log = self._load_recent_improvement_log()
         timestamp = _utc_now_iso()
+        run_sequence = self._compute_run_sequence()
 
         return [
             self._action_to_log_entry(
-                action, timestamp, poorly_by_stage, recent_log
+                action, timestamp, poorly_by_stage, recent_log, run_sequence
             )
             for action in improvement_actions
         ]
@@ -1413,6 +1592,7 @@ class RetrospectiveAnalyzer:
         timestamp: str,
         poorly_by_stage: dict[str, dict[str, Any]],
         recent_log: list[dict[str, Any]],
+        run_sequence: int = 0,
     ) -> dict[str, Any]:
         """Convert a single improvement action to a log entry."""
         target = action["target_stage"]
@@ -1436,6 +1616,7 @@ class RetrospectiveAnalyzer:
             "timestamp": timestamp,
             "source": "retrospective_analyzer",
             "entry_type": "improvement_action",
+            "run_sequence": run_sequence,
             "target_stage": target,
             "action": _clamp_str(text, _MAX_ACTION_LENGTH),
             "priority": action["priority"],

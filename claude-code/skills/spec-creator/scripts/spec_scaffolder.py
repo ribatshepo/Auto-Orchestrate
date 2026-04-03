@@ -14,6 +14,15 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+# Add shared library to path
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"),
+)
+
+from layer0 import EXIT_SUCCESS, EXIT_ERROR  # noqa: E402
+from layer1 import emit_error, emit_warning, emit_info  # noqa: E402
+
 SPEC_TEMPLATE = """# Technical Specification: {topic}
 
 **Author:** [Your Name]
@@ -203,7 +212,7 @@ def scaffold_spec(topic: str, output_path: Path) -> bool:
 
         return True
     except Exception as e:
-        print(f"Error creating specification: {e}", file=sys.stderr)
+        emit_error(f"Error creating specification: {e}")
         return False
 
 
@@ -226,11 +235,17 @@ def main():
         response = input(f"{args.output} already exists. Overwrite? (y/N): ")
         if response.lower() != "y":
             print("Cancelled.")
-            sys.exit(0)
+            sys.exit(EXIT_SUCCESS)
 
     success = scaffold_spec(args.topic, args.output)
-    sys.exit(0 if success else 1)
+    sys.exit(EXIT_SUCCESS if success else EXIT_ERROR)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unhandled exception: {exc}")
+        sys.exit(EXIT_ERROR)

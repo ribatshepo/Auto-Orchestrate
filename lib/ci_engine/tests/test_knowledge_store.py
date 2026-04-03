@@ -1246,7 +1246,7 @@ class TestPrometheusExporterMetricNaming:
 
     def test_valid_error_types_are_bounded(self) -> None:
         """Error type labels must come from a fixed set (cardinality safety)."""
-        assert len(prom_exp.VALID_ERROR_TYPES) == 4
+        assert len(prom_exp.VALID_ERROR_TYPES) == 8
         assert isinstance(prom_exp.VALID_ERROR_TYPES, frozenset)
 
     def test_no_run_id_in_labels(self) -> None:

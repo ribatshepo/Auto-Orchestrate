@@ -13,7 +13,12 @@ Usage:
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"))
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_INVALID_ARGS
+from layer1 import emit_error, emit_warning, emit_info
 
 
 class TaskValidator:
@@ -199,8 +204,8 @@ def main():
         try:
             task_data = json.loads(args.json)
         except json.JSONDecodeError as e:
-            print(f"Error: Invalid JSON: {e}", file=sys.stderr)
-            sys.exit(1)
+            emit_error(f"Invalid JSON: {e}")
+            sys.exit(EXIT_ERROR)
     elif args.task_id:
         # In a real implementation, would fetch from task system
         # For now, create minimal task structure
@@ -213,14 +218,20 @@ def main():
         print("In production, would fetch from task system.\n")
     else:
         parser.print_help()
-        sys.exit(1)
+        sys.exit(EXIT_INVALID_ARGS)
 
     validator = TaskValidator(task_data)
     validator.validate()
     validator.print_report()
 
-    sys.exit(1 if validator.has_critical_issues() else 0)
+    sys.exit(EXIT_ERROR if validator.has_critical_issues() else EXIT_SUCCESS)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unexpected error: {exc}")
+        sys.exit(EXIT_ERROR)

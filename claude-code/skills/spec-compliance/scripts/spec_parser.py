@@ -16,86 +16,20 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+# Add shared library to path
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"),
+)
 
-# Imperative keywords indicating requirements
-IMPERATIVE_PATTERNS = [
-    r"\b(?:must|shall|should|will|needs? to)\b",
-    r"\b(?:required|mandatory|essential)\b",
-]
-
-# Priority keywords
-PRIORITY_MAP = {
-    "must": "MUST",
-    "shall": "MUST",
-    "required": "MUST",
-    "mandatory": "MUST",
-    "essential": "MUST",
-    "should": "SHOULD",
-    "recommended": "SHOULD",
-    "may": "MAY",
-    "optional": "MAY",
-    "nice to have": "MAY",
-}
-
-# Requirement type indicators
-TYPE_INDICATORS = {
-    "functional": [
-        "user", "api", "endpoint", "crud", "create", "read", "update", "delete",
-        "login", "register", "search", "filter", "export", "import", "upload",
-        "download", "notify", "email", "payment", "report",
-    ],
-    "non-functional": [
-        "performance", "scalab", "reliab", "availab", "security", "latency",
-        "throughput", "uptime", "response time", "load", "concurrent",
-    ],
-    "service": [
-        "docker", "container", "service", "deploy", "infrastructure",
-        "database", "cache", "queue", "broker", "proxy", "nginx",
-    ],
-    "security": [
-        "auth", "encrypt", "ssl", "tls", "rbac", "permission", "token",
-        "password", "hash", "sanitiz", "injection", "xss", "csrf",
-    ],
-}
-
-
-def extract_keywords(text: str) -> list[str]:
-    """Extract meaningful keywords from a requirement description."""
-    # Remove common stop words and extract significant terms
-    stop_words = {
-        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-        "have", "has", "had", "do", "does", "did", "will", "would", "could",
-        "should", "may", "might", "must", "shall", "can", "need", "to", "of",
-        "in", "for", "on", "with", "at", "by", "from", "as", "into", "through",
-        "that", "this", "it", "its", "and", "or", "but", "not", "no", "all",
-        "each", "every", "any", "some", "when", "where", "how", "what", "which",
-        "who", "whom", "system", "application", "feature", "support",
-    }
-    words = re.findall(r"[a-zA-Z_][a-zA-Z0-9_]*", text.lower())
-    keywords = [w for w in words if w not in stop_words and len(w) > 2]
-    # Deduplicate preserving order
-    seen = set()
-    return [k for k in keywords if k not in seen and not seen.add(k)][:10]
-
-
-def infer_type(text: str) -> str:
-    """Infer requirement type from description text."""
-    lower = text.lower()
-    scores = {}
-    for rtype, indicators in TYPE_INDICATORS.items():
-        scores[rtype] = sum(1 for ind in indicators if ind in lower)
-    if not any(scores.values()):
-        return "functional"
-    return max(scores, key=scores.get)
-
-
-def infer_priority(text: str) -> str:
-    """Infer priority from imperative language."""
-    lower = text.lower()
-    for keyword, priority in PRIORITY_MAP.items():
-        if keyword in lower:
-            return priority
-    return "SHOULD"
+from layer1.spec_utils import (  # noqa: E402
+    IMPERATIVE_PATTERNS,
+    PRIORITY_MAP,
+    TYPE_INDICATORS,
+    extract_keywords,
+    infer_priority,
+    infer_type,
+)
 
 
 def parse_markdown(content: str, source_path: str) -> list[dict]:

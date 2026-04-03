@@ -95,29 +95,55 @@ All output files: `YYYY-MM-DD_<descriptor>.<ext>`.
 **Step -0.5 (CI ENGINE PROBE):** Check for CI engine module availability and set the `HAS_CI_ENGINE` flag. This MUST happen before any stage spawning.
 
 ```
-# --- CI Engine Probe ---
-# Check if CI engine modules exist at lib/ci_engine/
-# Required modules: ooda_controller, stage_metrics_collector, retrospective_analyzer,
-#                   improvement_recommender, baseline_manager
+# --- CI Engine Probe (Granular) ---
+# Check each CI engine module independently at lib/ci_engine/
+# This allows partial degradation instead of all-or-nothing.
 #
-# if all CI engine modules are importable:
-#     HAS_CI_ENGINE = True
-#     Initialize: OODAController, StageMetricsCollector
-#     Load: improvement_targets.json (for PDCA Plan phase injection)
-# else:
-#     HAS_CI_ENGINE = False
-#     All CI behavior becomes no-op. Pipeline runs identically to pre-CI behavior.
-#
-# Import guard pattern:
-# try:
-#     from ci_engine.ooda_controller import OODAController
-#     from ci_engine.stage_metrics_collector import StageMetricsCollector
-#     from ci_engine.retrospective_analyzer import RetrospectiveAnalyzer
-#     from ci_engine.improvement_recommender import ImprovementRecommender
-#     from ci_engine.baseline_manager import BaselineManager
-#     HAS_CI_ENGINE = True
-# except ImportError:
-#     HAS_CI_ENGINE = False
+# Module-level availability:
+HAS_OODA = False
+HAS_METRICS = False
+HAS_RETRO = False
+HAS_RECOMMENDER = False
+HAS_BASELINES = False
+
+try:
+    from ci_engine.ooda_controller import OODAController
+    HAS_OODA = True
+except ImportError:
+    log("[CI-WARN] ooda_controller not available — OODA loop disabled")
+
+try:
+    from ci_engine.stage_metrics_collector import StageMetricsCollector
+    HAS_METRICS = True
+except ImportError:
+    log("[CI-WARN] stage_metrics_collector not available — telemetry disabled")
+
+try:
+    from ci_engine.retrospective_analyzer import RetrospectiveAnalyzer
+    HAS_RETRO = True
+except ImportError:
+    log("[CI-WARN] retrospective_analyzer not available — Check phase disabled")
+
+try:
+    from ci_engine.improvement_recommender import ImprovementRecommender
+    HAS_RECOMMENDER = True
+except ImportError:
+    log("[CI-WARN] improvement_recommender not available — Act phase disabled")
+
+try:
+    from ci_engine.baseline_manager import BaselineManager
+    HAS_BASELINES = True
+except ImportError:
+    log("[CI-WARN] baseline_manager not available — baseline updates disabled")
+
+# Composite flag: True only if ALL modules available
+HAS_CI_ENGINE = all([HAS_OODA, HAS_METRICS, HAS_RETRO, HAS_RECOMMENDER, HAS_BASELINES])
+
+# If HAS_METRICS: Initialize StageMetricsCollector for telemetry
+# If HAS_CI_ENGINE: Load improvement_targets.json (for PDCA Plan phase injection)
+# If not HAS_CI_ENGINE but some modules available: log partial degradation
+if not HAS_CI_ENGINE and any([HAS_OODA, HAS_METRICS, HAS_RETRO, HAS_RECOMMENDER, HAS_BASELINES]):
+    log("[CI-WARN] Partial CI engine — running in degraded mode")
 ```
 
 **Step 0 (BOOT-INFRA):** Spawn `session-manager` (max_turns: 10) to set up `.orchestrate/<session_id>/` and `~/.claude/sessions/`, probe manifest.
@@ -300,63 +326,54 @@ Update ARCHITECTURE.md, INTEGRATION.md, or relevant docs.
 
 The PDCA loop operates across pipeline runs. Each complete run (Stage 0 through Stage 6) constitutes one PDCA cycle.
 
-### Plan Phase (before Stage 0)
+### Plan Phase (before Stage 0) — MANDATORY when HAS_RECOMMENDER
 
-```
-if HAS_CI_ENGINE:
-    targets_path = ".orchestrate/knowledge_store/improvements/improvement_targets.json"
-    if file_exists(targets_path) and is_valid_json(targets_path):
-        targets = read_json(targets_path)
-        # Inject into Stage 0 researcher spawn prompt (after standard instructions):
-        #
-        #   ## Continuous Improvement: Targeted Investigation
-        #
-        #   The following improvement targets were identified from previous pipeline runs.
-        #   You MUST investigate each target and include findings in your research output.
-        #   Prioritize targets by their `priority` field (1 = highest priority).
-        #
-        #   <contents of improvement_targets.json>
-        #
-        #   For each target:
-        #   1. Investigate the root cause described in the `action` field.
-        #   2. Research solutions, alternatives, or mitigations.
-        #   3. Include your findings in a dedicated "Improvement Target Findings" section.
-    elif file_exists(targets_path) and not is_valid_json(targets_path):
-        log("[CI-WARN] improvement_targets.json is malformed; skipping injection")
-    # If file does not exist: proceed with standard research prompt (first-run path)
-```
+Before spawning the Stage 0 researcher, you MUST attempt to load and inject improvement targets:
+
+1. **Read the targets file**: Use the Read tool to check `.orchestrate/knowledge_store/improvements/improvement_targets.json`
+2. **If file exists and is valid JSON**: Append the following section to the Stage 0 researcher spawn prompt (after standard instructions):
+
+   ```
+   ## Continuous Improvement: Targeted Investigation
+
+   The following improvement targets were identified from previous pipeline runs.
+   You MUST investigate each target and include findings in your research output.
+   Prioritize targets by their `priority` field (1 = highest priority).
+
+   <paste contents of improvement_targets.json here>
+
+   For each target:
+   1. Investigate the root cause described in the `action` field.
+   2. Research solutions, alternatives, or mitigations.
+   3. Include your findings in a dedicated "Improvement Target Findings" section.
+   ```
+
+3. **If file exists but malformed**: Log `[CI-WARN] improvement_targets.json is malformed; skipping injection` and proceed without injection.
+4. **If file does not exist**: Proceed with standard research prompt (this is the normal first-run path). Log `[CI-INFO] No improvement_targets.json found — first-run path`.
 
 ### Do Phase (Stages 0-6)
 
 Execute the pipeline as normal. Each stage emits telemetry via Stage Telemetry Hooks (see below). No changes to existing pipeline flow.
 
-### Check Phase (after pipeline completion)
+### Check Phase (after pipeline completion) — MANDATORY when HAS_RETRO
 
-```
-if HAS_CI_ENGINE:
-    # Run retrospective analysis on the completed run
-    # Input: stage_telemetry.jsonl, run_summary.json, stage_baselines.json
-    # Output: retro.json, updated improvement_log.jsonl
-    RetrospectiveAnalyzer.analyze_run(session_id, knowledge_store_path)
-    # If RetrospectiveAnalyzer unavailable:
-    #   log("[CI-WARN] RetrospectiveAnalyzer not available; skipping Check phase")
-```
+After ALL pipeline stages have completed (or the run is terminated), you MUST execute the Check phase:
 
-### Act Phase (after Check phase)
+1. **If HAS_METRICS**: Call `StageMetricsCollector.finalize_run()` to persist the run summary. This writes `run_summary.json` to the knowledge store. If this fails, log `[CI-WARN] finalize_run() failed; Check phase may have incomplete data` and continue.
+2. **If HAS_RETRO**: Call `RetrospectiveAnalyzer.analyze_run(session_id, knowledge_store_path)`.
+   - Input: `stage_telemetry.jsonl`, `run_summary.json`, `stage_baselines.json`
+   - Output: `retro.json`, updated `improvement_log.jsonl`
+   - Wrap in try/except — if it fails, log `[CI-WARN] RetrospectiveAnalyzer failed: <error>; skipping Check phase` and continue to Act phase.
 
-```
-if HAS_CI_ENGINE:
-    # Generate updated improvement targets from cross-run analysis
-    # Input: improvement_log.jsonl, failure_patterns.json
-    # Output: updated improvement_targets.json (targets with evidence_runs >= 3)
-    ImprovementRecommender.generate_targets(knowledge_store_path)
+### Act Phase (after Check phase) — MANDATORY when HAS_RECOMMENDER or HAS_BASELINES
 
-    # Refresh rolling 10-run baseline averages
-    # Output: updated stage_baselines.json
-    BaselineManager.update_baselines(knowledge_store_path)
-    # If either component unavailable:
-    #   log("[CI-WARN] <component> not available; skipping Act phase")
-```
+1. **If HAS_RECOMMENDER**: Call `ImprovementRecommender.generate_targets(knowledge_store_path)`.
+   - Input: `improvement_log.jsonl`, `failure_patterns.json`
+   - Output: updated `improvement_targets.json` (targets with evidence_runs >= 3)
+   - If it fails: log `[CI-WARN] ImprovementRecommender failed: <error>` and continue.
+2. **If HAS_BASELINES**: Call `BaselineManager.update_baselines(knowledge_store_path)`.
+   - Output: updated `stage_baselines.json`
+   - If it fails: log `[CI-WARN] BaselineManager failed: <error>` and continue.
 
 ---
 
@@ -366,20 +383,23 @@ if HAS_CI_ENGINE:
 
 The OODA loop governs real-time response to stage outcomes during a single pipeline run.
 
-### Invocation
+### Invocation — MANDATORY after every stage completion
 
-After every stage completion (success or failure), invoke the OODA controller:
+After every stage completion (success or failure), you MUST execute the OODA decision loop:
 
-```
-if HAS_CI_ENGINE:
-    ooda_decision = OODAController.run(stage_result)
-    # stage_result must contain: stage_name, status, duration_seconds,
-    #   error_count, retry_count, error_messages
-    # Optional: token_input, token_output, spec_compliance_score,
-    #   research_completeness_score
-else:
-    # Existing behavior: retry on failure up to 3 times, then fail
-```
+**If HAS_OODA is True:**
+
+1. Construct `stage_result` from the stage output: `stage_name`, `status`, `duration_seconds`, `error_count`, `retry_count`, `error_messages` (required). Optional: `token_input`, `token_output`, `spec_compliance_score`, `research_completeness_score`.
+2. Invoke: `ooda_decision = OODAController.run(stage_result)`
+3. **Act on the decision** (this is MANDATORY — do NOT just log and ignore):
+   - **`continue`**: Proceed to the next pipeline stage normally.
+   - **`retry`**: Re-spawn the SAME stage agent with the same task. If `ooda_decision.enhanced_prompt` is set, append it to the spawn prompt. Increment retry counter. Maximum 2 retries per stage.
+   - **`fallback_to_spec`**: Create a new task for Stage 2 (spec-creator) describing the spec gap from `ooda_decision.spec_gap_description`. Re-enter the pipeline from Stage 2. Log: `[OODA] Falling back to spec — gap: <description>`
+   - **`surface_to_user`**: HALT the pipeline immediately. Present the `ooda_decision.failure_report` to the user via the output. Include: stage name, error messages, failure category, and recommendations. Log: `[OODA] Surfacing to user — <stage_name> failed with <category>`
+4. Log the decision: `[OODA] Stage <name>: decision=<code>, category=<category>, confidence=<confidence>`
+
+**If HAS_OODA is False:**
+Fall back to existing behavior: retry on failure up to 3 times, then fail.
 
 ### Decision Codes
 

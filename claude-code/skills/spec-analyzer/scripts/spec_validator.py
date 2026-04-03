@@ -18,6 +18,15 @@ import re
 import sys
 from pathlib import Path
 
+# Add shared library to path
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"),
+)
+
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_VALIDATION_ERROR  # noqa: E402
+from layer1 import emit_error, emit_warning, emit_info  # noqa: E402
+
 
 class SpecValidator:
     """Validates technical specification documents."""
@@ -46,7 +55,7 @@ class SpecValidator:
                 self.content = f.read()
             return True
         except Exception as e:
-            print(f"Error reading {self.path}: {e}", file=sys.stderr)
+            emit_error(f"Error reading {self.path}: {e}")
             return False
 
     def check_required_sections(self):
@@ -214,19 +223,25 @@ def main():
     args = parser.parse_args()
 
     if not args.spec.exists():
-        print(f"Error: {args.spec} not found", file=sys.stderr)
-        sys.exit(1)
+        emit_error(f"{args.spec} not found")
+        sys.exit(EXIT_ERROR)
 
     validator = SpecValidator(args.spec)
     if not validator.validate():
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
 
     validator.print_report()
 
     # Exit with error if critical issues found
     has_critical = any(sev == "CRITICAL" for sev, _ in validator.issues)
-    sys.exit(1 if has_critical else 0)
+    sys.exit(EXIT_VALIDATION_ERROR if has_critical else EXIT_SUCCESS)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unhandled exception: {exc}")
+        sys.exit(EXIT_ERROR)

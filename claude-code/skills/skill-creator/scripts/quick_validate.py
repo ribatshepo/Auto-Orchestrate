@@ -7,6 +7,10 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"))
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_INVALID_ARGS
+from layer1 import emit_error, emit_warning, emit_info
+
 import yaml
 
 
@@ -97,10 +101,16 @@ def validate_skill(skill_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python quick_validate.py <skill_directory>")
-        sys.exit(1)
+    try:
+        if len(sys.argv) != 2:
+            print("Usage: python quick_validate.py <skill_directory>")
+            sys.exit(EXIT_INVALID_ARGS)
 
-    valid, message = validate_skill(sys.argv[1])
-    print(message)
-    sys.exit(0 if valid else 1)
+        valid, message = validate_skill(sys.argv[1])
+        print(message)
+        sys.exit(EXIT_SUCCESS if valid else EXIT_ERROR)
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unexpected error: {exc}")
+        sys.exit(EXIT_ERROR)

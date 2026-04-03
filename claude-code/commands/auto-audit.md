@@ -183,6 +183,24 @@ Record: `"scope": { "flag": "<letter>", "resolved": "<scope>", "layers": [...] }
 
 Step 1 runs INLINE. Do NOT delegate to agents or use `EnterPlanMode`.
 
+### 0e. Manifest Validation
+
+Verify that `~/.claude/manifest.json` exists and contains the `auditor` agent definition:
+
+```bash
+test -f ~/.claude/manifest.json && grep -q '"auditor"' ~/.claude/manifest.json && echo "PASS" || echo "FAIL"
+```
+
+If FAIL: abort with `[AUD-GAP-002] Manifest missing or auditor agent not found at ~/.claude/manifest.json. Cannot proceed. Run install-claude-config.sh to install.`
+
+Also verify the `orchestrator` agent exists (needed for remediation phase):
+
+```bash
+grep -q '"orchestrator"' ~/.claude/manifest.json && echo "PASS" || echo "FAIL"
+```
+
+If FAIL: log `[AUD-WARN] Orchestrator agent not found in manifest — remediation phase will be unavailable` (do not abort; audit-only mode can still proceed).
+
 ---
 
 ## Step 1: Collect Audit Context (Inline)
@@ -236,7 +254,7 @@ Also update `.sessions/index.json` at the project root: set the superseded sessi
 
 **Session ID**: `auto-aud-<DATE>-<8-char-slug>` (slug from spec filename).
 
-Create parent tracking task via `TaskCreate` (if unavailable, log `[CROSS-001] TaskCreate unavailable — setting parent_task_id: null` and continue with `parent_task_id: null`), then write checkpoint to `.audit/<session-id>/checkpoint.json`:
+Create parent tracking task via `TaskCreate` (if unavailable, log `[CROSS-001] TaskCreate unavailable — setting parent_task_id: null` and continue with `parent_task_id: null`), then write checkpoint **atomically** (write to `.audit/<session-id>/checkpoint.tmp.json`, then rename to `checkpoint.json`) to `.audit/<session-id>/checkpoint.json`:
 
 ```json
 {
@@ -412,17 +430,30 @@ See **Appendix B** for the full remediation spawn template.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-### 5d. Set phase and checkpoint
+### 5d. Phase ordering gate (AUD-LOOP-009)
 
-Set `current_phase: "remediation"`, write checkpoint (AUD-LOOP-004).
+Before entering remediation, verify:
+1. Phase A (audit) completed for this cycle — `current_phase` was `"audit"` and gap report exists
+2. If Phase A did NOT complete: abort remediation with `[AUD-LOOP-009] Cannot remediate without completed audit. Re-run Step 3.`
 
-### 5e. Spawn orchestrator
+### 5e. Set phase and checkpoint
+
+Set `current_phase: "remediation"`, write checkpoint **atomically** (AUD-LOOP-004).
+
+### 5f. blockedBy chain validation (CHAIN-001)
+
+After the orchestrator returns task proposals, validate dependency chains:
+- Every task for Stage N (N > 0) must include `blockedBy` referencing at least one Stage N-1 task
+- Auto-fix missing chains: `[CHAIN-FIX] Added blockedBy to "<subject>"`
+- Log any orphaned task IDs (blockedBy pointing to non-existent tasks)
+
+### 5g. Spawn orchestrator
 
 Spawn EXACTLY ONE agent: `Agent(subagent_type: "orchestrator")` using the **Appendix B** template.
 
 The orchestrator runs its full internal pipeline (research → architecture → spec → implementation → validation → documentation). Auto-audit does NOT manage the orchestrator's internal stages — it only receives the final result.
 
-### 5f. Process orchestrator result
+### 5h. Process orchestrator result
 
 Record remediation in cycle_history:
 ```json
@@ -438,9 +469,9 @@ Record remediation in cycle_history:
 }
 ```
 
-### 5g. Save checkpoint
+### 5i. Save checkpoint
 
-### 5h. Loop back to Step 3 (re-audit)
+### 5j. Loop back to Step 3 (re-audit)
 
 Return to Step 3 to re-audit the codebase after remediation.
 
@@ -462,6 +493,16 @@ Evaluate in order:
 - Same or worse score → increment `stall_counter`
 - Improvement < 1.0% (absolute) → increment `stall_counter` (epsilon improvement does not count as progress). Log: `[AA-BREAK-002] Compliance improved by only <delta>% (< 1% minimum) — counting as stall`
 - Improvement >= 1.0% (absolute) → reset `stall_counter` to 0
+
+### Terminal State Reference
+
+| Value | Meaning |
+|-------|---------|
+| `fully_compliant` | 100% compliance score |
+| `acceptable_compliance` | Score >= compliance threshold |
+| `max_cycles_reached` | Hit MAX_AUDIT_CYCLES limit |
+| `stalled` | No meaningful progress for STALL_THRESHOLD cycles |
+| `user_stopped` | User manually cancelled |
 
 ### On Termination
 

@@ -15,6 +15,7 @@ Dependencies: Python >= 3.11 stdlib only (OTel and Prometheus are optional).
 
 from __future__ import annotations
 
+import collections
 import json
 import logging
 import os
@@ -90,6 +91,10 @@ VALID_ERROR_TYPES: frozenset[str] = frozenset({
     "spec_gap",
     "dependency",
     "hallucination",
+    "resource_exhaustion",
+    "configuration",
+    "permissions",
+    "timeout",
 })
 
 VALID_STATUS_VALUES: frozenset[str] = frozenset({
@@ -292,6 +297,14 @@ class StageMetricsCollector:
 
         # Per-stage in-flight state keyed by stage_name
         self._active_stages: dict[str, _StageState] = {}
+
+        # Completed stage data keyed by stage_name
+        self._completed_stages: dict[str, dict[str, Any]] = {}
+
+        # Rolling outcome deque for O(1) success rate computation
+        self._recent_outcomes: collections.deque[bool] = collections.deque(
+            maxlen=_SUCCESS_RATE_WINDOW,
+        )
 
         # Run-level accumulators
         self._failure_bitmap: int = 0
@@ -730,10 +743,19 @@ class StageMetricsCollector:
             retry_count = state.retry_count
             span = state.span
 
-        # Compute success rate from JSONL history
-        success_rate = _compute_success_rate(
-            self._telemetry_path, stage_name,
-        )
+            # Track completed stage data for finalize_run()
+            self._completed_stages[stage_name] = {
+                "status": status,
+                "duration_seconds": round(duration, 6),
+                "error_count": error_count,
+                "retry_count": retry_count,
+            }
+
+            # Append outcome for O(1) success rate lookups
+            self._recent_outcomes.append(status == "success")
+
+        # Compute success rate (O(1) from deque, cold-start fallback)
+        success_rate = self._get_success_rate(stage_name)
 
         # OTel recording (Tier 1/2)
         if self._tier <= 2:
@@ -848,6 +870,7 @@ class StageMetricsCollector:
             if bit_pos is not None:
                 self._failure_bitmap |= (1 << bit_pos)
 
+            failure_bitmap_snapshot = self._failure_bitmap
             span = state.span if state is not None else None
 
         # OTel span event (Tier 1/2)
@@ -879,7 +902,7 @@ class StageMetricsCollector:
             data={
                 "error_type": error_type,
                 "error_message": error_message,
-                "stage_failure_bitmap": self._failure_bitmap,
+                "stage_failure_bitmap": failure_bitmap_snapshot,
             },
         )
 
@@ -950,9 +973,14 @@ class StageMetricsCollector:
     def finalize_run(self) -> dict[str, Any]:
         """Finalize metrics for the current pipeline run.
 
+        Collects completed stage data into a run summary, persists it via
+        knowledge_store_writer, emits a run_finalize telemetry event, and
+        returns all 12 KPI values.
+
         Returns:
-            dict with all 12 KPI values. KPIs that were not emitted are
-            absent from the dict.
+            dict with run summary including ``run_id``, ``completed_at``,
+            ``overall_status``, ``stages``, and ``kpis``.  KPIs that were
+            not emitted are absent from the nested ``kpis`` dict.
         """
         self._ensure_open()
 
@@ -967,6 +995,7 @@ class StageMetricsCollector:
             research_score = self._research_completeness_score
             total_errors = self._total_error_count
             total_stages = self._total_stages_run
+            completed_stages_snapshot = dict(self._completed_stages)
 
         # KPI 7: run_total_duration_seconds
         run_duration: float | None = None
@@ -1034,10 +1063,38 @@ class StageMetricsCollector:
             self._root_span.end()
             self._root_span = None
 
+        # Build run summary with completed stage data
+        overall_status = "success" if failure_bitmap == 0 else "partial"
+        summary: dict[str, Any] = {
+            "run_id": self._session_id,
+            "completed_at": _utc_now_iso(),
+            "run_sequence": self._run_sequence,
+            "overall_status": overall_status,
+            "stages": {
+                name: {
+                    "status": data["status"],
+                    "duration_seconds": data["duration_seconds"],
+                    "error_count": data["error_count"],
+                    "retry_count": data["retry_count"],
+                }
+                for name, data in completed_stages_snapshot.items()
+            },
+            "kpis": {
+                "total_duration_seconds": (
+                    round(run_duration, 6) if run_duration is not None else 0.0
+                ),
+                "spec_compliance_score": spec_score,
+                "test_coverage_pct": test_cov,
+                "stage_failure_bitmap": failure_bitmap,
+                "total_error_count": total_errors,
+            },
+        }
+
         # Write finalize event to JSONL for future delta computation
         finalize_data: dict[str, Any] = {
             "run_sequence": self._run_sequence,
             "kpis": kpis,
+            "summary": summary,
         }
         if current_composite is not None:
             finalize_data["composite_score"] = current_composite
@@ -1049,12 +1106,23 @@ class StageMetricsCollector:
             data=finalize_data,
         )
 
+        # Persist run summary to knowledge store
+        try:
+            knowledge_store_writer.write_run_summary(
+                self._telemetry_dir.parent, summary,
+            )
+        except Exception:
+            logger.warning(
+                "Failed to write run summary to knowledge store",
+                exc_info=True,
+            )
+
         logger.info(
-            "Run finalized: bitmap=%d, kpi_count=%d",
-            failure_bitmap, len(kpis),
+            "Run finalized: bitmap=%d, kpi_count=%d, stages=%d",
+            failure_bitmap, len(kpis), len(completed_stages_snapshot),
         )
 
-        return kpis
+        return summary
 
     def close(self) -> None:
         """Release all resources held by the collector.
@@ -1113,6 +1181,28 @@ class StageMetricsCollector:
         logger.info("StageMetricsCollector closed")
 
     # -- Internal computation helpers ---------------------------------------
+
+    def _get_success_rate(self, stage_name: str) -> float:
+        """Return the rolling success rate for a stage.
+
+        Uses the in-memory deque for O(1) computation when populated.
+        Falls back to the module-level ``_compute_success_rate()`` JSONL
+        scanner only on cold start (empty deque).
+
+        Args:
+            stage_name: The stage to compute success rate for.
+
+        Returns:
+            Success rate as a float between 0.0 and 1.0.
+        """
+        with self._lock:
+            if self._recent_outcomes:
+                successes = sum(self._recent_outcomes)
+                total = len(self._recent_outcomes)
+                return round(successes / total, 4)
+
+        # Cold-start fallback: scan JSONL history
+        return _compute_success_rate(self._telemetry_path, stage_name)
 
     @staticmethod
     def _compute_composite_score(

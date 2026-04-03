@@ -256,21 +256,52 @@ def _compute_metric_baseline(
 
 
 def _index_run_summary(conn: sqlite3.Connection, data: dict) -> None:
-    """Upsert a run summary into the SQLite index."""
+    """Insert or update a run summary in the SQLite index.
+
+    Attempts INSERT first. On duplicate run_id (IntegrityError), updates
+    only the mutable fields (completed_at, overall_status, and KPIs)
+    rather than replacing the entire row.
+    """
     kpis = data.get("kpis", {})
-    conn.execute(
-        "INSERT OR REPLACE INTO runs "
-        "(run_id, completed_at, overall_status, total_duration, "
-        "spec_compliance, test_coverage) VALUES (?, ?, ?, ?, ?, ?)",
-        (
-            data["run_id"],
-            data["completed_at"],
-            data["overall_status"],
-            kpis.get("total_duration_seconds", 0.0),
-            kpis.get("spec_compliance_score"),
-            kpis.get("test_coverage_pct"),
-        ),
-    )
+    run_id = data["run_id"]
+    completed_at = data["completed_at"]
+    overall_status = data["overall_status"]
+    total_duration = kpis.get("total_duration_seconds", 0.0)
+    spec_compliance = kpis.get("spec_compliance_score")
+    test_coverage = kpis.get("test_coverage_pct")
+
+    try:
+        conn.execute(
+            "INSERT INTO runs "
+            "(run_id, completed_at, overall_status, total_duration, "
+            "spec_compliance, test_coverage) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                run_id,
+                completed_at,
+                overall_status,
+                total_duration,
+                spec_compliance,
+                test_coverage,
+            ),
+        )
+    except sqlite3.IntegrityError:
+        logger.warning(
+            "Duplicate run_id %s detected; updating existing record",
+            run_id,
+        )
+        conn.execute(
+            "UPDATE runs SET completed_at = ?, overall_status = ?, "
+            "total_duration = ?, spec_compliance = ?, test_coverage = ? "
+            "WHERE run_id = ?",
+            (
+                completed_at,
+                overall_status,
+                total_duration,
+                spec_compliance,
+                test_coverage,
+                run_id,
+            ),
+        )
 
 
 def _index_stage_event(conn: sqlite3.Connection, run_id: str, record: dict) -> None:

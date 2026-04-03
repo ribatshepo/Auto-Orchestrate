@@ -14,6 +14,10 @@ import sys
 import zipfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"))
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_INVALID_ARGS
+from layer1 import emit_error, emit_warning, emit_info
+
 from quick_validate import validate_skill
 
 
@@ -89,7 +93,7 @@ def main():
         print("\nExample:")
         print("  python utils/package_skill.py skills/public/my-skill")
         print("  python utils/package_skill.py skills/public/my-skill ./dist")
-        sys.exit(1)
+        sys.exit(EXIT_INVALID_ARGS)
 
     skill_path = sys.argv[1]
     output_dir = sys.argv[2] if len(sys.argv) > 2 else None
@@ -102,10 +106,16 @@ def main():
     result = package_skill(skill_path, output_dir)
 
     if result:
-        sys.exit(0)
+        sys.exit(EXIT_SUCCESS)
     else:
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unexpected error: {exc}")
+        sys.exit(EXIT_ERROR)

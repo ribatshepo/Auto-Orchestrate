@@ -18,6 +18,10 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"))
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_INVALID_ARGS, EXIT_VALIDATION_ERROR
+from layer1 import emit_error, emit_warning, emit_info
+
 
 SECRET_PATTERNS = re.compile(
     r"(PASSWORD|PASS|SECRET|TOKEN|API_KEY|PRIVATE_KEY|AUTH|CREDENTIAL)(\s*[=:]\s*)\S+",
@@ -297,8 +301,8 @@ def main():
 
     root = Path(args.root).resolve()
     if not root.is_dir():
-        print(json.dumps({"error": f"Root directory not found: {root}"}), file=sys.stderr)
-        sys.exit(1)
+        emit_error(f"Root directory not found: {root}")
+        sys.exit(EXIT_INVALID_ARGS)
 
     result = {
         "category": args.category,
@@ -327,4 +331,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unhandled exception: {exc}")
+        sys.exit(EXIT_ERROR)

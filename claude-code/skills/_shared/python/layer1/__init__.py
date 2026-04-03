@@ -24,6 +24,14 @@ from .heartbeat import check_heartbeat, cleanup_stale_heartbeats, write_heartbea
 from .logging import emit_error, emit_info, emit_warning, get_logger, setup_logging
 from .memory import clear_memory, get_memory_path, load_memory, save_memory
 from .output_format import OutputFormat, format_human, format_table, output
+from .spec_utils import (
+    IMPERATIVE_PATTERNS,
+    PRIORITY_MAP,
+    TYPE_INDICATORS,
+    extract_keywords,
+    infer_priority,
+    infer_type,
+)
 
 __all__ = [
     # Logging
@@ -66,4 +74,11 @@ __all__ = [
     "save_memory",
     "clear_memory",
     "get_memory_path",
+    # Spec utilities
+    "extract_keywords",
+    "infer_type",
+    "infer_priority",
+    "IMPERATIVE_PATTERNS",
+    "PRIORITY_MAP",
+    "TYPE_INDICATORS",
 ]

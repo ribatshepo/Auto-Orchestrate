@@ -22,7 +22,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 _VALID_STAGES = frozenset({
     "stage_0", "stage_1", "stage_2", "stage_3",
@@ -102,6 +102,34 @@ def _load_json_safe(path: Path) -> dict[str, Any] | None:
         return None
     with open(path, "r", encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def _migrate_baselines(data: dict[str, Any]) -> dict[str, Any]:
+    """Migrate baseline data from older schema versions to current.
+
+    Performs graceful migration:
+    - Version 1 -> 2: No structural changes required; data is compatible.
+      Logs a warning about the version mismatch.
+    - Missing version: Treated as version 1.
+
+    Args:
+        data: Raw baseline data loaded from JSON.
+
+    Returns:
+        The data dict, potentially updated with the current schema_version.
+    """
+    file_version = data.get("schema_version", 1)
+    if file_version == _SCHEMA_VERSION:
+        return data
+    logger.warning(
+        "Baseline schema version mismatch: file has v%d, expected v%d; "
+        "attempting graceful read",
+        file_version,
+        _SCHEMA_VERSION,
+    )
+    if file_version == 1:
+        data["schema_version"] = _SCHEMA_VERSION
+    return data
 
 
 def _collect_run_summaries(store_path: Path) -> list[dict[str, Any]]:
@@ -189,15 +217,22 @@ class BaselineManager:
             OSError: If the atomic write operation fails.
         """
         summaries = self._load_run_summaries()
-        stages_baselines = self._compute_stage_baselines(summaries)
 
-        baselines_data: dict[str, Any] = {
-            "schema_version": _SCHEMA_VERSION,
-            "updated_at": _utc_now_iso(),
-            "window_size": self.window_size,
-            "smoothing_alpha": self.smoothing_alpha,
-            "stages": stages_baselines,
-        }
+        if not summaries:
+            baselines_data: dict[str, Any] = {
+                "schema_version": _SCHEMA_VERSION,
+                "first_run": True,
+                "baselines": {},
+            }
+        else:
+            stages_baselines = self._compute_stage_baselines(summaries)
+            baselines_data = {
+                "schema_version": _SCHEMA_VERSION,
+                "updated_at": _utc_now_iso(),
+                "window_size": self.window_size,
+                "smoothing_alpha": self.smoothing_alpha,
+                "stages": stages_baselines,
+            }
 
         baselines_dir = self.knowledge_store_path / "baselines"
         os.makedirs(baselines_dir, exist_ok=True)
@@ -246,6 +281,11 @@ class BaselineManager:
             data = _load_json_safe(baselines_path)
 
         if data is None:
+            return None
+
+        data = _migrate_baselines(data)
+
+        if data.get("first_run"):
             return None
 
         stages = data.get("stages", {})
@@ -307,17 +347,16 @@ class BaselineManager:
         Returns:
             List of run summary dicts, sorted by completed_at ascending
             (oldest first), limited to the last window_size entries.
-
-        Raises:
-            FileNotFoundError: If no run summaries exist in the store.
+            Returns an empty list if no run summaries exist (first-run).
         """
         with self._lock:
             all_summaries = _collect_run_summaries(self.knowledge_store_path)
 
         if not all_summaries:
-            raise FileNotFoundError(
-                f"No run summaries found in {self.knowledge_store_path / 'runs'}"
+            logger.info(
+                "No run summaries found; returning first-run baselines"
             )
+            return []
 
         return all_summaries[-self.window_size:]
 

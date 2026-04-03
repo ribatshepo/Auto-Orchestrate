@@ -19,6 +19,15 @@ import re
 import sys
 from pathlib import Path
 
+# Add shared library to path
+sys.path.insert(
+    0,
+    str(Path(__file__).resolve().parent.parent.parent / "_shared" / "python"),
+)
+
+from layer0 import EXIT_SUCCESS, EXIT_ERROR, EXIT_INVALID_ARGS, EXIT_VALIDATION_ERROR  # noqa: E402
+from layer1 import emit_error, emit_warning, emit_info  # noqa: E402
+
 
 def validate_safe_path(path: Path, context: str = "") -> Path:
     """Validate that a path is safe (no traversal attacks).
@@ -55,7 +64,7 @@ class DockerfileLinter:
                 self.lines = f.readlines()
             return True
         except Exception as e:
-            print(f"Error reading {self.path}: {e}", file=sys.stderr)
+            emit_error(f"Error reading {self.path}: {e}")
             return False
 
     def check_latest_tag(self):
@@ -179,23 +188,29 @@ def main():
     try:
         args.dockerfile = validate_safe_path(args.dockerfile, context="dockerfile argument")
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        emit_error(str(e))
+        sys.exit(EXIT_INVALID_ARGS)
 
     if not args.dockerfile.exists():
-        print(f"Error: {args.dockerfile} not found", file=sys.stderr)
-        sys.exit(1)
+        emit_error(f"{args.dockerfile} not found")
+        sys.exit(EXIT_ERROR)
 
     linter = DockerfileLinter(args.dockerfile)
     if not linter.lint():
-        sys.exit(1)
+        sys.exit(EXIT_ERROR)
 
     linter.print_report()
 
     # Exit with error if critical issues found
     has_critical = any(sev == "CRITICAL" for sev, _, _ in linter.issues)
-    sys.exit(1 if has_critical else 0)
+    sys.exit(EXIT_VALIDATION_ERROR if has_critical else EXIT_SUCCESS)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(EXIT_ERROR)
+    except Exception as exc:
+        emit_error(f"Unhandled exception: {exc}")
+        sys.exit(EXIT_ERROR)

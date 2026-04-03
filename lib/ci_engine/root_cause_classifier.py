@@ -1,9 +1,9 @@
 """5 Whys root cause classifier for pipeline failure analysis.
 
-Classifies pipeline failures into one of four categories (transient, spec_gap,
-dependency, hallucination) using keyword-based pattern matching and contextual
-signals. Produces a structured 5 Whys chain tracing each failure to its root
-cause.
+Classifies pipeline failures into one of eight categories (transient, spec_gap,
+dependency, hallucination, resource_exhaustion, configuration, permissions,
+timeout) using keyword-based pattern matching and contextual signals. Produces
+a structured 5 Whys chain tracing each failure to its root cause.
 
 Designed for integration with retrospective_analyzer.py, which invokes
 classify_failure() for each detected regression or stage failure.
@@ -32,6 +32,7 @@ _VALID_STAGES = frozenset({
 
 _VALID_CATEGORIES = frozenset({
     "transient", "spec_gap", "dependency", "hallucination",
+    "resource_exhaustion", "configuration", "permissions", "timeout",
 })
 
 # ---------------------------------------------------------------------------
@@ -101,6 +102,34 @@ _SPEC_GAP_KEYWORDS: tuple[str, ...] = (
     "undocumented",
 )
 
+_RESOURCE_EXHAUSTION_KEYWORDS: tuple[str, ...] = (
+    "out of memory", "oom", "oomkilled", "disk full", "no space left",
+    "resource limit", "memory limit", "cannot allocate memory",
+    "resource exhausted", "quota exceeded", "storage full",
+    "insufficient memory", "heap space", "gc overhead",
+)
+
+_CONFIGURATION_KEYWORDS: tuple[str, ...] = (
+    "config error", "invalid config", "configuration error",
+    "missing env", "environment variable", "bad configuration",
+    "misconfigured", "invalid setting", "config not found",
+    "missing configuration", "invalid option", "unrecognized option",
+)
+
+_PERMISSIONS_KEYWORDS: tuple[str, ...] = (
+    "permission denied", "access denied", "forbidden", "403",
+    "unauthorized", "401", "insufficient permissions",
+    "operation not permitted", "eacces", "eperm",
+    "authentication failed", "credentials",
+)
+
+_TIMEOUT_KEYWORDS: tuple[str, ...] = (
+    "timed out", "deadline exceeded", "context deadline",
+    "read timeout", "write timeout", "connect timeout",
+    "operation timed out", "request timeout", "gateway timeout",
+    "504", "context canceled",
+)
+
 # Compiled regex patterns for higher-confidence matches
 _IMPORT_ERROR_PATTERN = re.compile(
     r"(?:ImportError|ModuleNotFoundError)", re.IGNORECASE
@@ -116,6 +145,22 @@ _TIMEOUT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _HTTP_ERROR_PATTERN = re.compile(r"(?:HTTP\s+)?(?:429|503|502|504)")
+_OOM_PATTERN = re.compile(
+    r"(?:OutOfMemoryError|MemoryError|OOMKilled|Cannot allocate memory)",
+    re.IGNORECASE,
+)
+_PERMISSION_PATTERN = re.compile(
+    r"(?:PermissionError|Permission denied|EACCES|EPERM)",
+    re.IGNORECASE,
+)
+_TIMEOUT_SPECIFIC_PATTERN = re.compile(
+    r"(?:TimeoutError|DeadlineExceeded|context deadline exceeded|gateway timeout)",
+    re.IGNORECASE,
+)
+_CONFIG_PATTERN = re.compile(
+    r"(?:ConfigError|ConfigurationError|InvalidConfig|config.*not found)",
+    re.IGNORECASE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +259,50 @@ def _score_hallucination(
         keyword_score = min(0.5 + hit_count * 0.15, 0.85)
         score = max(score, keyword_score)
 
+    return score
+
+
+def _score_resource_exhaustion(error_lower: str, context: dict[str, Any]) -> float:
+    """Compute resource exhaustion failure confidence score."""
+    if _OOM_PATTERN.search(error_lower):
+        return 0.95
+    hit_count = _count_keyword_hits(error_lower, _RESOURCE_EXHAUSTION_KEYWORDS)
+    if hit_count == 0:
+        return 0.0
+    return min(0.6 + hit_count * 0.1, 0.9)
+
+
+def _score_configuration(error_lower: str, context: dict[str, Any]) -> float:
+    """Compute configuration failure confidence score."""
+    if _CONFIG_PATTERN.search(error_lower):
+        return 0.85
+    hit_count = _count_keyword_hits(error_lower, _CONFIGURATION_KEYWORDS)
+    if hit_count == 0:
+        return 0.0
+    return min(0.5 + hit_count * 0.1, 0.85)
+
+
+def _score_permissions(error_lower: str, context: dict[str, Any]) -> float:
+    """Compute permissions failure confidence score."""
+    if _PERMISSION_PATTERN.search(error_lower):
+        return 0.9
+    hit_count = _count_keyword_hits(error_lower, _PERMISSIONS_KEYWORDS)
+    if hit_count == 0:
+        return 0.0
+    return min(0.6 + hit_count * 0.1, 0.85)
+
+
+def _score_timeout(error_lower: str, context: dict[str, Any]) -> float:
+    """Compute timeout failure confidence score."""
+    if _TIMEOUT_SPECIFIC_PATTERN.search(error_lower):
+        return 0.85
+    hit_count = _count_keyword_hits(error_lower, _TIMEOUT_KEYWORDS)
+    if hit_count == 0:
+        return 0.0
+    score = min(0.5 + hit_count * 0.1, 0.85)
+    consecutive = context.get("consecutive_run_failures", 0)
+    if consecutive >= 2:
+        score = min(score, 0.5)  # likely not timeout if keeps failing
     return score
 
 
@@ -359,11 +448,127 @@ def _build_hallucination_chain(
     ]
 
 
+def _build_resource_exhaustion_chain(
+    error_message: str,
+    stage: str,
+    context: dict[str, Any],
+) -> list[str]:
+    """Build a 5 Whys chain for resource exhaustion failures."""
+    short_error = _clamp(error_message.strip(), _MAX_WHY_LENGTH)
+    return [
+        _clamp(f"{stage} failed: {short_error}", _MAX_WHY_LENGTH),
+        _clamp(
+            "Resource exhaustion",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "Workload exceeded available resources",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "No resource limit monitoring",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "Capacity planning not included in spec",
+            _MAX_WHY_LENGTH,
+        ),
+    ]
+
+
+def _build_configuration_chain(
+    error_message: str,
+    stage: str,
+    context: dict[str, Any],
+) -> list[str]:
+    """Build a 5 Whys chain for configuration failures."""
+    short_error = _clamp(error_message.strip(), _MAX_WHY_LENGTH)
+    return [
+        _clamp(f"{stage} failed: {short_error}", _MAX_WHY_LENGTH),
+        _clamp(
+            "Configuration error",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "Required configuration missing or invalid",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "Configuration not validated at startup",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "Spec did not enumerate all config requirements",
+            _MAX_WHY_LENGTH,
+        ),
+    ]
+
+
+def _build_permissions_chain(
+    error_message: str,
+    stage: str,
+    context: dict[str, Any],
+) -> list[str]:
+    """Build a 5 Whys chain for permissions failures."""
+    short_error = _clamp(error_message.strip(), _MAX_WHY_LENGTH)
+    return [
+        _clamp(f"{stage} failed: {short_error}", _MAX_WHY_LENGTH),
+        _clamp(
+            "Permission denied",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "Insufficient access rights for required resource",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "Security policy blocks the required operation",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "Permission requirements not documented in spec",
+            _MAX_WHY_LENGTH,
+        ),
+    ]
+
+
+def _build_timeout_chain(
+    error_message: str,
+    stage: str,
+    context: dict[str, Any],
+) -> list[str]:
+    """Build a 5 Whys chain for timeout failures."""
+    short_error = _clamp(error_message.strip(), _MAX_WHY_LENGTH)
+    return [
+        _clamp(f"{stage} failed: {short_error}", _MAX_WHY_LENGTH),
+        _clamp(
+            "Operation timed out",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "External service or resource unresponsive",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "No timeout budget allocated for this operation",
+            _MAX_WHY_LENGTH,
+        ),
+        _clamp(
+            "Performance requirements not specified",
+            _MAX_WHY_LENGTH,
+        ),
+    ]
+
+
 _CHAIN_BUILDERS: dict[str, Any] = {
     "dependency": _build_dependency_chain,
     "transient": _build_transient_chain,
     "spec_gap": _build_spec_gap_chain,
     "hallucination": _build_hallucination_chain,
+    "resource_exhaustion": _build_resource_exhaustion_chain,
+    "configuration": _build_configuration_chain,
+    "permissions": _build_permissions_chain,
+    "timeout": _build_timeout_chain,
 }
 
 
@@ -397,7 +602,9 @@ def classify_failure(
     Returns:
         Dictionary with three keys:
             - category (str): One of ``'transient'``, ``'spec_gap'``,
-              ``'dependency'``, ``'hallucination'``.
+              ``'dependency'``, ``'hallucination'``,
+              ``'resource_exhaustion'``, ``'configuration'``,
+              ``'permissions'``, ``'timeout'``.
             - confidence (float): Classification confidence from 0.0 to 1.0.
             - five_whys_chain (list[str]): 3 to 5 strings tracing the root
               cause.
@@ -443,6 +650,10 @@ def classify_failure(
         "transient": _score_transient(error_lower, ctx),
         "spec_gap": _score_spec_gap(error_lower, ctx),
         "hallucination": _score_hallucination(error_lower, ctx),
+        "resource_exhaustion": _score_resource_exhaustion(error_lower, ctx),
+        "configuration": _score_configuration(error_lower, ctx),
+        "permissions": _score_permissions(error_lower, ctx),
+        "timeout": _score_timeout(error_lower, ctx),
     }
 
     best_category = max(scores, key=lambda k: scores[k])
