@@ -266,16 +266,41 @@ Auto-Orchestrate/
     │   ├── auto-debug.md        # Autonomous debug loop
     │   └── auto-audit.md        # Autonomous audit loop
     │
+    ├── lib/                     # Python libraries (CI engine + domain memory)
+    │   ├── ci_engine/           # Continuous improvement engine
+    │   │   ├── ooda_controller.py        # Within-run OODA feedback loop
+    │   │   ├── stage_metrics_collector.py # Telemetry (12 DMAIC KPIs)
+    │   │   ├── root_cause_classifier.py  # 8-category failure classification
+    │   │   ├── retrospective_analyzer.py # Post-run analysis (PDCA Check)
+    │   │   ├── improvement_recommender.py # Cross-run targets (PDCA Act)
+    │   │   ├── baseline_manager.py       # Rolling 10-run baselines
+    │   │   ├── knowledge_store_writer.py # Persistent knowledge store
+    │   │   ├── run_summary.py            # Run summary dataclass
+    │   │   ├── prometheus_exporter.py    # Optional Prometheus metrics
+    │   │   ├── schemas/                  # JSON schemas for all data files
+    │   │   └── tests/                    # Unit + integration tests
+    │   └── domain_memory/       # Cross-session domain knowledge
+    │       ├── store.py         # JSONL append/query engine
+    │       ├── schemas.py       # Entry dataclasses (6 stores)
+    │       ├── indexer.py       # SQLite WAL-mode index
+    │       ├── hooks.py         # Pipeline integration hooks
+    │       └── tests/           # Tests
+    │
     ├── skills/                  # Skill definitions (35 skills)
     │   ├── codebase-stats/
     │   ├── cicd-workflow/
     │   ├── dependency-analyzer/
     │   ├── docker-validator/
     │   ├── ... (35 skill directories total)
-    │   └── _shared/             # Shared Python libraries
+    │   └── _shared/             # Shared Python libraries (layer0-3)
     │
     └── _shared/                 # Shared resources
         ├── protocols/           # Agent communication protocols
+        │   ├── subagent-protocol-base.md  # RFC 2119 output rules
+        │   ├── output-standard.md         # Unified file naming/structure
+        │   ├── output-schemas.md          # Inter-skill JSON schemas
+        │   ├── skill-chain-contracts.md   # Skill chaining rules
+        │   └── skill-chaining-patterns.md # Invocation patterns
         ├── references/          # Agent-specific reference docs
         ├── schemas/             # JSON schemas (manifest.schema.json)
         ├── templates/           # Skill boilerplate and anti-patterns
@@ -283,28 +308,52 @@ Auto-Orchestrate/
         └── tokens/              # Placeholder token definitions
 ```
 
-### .orchestrate/ Directory
+### Session Output Directories
 
-The `.orchestrate/` directory is created automatically during autonomous orchestration sessions. It stores intermediate output produced by subagents for a given session and is **gitignored** — it never enters version control.
-
-Each session gets its own subdirectory named by session ID:
+Three runtime directories are created automatically by the autonomous commands. All are **gitignored** and safe to delete between sessions.
 
 ```
-.orchestrate/
-└── <session-id>/
-    ├── checkpoint.json      # Session checkpoint (task state, iteration history)
-    ├── proposed-tasks.json  # Task proposals queued for auto-orchestrate
-    ├── stage-0/             # Researcher output (Stage 0)
-    ├── stage-1/             # Epic-architect plans (Stage 1)
-    ├── stage-2/             # Spec-creator output (Stage 2)
-    ├── stage-3/             # Implementer output (Stage 3)
-    ├── stage-4/             # Test writer output (Stage 4)
-    ├── stage-4.5/           # Codebase stats output (Stage 4.5)
-    ├── stage-5/             # Validator output (Stage 5)
-    └── stage-6/             # Documentor output (Stage 6)
+.orchestrate/<session-id>/       # Created by /auto-orchestrate
+├── checkpoint.json              # Session state (atomic write)
+├── MANIFEST.jsonl               # Session-level manifest
+├── proposed-tasks.json          # Task proposals from orchestrator
+├── stage-0/                     # Research (YYYY-MM-DD_<slug>.md + stage-receipt.json)
+├── stage-1/                     # Architecture (proposed-tasks.json + stage-receipt.json)
+├── stage-2/                     # Specs (YYYY-MM-DD_<slug>.md + stage-receipt.json)
+├── stage-3/                     # Implementation (stage-receipt.json + changes.md)
+├── stage-4/                     # Tests (stage-receipt.json + changes.md)
+├── stage-4.5/                   # Codebase metrics (YYYY-MM-DD_<slug>.md)
+├── stage-5/                     # Validation (YYYY-MM-DD_<slug>.md)
+└── stage-6/                     # Documentation (stage-receipt.json + changes.md)
+
+.debug/<session-id>/             # Created by /auto-debug
+├── checkpoint.json
+├── MANIFEST.jsonl
+├── error-history.jsonl          # Append-only error tracking
+├── reports/                     # Debug reports (YYYY-MM-DD_<slug>.md)
+├── diagnostics/                 # Diagnostic data
+└── logs/                        # Supplementary logs (optional)
+
+.audit/<session-id>/             # Created by /auto-audit
+├── checkpoint.json
+├── MANIFEST.jsonl
+├── cycle-1/                     # Per-cycle subdirectory
+│   ├── YYYY-MM-DD_audit-report.md
+│   ├── gap-report.json
+│   └── stage-receipt.json
+└── cycle-N/
+
+.domain/                         # Cross-session domain knowledge
+├── research_ledger.jsonl        # Research findings (queryable)
+├── decision_log.jsonl           # Architecture decisions
+├── pattern_library.jsonl        # Success patterns and anti-patterns
+├── fix_registry.jsonl           # Error → fix mappings
+├── codebase_analysis.jsonl      # Per-file risk and analysis
+├── user_preferences.jsonl       # User corrections
+└── domain_index.db              # SQLite index (derived)
 ```
 
-The auto-orchestrate loop reads `proposed-tasks.json` to create tasks on behalf of the orchestrator (which cannot call TaskCreate directly). `checkpoint.json` stores iteration history and task snapshots for crash recovery. All output files use date-prefixed filenames: `YYYY-MM-DD_<descriptor>.<ext>`. Contents are safe to delete between sessions.
+All output files follow `YYYY-MM-DD_<slug>.<ext>` naming (per `_shared/protocols/output-standard.md`). Each stage writes a `stage-receipt.json` on completion — the standard bridge to domain memory. The `.domain/` directory persists across all sessions and commands, enabling cross-run learning.
 
 ## Utilities
 

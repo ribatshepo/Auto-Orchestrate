@@ -82,14 +82,14 @@ cp -r claude-code/skills/* ~/.claude/skills/
 cp -r claude-code/_shared ~/.claude/_shared
 cp -r claude-code/agents/* ~/.claude/agents/
 cp -r claude-code/commands ~/.claude/commands/
+cp -r claude-code/lib ~/.claude/lib
 cp claude-code/manifest.json ~/.claude/manifest.json
 ```
 
-> **Note:** The `_shared/` directory contains the shared Python library required by skill scripts. See [Section 11: Python Infrastructure](#11-python-infrastructure) for details:
->
-> **Note:** There are two separate `_shared/` directories with different purposes:
+> **Note:** There are three key shared directories:
 > - `claude-code/_shared/` — Protocols, templates, references, style guides, tokens (installed to `~/.claude/_shared/`)
 > - `claude-code/skills/_shared/` — Shared Python library for skill scripts (installed automatically with skills to `~/.claude/skills/_shared/`)
+> - `claude-code/lib/` — CI engine and domain memory libraries (installed to `~/.claude/lib/`)
 
 ```bash
 cp -r claude-code/_shared ~/.claude/_shared

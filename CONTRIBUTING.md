@@ -41,7 +41,14 @@ The installer copies all files from `claude-code/` into `~/.claude/` and backs u
 ### Verify the installation
 
 ```bash
+# Shared library tests
 python3 -m pytest claude-code/skills/_shared/python/tests/ -v
+
+# CI engine tests
+python3 -m pytest claude-code/lib/ci_engine/tests/ -v
+
+# Domain memory tests
+python3 -m pytest claude-code/lib/domain_memory/tests/ -v
 ```
 
 All tests should pass. If any fail, check that Python 3.10+ is your active interpreter.
@@ -56,21 +63,37 @@ After making changes to skill scripts or agent definitions, re-run the installer
 
 ```
 Auto-Orchestrate/
-├── install.sh     # Copies claude-code/ → ~/.claude/
-├── uninstall.sh   # Removes ~/.claude/ installed files
+├── install.sh                   # Copies claude-code/ → ~/.claude/
+├── uninstall.sh                 # Removes ~/.claude/ installed files
 └── claude-code/
-    ├── agents/                  # Agent definitions (Markdown)
-    ├── commands/                # Slash command definitions (auto-orchestrate.md,
-    │                            #   auto-debug.md, auto-audit.md)
-    ├── skills/                  # Skill definitions (Markdown + Python scripts)
+    ├── agents/                  # Agent definitions (8 agents)
+    ├── commands/                # Slash commands (auto-orchestrate, auto-debug, auto-audit)
+    ├── lib/                     # Python libraries
+    │   ├── ci_engine/           # Continuous improvement engine
+    │   │   ├── ooda_controller.py         # Within-run OODA feedback loop
+    │   │   ├── root_cause_classifier.py   # 8-category failure classification
+    │   │   ├── retrospective_analyzer.py  # Post-run PDCA Check phase
+    │   │   ├── improvement_recommender.py # Cross-run PDCA Act phase
+    │   │   ├── stage_metrics_collector.py # Telemetry collection
+    │   │   ├── baseline_manager.py        # Rolling baselines
+    │   │   ├── schemas/                   # JSON schemas for data files
+    │   │   └── tests/                     # Unit + integration tests
+    │   └── domain_memory/       # Cross-session domain knowledge
+    │       ├── store.py         # JSONL append/query engine (6 stores)
+    │       ├── hooks.py         # Pipeline integration hooks
+    │       ├── indexer.py       # SQLite index for fast queries
+    │       └── tests/
+    ├── skills/                  # Skill definitions (35 skills)
     │   └── _shared/python/      # Shared Python library (layered)
     │       ├── layer0/          # Foundation (colors, constants, exit codes)
-    │       ├── layer1/          # Core utilities (config, file ops, logging)
-    │       ├── layer2/          # Mid-level (memory, output format)
-    │       ├── layer3/          # High-level (backup, webhooks, hooks)
-    │       └── tests/           # pytest test suite (477+ tests)
+    │       ├── layer1/          # Core utilities (config, file ops, logging, spec utils)
+    │       ├── layer2/          # Mid-level (validation, task ops, webhooks)
+    │       ├── layer3/          # High-level (backup, migration, diagnostics)
+    │       └── tests/           # pytest test suite
     ├── _shared/
     │   ├── protocols/           # Agent communication contracts
+    │   │   ├── output-standard.md   # Unified output file naming/structure
+    │   │   └── output-schemas.md    # Inter-skill JSON output schemas
     │   ├── references/          # Agent-specific reference docs
     │   ├── templates/           # Skill boilerplate and anti-patterns
     │   ├── style-guides/        # Documentation style guide
@@ -79,7 +102,7 @@ Auto-Orchestrate/
     └── ARCHITECTURE.md          # Full architecture documentation
 ```
 
-The shared Python library uses a layered import model. Higher layers may import from lower layers but not vice versa.
+The shared Python library uses a layered import model. Higher layers may import from lower layers but not vice versa. The CI engine and domain memory libraries use stdlib only (no pip dependencies).
 
 ---
 

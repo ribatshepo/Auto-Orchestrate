@@ -49,6 +49,8 @@ claude-code/
 ├── _shared/
 │   ├── protocols/
 │   │   ├── subagent-protocol-base.md          (336 lines)
+│   │   ├── output-standard.md                 (unified output naming/structure)
+│   │   ├── output-schemas.md                  (inter-skill JSON schemas)
 │   │   ├── skill-chaining-patterns.md         (249 lines)
 │   │   ├── skill-chain-contracts.md           (131 lines)
 │   │   └── task-system-integration.md         (246 lines)
@@ -112,6 +114,24 @@ claude-code/
 │   ├── workflow-focus/SKILL.md                (119 lines)
 │   ├── workflow-next/SKILL.md                 (136 lines)
 │   └── workflow-plan/SKILL.md                 (277 lines)
+├── lib/                                       (Python libraries)
+│   ├── ci_engine/                             (continuous improvement engine)
+│   │   ├── ooda_controller.py                 (OODA within-run loop)
+│   │   ├── stage_metrics_collector.py         (telemetry, 12 DMAIC KPIs)
+│   │   ├── root_cause_classifier.py           (8-category failure classification)
+│   │   ├── retrospective_analyzer.py          (post-run PDCA Check)
+│   │   ├── improvement_recommender.py         (cross-run PDCA Act)
+│   │   ├── baseline_manager.py                (rolling 10-run baselines)
+│   │   ├── knowledge_store_writer.py          (persistent knowledge store)
+│   │   ├── run_summary.py, prometheus_exporter.py
+│   │   ├── schemas/                           (6 JSON schema files)
+│   │   └── tests/                             (unit + integration tests)
+│   └── domain_memory/                         (cross-session domain knowledge)
+│       ├── store.py                           (JSONL append/query engine)
+│       ├── schemas.py                         (6 entry dataclasses)
+│       ├── indexer.py                         (SQLite WAL-mode index)
+│       ├── hooks.py                           (pipeline integration hooks)
+│       └── tests/
 └── commands/
     ├── auto-orchestrate.md
     ├── auto-debug.md
@@ -1974,3 +1994,130 @@ This table tracks which scripts are referenced in documentation vs actually crea
 - **Referenced**: Documented in skill/agent files but may not exist yet
 - **Implemented**: Script exists and is functional
 - **Deprecated**: Script exists but should not be used
+
+---
+
+## 14. CI Engine (Continuous Improvement)
+
+The CI engine (`claude-code/lib/ci_engine/`) provides two feedback loops that enable the pipeline to learn from its own execution:
+
+### 14.1 OODA Loop (Within-Run)
+
+After every stage completion, the OODA controller observes stage results, orients against baselines, decides on corrective action, and acts:
+
+| Decision | Trigger | Action |
+|----------|---------|--------|
+| `continue` | Stage succeeded, metrics nominal | Proceed to next stage |
+| `retry` | Transient/hallucination failure, retries left | Re-spawn same stage (max 2 retries) |
+| `fallback_to_spec` | Spec gap classification | Create spec gap task, re-run Stage 2 |
+| `surface_to_user` | Dependency failure, retries exhausted, low confidence | Halt pipeline, present failure report |
+
+### 14.2 PDCA Loop (Cross-Run)
+
+After each complete run, the retrospective analyzer compares KPIs against rolling baselines, the improvement recommender generates prioritized targets, and the baseline manager updates averages:
+
+```
+Run N completes → RetrospectiveAnalyzer → retro.json + improvement_log.jsonl
+                → ImprovementRecommender → improvement_targets.json
+                → BaselineManager → stage_baselines.json
+Run N+1 Stage 0 → reads improvement_targets.json → targeted research
+```
+
+### 14.3 Root Cause Classification (8 Categories)
+
+| Category | Example Signals | Confidence |
+|----------|----------------|------------|
+| `transient` | HTTP 429/503, timeout, connection reset | 0.5-0.85 |
+| `dependency` | ImportError, ModuleNotFoundError | 0.7-0.95 |
+| `hallucination` | AttributeError, incorrect output | 0.5-0.85 |
+| `spec_gap` | Compliance gap, missing requirement | 0.3-0.85 |
+| `resource_exhaustion` | OOM, disk full, quota exceeded | 0.6-0.95 |
+| `configuration` | Config error, missing env variable | 0.5-0.85 |
+| `permissions` | Permission denied, 403, EACCES | 0.6-0.9 |
+| `timeout` | Deadline exceeded, gateway timeout | 0.5-0.85 |
+
+### 14.4 CI Engine Modules
+
+| Module | Purpose |
+|--------|---------|
+| `ooda_controller.py` | Within-run OODA loop (observe/orient/decide/act) |
+| `stage_metrics_collector.py` | Telemetry collection (12 DMAIC KPIs, 3-tier degradation) |
+| `root_cause_classifier.py` | 8-category failure classification with 5 Whys chains |
+| `retrospective_analyzer.py` | Post-run analysis with log rotation |
+| `improvement_recommender.py` | Cross-run improvement targets with pattern decay |
+| `baseline_manager.py` | Rolling 10-run baselines with exponential smoothing |
+| `knowledge_store_writer.py` | Atomic writes to knowledge store (JSON + JSONL + SQLite) |
+| `run_summary.py` | RunSummary dataclass with KPIs |
+| `prometheus_exporter.py` | Optional Prometheus metrics export |
+
+### 14.5 Data Files
+
+All data files have JSON schemas at `lib/ci_engine/schemas/`:
+
+| File | Format | Location | Persistence |
+|------|--------|----------|-------------|
+| `stage_telemetry.jsonl` | JSONL | Per-run | Project lifetime |
+| `run_summary.json` | JSON | Per-run | Project lifetime |
+| `retro.json` | JSON | Per-run | Project lifetime |
+| `stage_baselines.json` | JSON | Knowledge store | Updated each run |
+| `improvement_targets.json` | JSON | Knowledge store | Overwritten each run |
+| `failure_patterns.json` | JSON | Knowledge store | Decays over time |
+| `improvement_log.jsonl` | JSONL | Knowledge store | Rotated at 500 entries |
+
+---
+
+## 15. Domain Memory (Cross-Session Knowledge)
+
+The domain memory system (`claude-code/lib/domain_memory/`) provides project-level knowledge that persists across all sessions and commands. Location: `.domain/` at the project root.
+
+### 15.1 Six Knowledge Stores
+
+| Store | Purpose | Written By | Queried By |
+|-------|---------|-----------|-----------|
+| `research_ledger.jsonl` | Research findings, CVEs, recommendations | Orchestrator (Stage 0) | Researcher (avoid re-research) |
+| `decision_log.jsonl` | Architecture decisions with rationale | Orchestrator (Stage 1) | Epic-architect (prior context) |
+| `pattern_library.jsonl` | Success patterns and anti-patterns | Implementer, Retrospective | Implementer (learn from past) |
+| `fix_registry.jsonl` | Error fingerprint → verified fix | Debugger, Implementer | OODA controller, Debugger |
+| `codebase_analysis.jsonl` | Per-file risk, tech debt, findings | Auditor, Validator | All stages (file context) |
+| `user_preferences.jsonl` | User corrections and preferences | Any command | All stages (respect choices) |
+
+### 15.2 Concurrency Model
+
+All stores are **append-only JSONL** with `fcntl.flock(LOCK_EX)` on writes. Multiple sessions can safely write concurrently — each append is atomic and serialized via file locking. Reads scan the full file without locking (safe because the file is append-only).
+
+### 15.3 Domain Memory API
+
+```python
+from lib.domain_memory import DomainMemoryStore
+
+store = DomainMemoryStore(".domain", session_id="...", command="auto-orchestrate")
+
+# Write
+store.append("fix_registry", {"error_fingerprint": "...", "fix_description": "..."})
+
+# Query
+fixes = store.lookup_fix("conn_refused_5432")
+patterns = store.get_patterns("database")
+research = store.search("research_ledger", "JWT")
+
+# Hooks (called by agents after stage completion)
+from lib.domain_memory.hooks import on_fix_applied, on_research_complete
+on_research_complete(store, topic="auth", findings=["jose is recommended"])
+on_fix_applied(store, error_fingerprint="...", fix_description="...", verification_result="pass")
+```
+
+### 15.4 Integration with CI Engine
+
+The OODA controller accepts an optional `domain_store` parameter. During the Orient phase, it queries the fix registry for known fixes matching the current error fingerprint. If a verified fix exists, it's included in the retry prompt.
+
+---
+
+## 16. Output Standardization
+
+All commands follow the unified output standard defined in `_shared/protocols/output-standard.md`:
+
+- **Naming**: All output files use `YYYY-MM-DD_<slug>.<ext>`
+- **Manifest**: Each session has ONE `MANIFEST.jsonl` at its root
+- **Stage Receipt**: Every stage writes `stage-receipt.json` — the bridge to domain memory
+- **Subdirectories**: All commands use consistent phase/stage subdirectories
+- **Checkpoint Recovery**: Atomic tmp-then-rename with orphaned `.tmp.json` cleanup on startup

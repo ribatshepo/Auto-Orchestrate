@@ -79,6 +79,18 @@ The shared Python library provides utilities for skills. Security properties:
 - Ensure Python scripts in `skills/*/scripts/` are reviewed before use
 - Do not modify system paths or environment variables in skill scripts
 
+### CI Engine and Domain Memory (`claude-code/lib/`)
+
+The CI engine and domain memory libraries provide continuous improvement analysis and cross-session knowledge persistence. Security properties:
+
+- **Zero External Dependencies**: Uses only Python 3 standard library (OpenTelemetry and Prometheus are optional)
+- **Atomic Writes**: All persistent data uses atomic tmp-then-rename with fsync
+- **Concurrent Access**: File-level locking via `fcntl.flock()` for safe concurrent writes
+- **Schema Validation**: JSON schemas defined for all data files (`lib/ci_engine/schemas/`)
+- **No Network Access**: Both systems are local-only (Prometheus export is opt-in)
+- **Append-Only Stores**: Domain memory uses JSONL append-only format — no data overwrite or deletion
+- **Input Sanitization**: Error fingerprints are normalized (paths/numbers stripped) before storage
+
 ### Agent Execution Context
 
 Agents spawned by the orchestrator operate with the same permissions as the Claude Code CLI process. Security boundaries:
