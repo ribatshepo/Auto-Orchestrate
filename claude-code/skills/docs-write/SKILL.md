@@ -62,22 +62,22 @@ The following scripts in `scripts/` provide automated formatting:
 
 | Script | Purpose | CLI Example |
 |--------|---------|-------------|
-| `prettier_wrapper.sh` | Format markdown files consistently | `./scripts/prettier_wrapper.sh docs/` |
+| `prettier_wrapper.py` | Format markdown files consistently | `python3 scripts/prettier_wrapper.py docs/` |
 
 ### Usage
 
 ```bash
 # Format a single file
-./scripts/prettier_wrapper.sh README.md
+python3 scripts/prettier_wrapper.py README.md
 
 # Format all markdown in a directory
-./scripts/prettier_wrapper.sh --write docs/
+python3 scripts/prettier_wrapper.py --write docs/
 
 # Check formatting without modifying (for CI)
-./scripts/prettier_wrapper.sh --check docs/
+python3 scripts/prettier_wrapper.py --check docs/
 
 # Use custom config
-./scripts/prettier_wrapper.sh --config .prettierrc docs/
+python3 scripts/prettier_wrapper.py --config .prettierrc docs/
 ```
 
 ---
