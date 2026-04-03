@@ -86,6 +86,16 @@ else
   warn "No _shared directory found in $SOURCE_DIR — skipping"
 fi
 
+# Lib (CI engine + domain memory)
+if [[ -d "$SOURCE_DIR/lib" ]]; then
+  backup_if_exists "$CLAUDE_DIR/lib"
+  mkdir -p "$CLAUDE_DIR/lib"
+  cp -r "$SOURCE_DIR/lib/"* "$CLAUDE_DIR/lib/" 2>/dev/null || true
+  log "Lib (ci_engine, domain_memory) installed"
+else
+  warn "No lib directory found in $SOURCE_DIR — skipping"
+fi
+
 # Manifest (required for orchestrator routing)
 if [[ -f "$SOURCE_DIR/manifest.json" ]]; then
   backup_if_exists "$CLAUDE_DIR/manifest.json"
