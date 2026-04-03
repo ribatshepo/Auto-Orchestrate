@@ -220,17 +220,12 @@ Write debug report to `.debug/<SESSION_ID>/reports/<DATE>_<SLUG>.md`:
 {{Any caveats, related issues, or follow-up recommendations}}
 ```
 
-Update error-history.jsonl:
+Update `error-history.jsonl` at `.debug/<SESSION_ID>/error-history.jsonl` (append-only JSONL, one entry per line):
 ```json
-{
-  "error_id": "E-NNN",
-  "status": "resolved",
-  "fix_applied": "description",
-  "files_modified": ["file1.py"],
-  "verification_result": "PASS",
-  "fix_verify_cycles": 1
-}
+{"error_id":"E-NNN","status":"resolved","fix_applied":"description","files_modified":["file1.py"],"verification_result":"PASS","fix_verify_cycles":1,"timestamp":"<ISO-8601>"}
 ```
+
+Write `stage-receipt.json` to `.debug/<SESSION_ID>/` recording the debug cycle completion (per `_shared/protocols/output-standard.md` RECEIPT-001). Include domain memory writes count so hooks can verify persistence.
 
 ---
 

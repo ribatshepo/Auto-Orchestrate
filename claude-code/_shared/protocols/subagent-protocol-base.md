@@ -3,6 +3,10 @@
 This reference defines the RFC 2119 protocol for subagent output and handoff.
 All subagents operating under an orchestrator MUST follow this protocol.
 
+> **Canonical output rules**: See `_shared/protocols/output-standard.md` for the
+> unified file naming, directory structure, manifest format, and stage receipt
+> specification shared across all commands (auto-orchestrate, auto-debug, auto-audit).
+
 ---
 
 ## Output Requirements (RFC 2119)
@@ -11,10 +15,11 @@ All subagents operating under an orchestrator MUST follow this protocol.
 
 | ID | Rule | Compliance |
 |----|------|------------|
-| OUT-001 | MUST write findings to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md` | Required |
-| OUT-002 | MUST append ONE line to `{{MANIFEST_PATH}}` | Required |
+| OUT-001 | MUST write findings to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md` (see `output-standard.md` NAME-001) | Required |
+| OUT-002 | MUST append ONE line to `{{MANIFEST_PATH}}` (session-level, see `output-standard.md` MANIFEST-SESSION) | Required |
 | OUT-003 | MUST return ONLY: "Research complete. See MANIFEST.jsonl for summary." | Required |
 | OUT-004 | MUST NOT return research content in response | Required |
+| OUT-005 | MUST write `stage-receipt.json` to `{{OUTPUT_DIR}}/` on completion (see `output-standard.md` RECEIPT-001) | Required |
 
 ### Rationale
 

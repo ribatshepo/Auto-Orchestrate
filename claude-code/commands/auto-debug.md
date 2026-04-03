@@ -230,6 +230,16 @@ mkdir -p .debug/${SESSION_ID}/diagnostics
 mkdir -p .debug/${SESSION_ID}/logs
 ```
 
+**Output structure** (per `_shared/protocols/output-standard.md`):
+- `checkpoint.json` — session state (atomic write)
+- `MANIFEST.jsonl` — session-level manifest (append-only)
+- `error-history.jsonl` — append-only error tracking (at session root)
+- `reports/YYYY-MM-DD_<slug>.md` — per-error debug reports
+- `diagnostics/YYYY-MM-DD_<slug>.md` — category-specific diagnostic data
+- `logs/` — supplementary logs (optional)
+
+All output files use `YYYY-MM-DD_<slug>.<ext>` naming. Each debug cycle writes a `stage-receipt.json` to the session root after completing triage → fix → verify.
+
 ### 2b. Check for existing debug sessions
 
 ```bash

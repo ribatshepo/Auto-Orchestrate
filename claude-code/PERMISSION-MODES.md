@@ -271,7 +271,7 @@ Claude Code operates in different permission modes that affect tool availability
 
 **Expected Behavior**:
 - auditor runs in any permission mode (read-only)
-- Produces audit-report-<cycle>.md and gap-report.json
+- Produces `YYYY-MM-DD_audit-report.md` and `gap-report.json` (per cycle subdirectory)
 - On gaps found: auto-audit spawns orchestrator in remediation phase
 - compliance_threshold (default 90%) governs when loop exits
 

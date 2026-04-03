@@ -275,6 +275,14 @@ Create parent tracking task via `TaskCreate` (if available; if TaskCreate fails,
 mkdir -p .orchestrate/<session-id>/{stage-0,stage-1,stage-2,stage-3,stage-4,stage-4.5,stage-5,stage-6}
 ```
 
+**Output structure** (per `_shared/protocols/output-standard.md`):
+- `checkpoint.json` — session state (atomic write)
+- `MANIFEST.jsonl` — session-level manifest (one per session, not per-stage)
+- `proposed-tasks.json` — task proposals from orchestrator
+- `stage-N/` — per-stage outputs with `YYYY-MM-DD_<slug>.md` files + `stage-receipt.json`
+- **Stage-3, stage-4, stage-6** write code/tests/docs to the **project directory**; their `stage-receipt.json` + `changes.md` track what was modified
+- Every stage completion writes a `stage-receipt.json` — the standard bridge to domain memory
+
 Write checkpoint **atomically** (write to `checkpoint.tmp.json`, then rename to `checkpoint.json`) to `.orchestrate/<session-id>/checkpoint.json` (primary) and `~/.claude/sessions/<session-id>.json` (legacy):
 
 **Checkpoint schema migration**: On resume (Step 2b), check the `schema_version` field of the loaded checkpoint. If the version is older than the current format (e.g., "0.9.0" vs "1.0.0"), attempt graceful migration: add any missing fields with defaults, log `[MIGRATE] Checkpoint migrated from <old> to <new>`. If migration fails, abort with `[MIGRATE-FAIL] Cannot migrate checkpoint from schema_version <version>. Start a new session.`

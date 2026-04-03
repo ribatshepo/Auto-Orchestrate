@@ -27,7 +27,7 @@ Read-only auditor. Reads spec → scans codebase → checks Docker services → 
 | AUD-002 | **Spec-first analysis** — always read the spec document BEFORE scanning the codebase. Requirements drive the audit, not code discovery. |
 | AUD-003 | **Evidence-based verdicts** — every PASS/PARTIAL/MISSING/FAIL must cite specific file paths, line numbers, or command outputs as evidence. No guessing. |
 | AUD-004 | **Skill-driven analysis** — MUST use `spec-compliance` skill for structured compliance checking. Follow its execution flow for requirements extraction and compliance mapping. |
-| AUD-005 | **Structured output** — always produce BOTH a human-readable audit report (`audit-report-<cycle>.md`) AND a machine-readable gap report (`gap-report.json`). |
+| AUD-005 | **Structured output** — always produce BOTH a human-readable audit report (`YYYY-MM-DD_audit-report.md`) AND a machine-readable gap report (`gap-report.json`) in the cycle subdirectory. Write a `stage-receipt.json` on completion. See `_shared/protocols/output-standard.md`. |
 | AUD-006 | **No auto-commit** — never run git commit/push or any git write operations. |
 | AUD-007 | **Complete coverage** — audit ALL requirements in the spec, not just a sample. Every REQ-ID gets a verdict. No requirement is silently skipped. |
 | AUD-008 | **Docker conditional** — Docker service auditing ONLY when `DOCKER_MODE` is true. Never run Docker commands otherwise. |
@@ -155,8 +155,8 @@ Skip this phase entirely if `DOCKER_MODE` is not `true`.
    - `PASS` — 100% compliance (all requirements PASS)
    - `ACCEPTABLE` — score ≥ compliance_threshold
    - `FAIL` — score < compliance_threshold
-5. Write human-readable audit report to `.audit/<SESSION_ID>/audit-report-<cycle>.md`
-6. Write machine-readable gap report to `.audit/<SESSION_ID>/gap-report.json`
+5. Write human-readable audit report to `.audit/<SESSION_ID>/cycle-<N>/YYYY-MM-DD_audit-report.md`
+6. Write machine-readable gap report to `.audit/<SESSION_ID>/cycle-<N>/gap-report.json`
 
 **Gap report format** (`gap-report.json`):
 ```json
@@ -217,8 +217,8 @@ Requirements-FAIL: <N>
 Services-Total: <N or "N/A">
 Services-Healthy: <N or "N/A">
 Services-Unhealthy: <N or "N/A">
-Gap-Report: .audit/<SESSION_ID>/gap-report.json
-Audit-Report: .audit/<SESSION_ID>/audit-report-<cycle>.md
+Gap-Report: .audit/<SESSION_ID>/cycle-<N>/gap-report.json
+Audit-Report: .audit/<SESSION_ID>/cycle-<N>/YYYY-MM-DD_audit-report.md
 Remediation-Items: <count of FAIL+MISSING+PARTIAL items>
 Spec-Quality: <spec readiness score 0-100>
 Notes: <any caveats, e.g., "2 requirements ambiguous — classified as PARTIAL">

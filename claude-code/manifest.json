@@ -367,8 +367,8 @@
         ],
         "outputs": [
           "Compliance matrix (.audit/<SESSION_ID>/compliance-matrix.md)",
-          "Gap report (.audit/<SESSION_ID>/gap-report.json)",
-          "Audit report (.audit/<SESSION_ID>/audit-report-<cycle>.md)",
+          "Gap report (.audit/<SESSION_ID>/cycle-<N>/gap-report.json)",
+          "Audit report (.audit/<SESSION_ID>/cycle-<N>/YYYY-MM-DD_audit-report.md)",
           "DONE block with compliance score and verdict"
         ]
       },

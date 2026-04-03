@@ -247,6 +247,11 @@ If spec not found, abort: `"Spec file not found at <spec_path>. Please provide a
 mkdir -p .audit/${SESSION_ID}
 ```
 
+**Output structure** (per `_shared/protocols/output-standard.md`): Each audit cycle creates a `cycle-<N>/` subdirectory. On Step 3 (before auditor spawn), create the cycle directory:
+```bash
+mkdir -p .audit/${SESSION_ID}/cycle-${AUDIT_CYCLE}
+```
+
 ### 2b. Check for existing audit sessions
 
 ```bash
@@ -556,9 +561,11 @@ Set `terminal_state` and `status` in checkpoint, update parent task, display:
 > Auto-audit NEVER commits automatically. Review and commit manually.
 **Suggested commits**: [collected from orchestrator DONE blocks]
 
-### Reports
-- Final audit: .audit/<session-id>/audit-report-<cycle>.md
-- Gap report: .audit/<session-id>/gap-report.json
+### Reports (per `_shared/protocols/output-standard.md`)
+- Audit report: `.audit/<session-id>/cycle-<N>/YYYY-MM-DD_audit-report.md`
+- Gap report: `.audit/<session-id>/cycle-<N>/gap-report.json`
+- Stage receipt: `.audit/<session-id>/cycle-<N>/stage-receipt.json`
+- Session manifest: `.audit/<session-id>/MANIFEST.jsonl`
 
 ### Iteration Timeline (Remediation Details)
 | Cycle | Orchestrator Iterations | Tasks Completed | Tasks Pending |

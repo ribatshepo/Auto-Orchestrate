@@ -747,7 +747,7 @@ debug-diagnostics (Phase 1: categorize error)
 - Spec-first: reads spec before scanning codebase
 - Evidence-based verdicts: every PASS/PARTIAL/MISSING/FAIL cites file + line
 - Complete coverage: every requirement in spec gets a verdict
-- Dual output: audit-report-<cycle>.md + gap-report.json
+- Dual output: `YYYY-MM-DD_audit-report.md` + `gap-report.json` (per cycle subdirectory)
 - Docker conditional: Docker auditing only when DOCKER_MODE is true
 
 **Mandatory Skill**: spec-compliance (structured requirements extraction and compliance mapping)
@@ -770,7 +770,7 @@ Docker mode?
     +-- NO  --> skip Docker
         |
         v
-Write audit-report-<cycle>.md + gap-report.json to .audit/<session-id>/
+Write YYYY-MM-DD_audit-report.md + gap-report.json to .audit/<session-id>/cycle-<N>/
     |
     v
 Return compliance score + gap list to auto-audit

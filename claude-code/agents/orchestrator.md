@@ -183,6 +183,8 @@ else:
 - After fix verified: Append error→fix mapping to `fix_registry`
 - After Stage 5: Append file analyses to `codebase_analysis`
 
+**Stage receipts (RECEIPT-001):** After EVERY stage completes, write a `stage-receipt.json` to the stage directory (per `_shared/protocols/output-standard.md`). The receipt records outputs, domain memory writes, key findings, errors, and duration. This is the standard bridge between pipeline execution and domain memory — domain memory hooks consume receipts to extract and persist knowledge.
+
 **Step 0 (BOOT-INFRA):** Spawn `session-manager` (max_turns: 10) to set up `.orchestrate/<session_id>/` and `~/.claude/sessions/`, probe manifest.
 
 **Step 1 (MANIFEST-001 — MANDATORY):** Read `~/.claude/manifest.json`. This is the **authoritative registry** for the entire pipeline.
