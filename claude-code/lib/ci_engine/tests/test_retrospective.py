@@ -1406,7 +1406,7 @@ class TestOODAController:
         assert _stage_number_from_name("stage_5") == 5
         assert _stage_number_from_name("unknown") == -1
         assert _stage_number_from_name("researcher") == 0
-        assert _stage_number_from_name("implementer") == 3
+        assert _stage_number_from_name("software_engineer") == 3
 
     def test_load_json_safe_missing_file(self, tmp_path: Path) -> None:
         """Missing file returns None."""

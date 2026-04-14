@@ -11,11 +11,11 @@ The system enforces strict quality gates, manages context budgets across agent h
 ## Features
 
 - **7-stage autonomous pipeline** — Research, planning, specification, implementation, testing, validation, and documentation stages with mandatory completion gates
-- **8 specialized agents** — Orchestrator, implementer, documentor, epic-architect, session-manager, researcher, debugger, and auditor, each with defined roles and constraints
+- **18 specialized agents** — 2 pipeline-core (orchestrator, researcher), 3 pipeline (debugger, auditor, session-manager), and 13 team agents covering the full engineering role hierarchy
 - **2 autonomous subsystems** — `/auto-debug` for cyclic error-fix loops; `/auto-audit` for spec-compliance verification loops
 - **35 task-specific skills** — Testing, security auditing, documentation, DevOps, Docker validation, refactoring, CI/CD, dependency analysis, debugging diagnostics, spec compliance, and more
 - **Session management with crash recovery** — Checkpoint-based sessions that persist across interruptions and can be resumed
-- **Task decomposition with parallel execution** — Epic-architect decomposes work into dependency graphs for optimized scheduling (Program planning)
+- **Task decomposition with parallel execution** — Product-manager decomposes work into dependency graphs for optimized scheduling (Program planning)
 - **Zero-error gates and mandatory validation** — Security audits, compliance checks, and technical debt measurement enforced before completion
 - **Context-efficient orchestration** — Under 10K tokens per agent handoff, keeping orchestration overhead minimal
 - **No-auto-commit policy** — The dev-workflow skill generates conventional commit messages and displays copy-pasteable git commands without executing them automatically
@@ -74,13 +74,14 @@ Launch a fully autonomous pipeline with a single command:
 | *(omitted)* | Custom | No scope injection — follows user input as-is |
 
 The system will:
+0. Detect project type (greenfield, existing, or continuation) and verify 9 pipeline components
 1. Research requirements and unknowns
 2. Decompose the task into an execution plan
-3. Write technical specifications
+3. Write technical specifications (with gate enforcement if organizational gates are active)
 4. Implement production code
 5. Generate tests
-6. Run validation and security gates
-7. Produce documentation
+6. Run validation and security gates (with enforced process hooks for code review and testing)
+7. Produce documentation (with enforced process hook for documentation completeness)
 
 ### Session management
 
@@ -133,9 +134,9 @@ User Input
 orchestrator  (agent) ──> session-manager
     |                          |
     |── researcher ──────────> Research (Stage 0, mandatory)
-    |── epic-architect ────> Task decomposition
-    |── implementer ───────> Code + self-review + security gate
-    |── documentor ────────> Docs (maintain-don't-duplicate)
+    |── product-manager ───> Task decomposition
+    |── software-engineer ─> Code + self-review + security gate
+    |── technical-writer ──> Docs (maintain-don't-duplicate)
     |
     v
 Completion (all mandatory gates passed)
@@ -163,14 +164,14 @@ Compliance report ──> Gap found? ──> orchestrator (remediation) ──> 
 | Stage | Component | Purpose | Required |
 |-------|-----------|---------|----------|
 | 0 | researcher | Gather unknowns and context | **Yes** |
-| 1 | epic-architect | Decompose into tasks with dependencies | **Yes** |
+| 1 | product-manager | Decompose into tasks with dependencies | **Yes** |
 | 2 | spec-creator | Write technical specifications | **Yes** |
-| 3 | implementer | Produce production-ready code | No |
+| 3 | software-engineer | Produce production-ready code | No |
 | 4 | test-writer-pytest | Generate tests | No |
 | 4.5 | codebase-stats | Measure technical debt impact | **Yes** |
 | 5 | validator | Validate compliance and correctness | **Yes** |
 | 5a | docker-validator | Docker environment validation, UX testing, state checkpointing | **Yes** (sub-step of 5) |
-| 6 | documentor | Write/update documentation | **Yes** |
+| 6 | technical-writer | Write/update documentation | **Yes** |
 
 Stages 0, 1, 2, 4.5, 5, and 6 are mandatory — the pipeline will not terminate until they complete successfully (AUTO-002).
 
@@ -194,9 +195,9 @@ See `claude-code/ARCHITECTURE.md` for the full constraint matrix.
 | Agent | Mandatory Skills | Description |
 |-------|-----------------|-------------|
 | orchestrator | *(delegates to agents)* | Coordinates workflows by delegating to subagents; enforces MAIN constraints |
-| epic-architect | spec-analyzer, dependency-analyzer | Decomposes work into task graphs with dependency analysis (4-phase pipeline) |
-| implementer | production-code-workflow, security-auditor, codebase-stats, refactor-analyzer, refactor-executor | Single-pass implementation with self-review, quality pipeline, and security gate |
-| documentor | docs-lookup, docs-write, docs-review | Documentation specialist; chains skills for full docs workflow |
+| product-manager | spec-analyzer, dependency-analyzer | Decomposes work into task graphs with dependency analysis (4-phase pipeline) |
+| software-engineer | production-code-workflow, security-auditor, codebase-stats, refactor-analyzer, refactor-executor | Single-pass implementation with self-review, quality pipeline, and security gate |
+| technical-writer | docs-lookup, docs-write, docs-review | Documentation specialist; chains skills for full docs workflow |
 | session-manager | workflow-start/end/dash/focus/next/plan | Manages session lifecycle, checkpoints, and crash recovery |
 | researcher | researcher (skill), docs-lookup | Internet-enabled research for best practices, CVEs, package analysis |
 | debugger | debug-diagnostics | Autonomous debugger: triage, research, fix, verify with minimal blast radius; supports Docker debugging mode |
@@ -251,11 +252,11 @@ Auto-Orchestrate/
     ├── manifest.json            # Component registry (agent/skill routing)
     ├── settings.json            # Configuration and permissions
     │
-    ├── agents/                  # Agent definitions (8 agents)
+    ├── agents/                  # Agent definitions (18 agents)
     │   ├── orchestrator.md
-    │   ├── epic-architect.md
-    │   ├── implementer.md
-    │   ├── documentor.md
+    │   ├── product-manager.md
+    │   ├── software-engineer.md
+    │   ├── technical-writer.md
     │   ├── researcher.md
     │   ├── session-manager.md
     │   ├── debugger.md

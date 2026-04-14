@@ -57,13 +57,13 @@ RUN_DURATION_BUCKETS = (
 
 VALID_STAGE_NAMES: frozenset[str] = frozenset({
     "researcher",
-    "epic_architect",
+    "product_manager",
     "spec_creator",
-    "implementer",
+    "software_engineer",
     "test_writer",
     "codebase_stats",
     "validator",
-    "documentor",
+    "technical_writer",
 })
 
 VALID_ERROR_TYPES: frozenset[str] = frozenset({

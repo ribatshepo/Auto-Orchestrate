@@ -75,9 +75,9 @@ Claude Code operates in different permission modes that affect tool availability
 | Agent | Plan Mode | Auto-Accept | Manual Approval | Degradation Behavior |
 |-------|-----------|-------------|-----------------|---------------------|
 | **orchestrator** | Partial | YES (preferred) | Limited | Proposes work via PROPOSED_ACTIONS when Task unavailable (GAP-CRIT-001) — NEVER performs inline execution (MAIN-001, MAIN-002) |
-| **epic-architect** | Partial | YES | YES | Creates task plans as JSON files if TaskCreate unavailable |
-| **implementer** | NO (conflicts with IMPL-002) | YES (required) | Partial | Requires Write/Edit access; will fail without auto-accept |
-| **documentor** | Partial | YES | YES | Can operate with approval for each Write/Edit |
+| **product-manager** | Partial | YES | YES | Creates task plans as JSON files if TaskCreate unavailable |
+| **software-engineer** | NO (conflicts with IMPL-002) | YES (required) | Partial | Requires Write/Edit access; will fail without auto-accept |
+| **technical-writer** | Partial | YES | YES | Can operate with approval for each Write/Edit |
 | **session-manager** | Partial | YES (preferred) | YES | Session file writes need approval in manual mode |
 | **researcher** | YES | YES | YES | Read-only (WebSearch/WebFetch); fully compatible with all modes |
 | **debugger** | NO (conflicts with DBG-002/DBG-004) | YES (required) | Partial | Requires Write/Edit to apply fixes; plan mode conflicts with "fix immediately" constraint |
@@ -97,7 +97,7 @@ Claude Code operates in different permission modes that affect tool availability
 - GAP-CRIT-001: Task tool may be unavailable regardless of permission mode
 - Fallback: Proposes work via PROPOSED_ACTIONS for auto-orchestrate to delegate — orchestrator NEVER performs inline execution (MAIN-001, MAIN-002 are non-negotiable regardless of tool availability)
 
-### epic-architect
+### product-manager
 
 **Preferred Mode**: Auto-Accept or Manual Approval
 **Constraints**: None (creates tasks, doesn't write code)
@@ -109,21 +109,21 @@ Claude Code operates in different permission modes that affect tool availability
 
 **Known Issues**: None
 
-### implementer
+### software-engineer
 
 **Preferred Mode**: Auto-Accept (REQUIRED)
 **Constraints**: IMPL-002 (Don't ask — make decisions autonomously)
 
 **Behavior by Mode**:
-- **Plan Mode**: INCOMPATIBLE — implementer makes autonomous decisions (IMPL-002), plan mode requires approval
+- **Plan Mode**: INCOMPATIBLE — software-engineer makes autonomous decisions (IMPL-002), plan mode requires approval
 - **Auto-Accept**: Full functionality — implements, reviews, fixes in one pass
 - **Manual Approval**: DEGRADED — approval requests conflict with IMPL-002 constraint. Partial compatibility: user must approve each file write
 
 **Known Issues**:
-- Plan mode fundamentally conflicts with implementer's "don't ask" constraint
-- Recommend: Use `/auto-orchestrate` or manually grant auto-accept when invoking implementer
+- Plan mode fundamentally conflicts with software-engineer's "don't ask" constraint
+- Recommend: Use `/auto-orchestrate` or manually grant auto-accept when invoking software-engineer
 
-### documentor
+### technical-writer
 
 **Preferred Mode**: Auto-Accept or Manual Approval
 **Constraints**: None (documentation updates are low-risk)
@@ -183,7 +183,7 @@ Claude Code operates in different permission modes that affect tool availability
 - **Auto-Accept**: Full functionality
 - **Manual Approval**: Full functionality — no write operations to approve
 
-**Known Issues**: None. Note that if auto-audit enters the remediation phase (spawning orchestrator to fix gaps), that phase requires Auto-Accept for implementer subagents.
+**Known Issues**: None. Note that if auto-audit enters the remediation phase (spawning orchestrator to fix gaps), that phase requires Auto-Accept for software-engineer subagents.
 
 ## Skill Compatibility Matrix
 
@@ -194,7 +194,7 @@ Claude Code operates in different permission modes that affect tool availability
 | spec-analyzer | YES | YES | YES | Analysis-focused, approval OK |
 | validator | YES | YES | YES | Read-only validation |
 | test-writer-pytest | Partial | YES | YES | Writes test files |
-| library-implementer-python | NO | YES (required) | Partial | Same constraints as implementer |
+| library-implementer-python | NO | YES (required) | Partial | Same constraints as software-engineer |
 | task-executor | Partial | YES | YES | Generic execution, context-dependent |
 | codebase-stats | YES | YES | YES | Read-only analysis |
 | docs-lookup | YES | YES | YES | Read-only search |
@@ -267,7 +267,7 @@ Claude Code operates in different permission modes that affect tool availability
 **Recommended Setup**:
 1. Auto-Accept mode is NOT required — auditor is read-only (AUD-001)
 2. Manual Approval mode works; each audit step is non-destructive
-3. If compliance gaps are found, auto-audit will spawn orchestrator for remediation — that phase requires Auto-Accept for implementer subagents
+3. If compliance gaps are found, auto-audit will spawn orchestrator for remediation — that phase requires Auto-Accept for software-engineer subagents
 
 **Expected Behavior**:
 - auditor runs in any permission mode (read-only)
@@ -279,21 +279,21 @@ Claude Code operates in different permission modes that affect tool availability
 
 ### For Manual Agent Invocation
 
-**For implementer**:
+**For software-engineer**:
 ```markdown
 ⚠️ Auto-Accept Required
 
-The implementer agent operates under IMPL-002 (Don't ask — make decisions).
+The software-engineer agent operates under IMPL-002 (Don't ask — make decisions).
 This conflicts with approval-based workflows.
 
 **Action**: Grant auto-accept for this conversation or use `/auto-orchestrate`
 ```
 
-**For documentor**:
+**For technical-writer**:
 - Manual approval OK for doc reviews
 - Auto-accept preferred for batch doc updates
 
-**For epic-architect**:
+**For product-manager**:
 - Any mode works
 - Manual approval allows reviewing tasks before creation
 
@@ -330,9 +330,9 @@ Skills that rely on Bash commands will:
 To verify agent behavior across modes:
 
 - [ ] **orchestrator**: Test in auto-accept with and without Task tool
-- [ ] **implementer**: Verify failure in plan mode, success in auto-accept
-- [ ] **documentor**: Test docs-write in all three modes
-- [ ] **epic-architect**: Test task creation in manual approval mode
+- [ ] **software-engineer**: Verify failure in plan mode, success in auto-accept
+- [ ] **technical-writer**: Test docs-write in all three modes
+- [ ] **product-manager**: Test task creation in manual approval mode
 - [ ] **session-manager**: Test boot sequence (Step 0) in manual mode
 
 ### Test Procedure
@@ -352,7 +352,7 @@ To verify agent behavior across modes:
 - [x] Provide autonomous operation recommendations
 - [x] Document fallback behaviors
 - [ ] Test orchestrator in all three modes (requires live testing)
-- [ ] Test implementer in plan mode (expect failure per IMPL-002)
+- [ ] Test software-engineer in plan mode (expect failure per IMPL-002)
 - [ ] Verify auto-orchestrate permission grant flow (Step 0a)
 - [ ] Update agent docs with mode-specific guidance
 
@@ -360,7 +360,7 @@ To verify agent behavior across modes:
 
 - `claude-code/_shared/references/TOOL-AVAILABILITY.md` — GAP-CRIT-001 (Task tool availability)
 - `claude-code/agents/orchestrator.md` — MAIN-002 (delegate ALL work)
-- `claude-code/agents/implementer.md` — IMPL-002 (don't ask)
+- `claude-code/agents/software-engineer.md` — IMPL-002 (don't ask)
 - `claude-code/commands/auto-orchestrate.md` — Step 0a (permission grant flow)
 - Iteration 1 gap analysis: `~/.claude/sessions/auto-orc-2026-0211-impl-gap/gap-analysis-findings.md`
 

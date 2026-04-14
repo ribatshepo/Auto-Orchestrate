@@ -130,7 +130,7 @@ Every stage/phase/cycle completion MUST write a `stage-receipt.json` to the stag
   "session_id": "<session-id>",
   "command": "auto-orchestrate|auto-debug|auto-audit",
   "stage": "stage_0|stage_1|...|stage_6|cycle_1|triage|fix|verify",
-  "agent": "researcher|implementer|auditor|debugger|...",
+  "agent": "researcher|software-engineer|auditor|debugger|...",
   "status": "complete|partial|blocked|skipped",
   "completed_at": "<ISO-8601>",
   "duration_seconds": 45.2,

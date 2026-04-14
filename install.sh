@@ -178,6 +178,38 @@ check_mode() {
     fi
   done
 
+  # --- Python Dependencies Check ---
+  if command -v python3 &>/dev/null || command -v python &>/dev/null; then
+    local PYTHON_CMD
+    PYTHON_CMD="$(command -v python3 || command -v python)"
+    local py_ok=0
+    local py_fail=0
+    local py_missing=""
+
+    for module_dir in "$CLAUDE_DIR/lib/ci_engine" "$CLAUDE_DIR/lib/domain_memory"; do
+      if [[ -d "$module_dir" ]]; then
+        module_name="$(basename "$module_dir")"
+        if PYTHONPATH="$CLAUDE_DIR/lib" $PYTHON_CMD -c "import $module_name" 2>/dev/null; then
+          py_ok=$((py_ok + 1))
+        else
+          py_fail=$((py_fail + 1))
+          py_missing="${py_missing:+$py_missing, }${module_name}"
+        fi
+      fi
+    done
+
+    if [[ $py_fail -eq 0 ]] && [[ $py_ok -gt 0 ]]; then
+      echo -e "${GREEN}[OK]${NC} python modules: ${py_ok} importable"
+    elif [[ $py_fail -gt 0 ]]; then
+      echo -e "${RED}[DRIFT]${NC} python modules: ${py_fail} failed import (${py_missing})"
+      drift_count=$((drift_count + 1))
+    else
+      echo -e "${YELLOW}[SKIP]${NC} python modules: none installed"
+    fi
+  else
+    echo -e "${YELLOW}[SKIP]${NC} python: not installed"
+  fi
+
   echo ""
   if [[ $drift_count -eq 0 ]]; then
     echo -e "${GREEN}[PASS]${NC} No drift detected"
@@ -310,6 +342,52 @@ if [[ -d "$SOURCE_DIR/lib" ]]; then
   log "Lib (ci_engine, domain_memory) installed"
 else
   warn "No lib directory found in $SOURCE_DIR — skipping"
+fi
+
+# --- Python Dependencies ---
+log "Checking Python dependencies..."
+
+# Check if Python 3 is available
+if command -v python3 &>/dev/null; then
+  PYTHON_CMD="python3"
+elif command -v python &>/dev/null; then
+  PYTHON_CMD="python"
+else
+  warn "Python not found. CI engine features (OODA loop, PDCA telemetry) will be unavailable."
+  PYTHON_CMD=""
+fi
+
+if [[ -n "$PYTHON_CMD" ]]; then
+  # Install dependencies if requirements.txt has non-comment, non-empty lines
+  if [[ -f "$SOURCE_DIR/requirements.txt" ]] && grep -qvE '^\s*(#|$)' "$SOURCE_DIR/requirements.txt" 2>/dev/null; then
+    log "Installing Python dependencies from requirements.txt..."
+    if $PYTHON_CMD -m pip install --user -r "$SOURCE_DIR/requirements.txt" 2>/dev/null; then
+      log "Python dependencies installed successfully."
+    else
+      warn "pip install failed. Try: $PYTHON_CMD -m pip install --user -r $SOURCE_DIR/requirements.txt"
+    fi
+  else
+    log "No third-party Python dependencies required."
+  fi
+
+  # Post-install verification: attempt to import CI engine modules
+  log "Verifying Python module imports..."
+  verify_failed=0
+  for module_dir in "$CLAUDE_DIR/lib/ci_engine" "$CLAUDE_DIR/lib/domain_memory"; do
+    if [[ -d "$module_dir" ]]; then
+      module_name="$(basename "$module_dir")"
+      if PYTHONPATH="$CLAUDE_DIR/lib" $PYTHON_CMD -c "import $module_name" 2>/dev/null; then
+        log "  $module_name: import OK"
+      else
+        warn "  $module_name: import FAILED"
+        verify_failed=1
+      fi
+    fi
+  done
+
+  if [[ $verify_failed -eq 1 ]]; then
+    warn "Some Python modules failed to import. CI engine features may be degraded."
+  fi
 fi
 
 # Processes (orchestration process definitions)

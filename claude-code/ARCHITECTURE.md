@@ -3,7 +3,7 @@
 Comprehensive architecture documentation for the Auto-Orchestrate system.
 
 **Last Updated**: 2026-04-14
-**Components**: 17 agents | 35 skills | 19 commands | 26 processes | 6 protocols | 2 templates | 9 CI engine modules | 4 domain memory modules
+**Components**: 18 agents | 35 skills | 19 commands | 26 processes | 6 protocols | 2 templates | 9 CI engine modules | 4 domain memory modules
 
 ---
 
@@ -27,12 +27,11 @@ Auto-Orchestrate is a multi-layer autonomous pipeline system with built-in conti
 │  /workflow-end  /workflow-plan  /refactor-analyzer                      │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                            AGENTS LAYER                                 │
-│  orchestrator │ epic-architect │ implementer │ researcher                │
-│  documentor   │ session-manager│ debugger    │ auditor                   │
-│  cloud-engineer│ data-engineer │ engineering-manager│ ml-engineer        │
-│  platform-engineer│ product-manager│ qa-engineer│ security-engineer     │
-│  software-engineer│ sre        │ staff-principal-engineer               │
-│  technical-program-manager│ technical-writer                            │
+│  orchestrator │ researcher     │ session-manager│ debugger                │
+│  auditor      │ cloud-engineer │ data-engineer  │ engineering-manager     │
+│  ml-engineer  │ platform-engineer│ product-manager│ qa-engineer          │
+│  security-engineer│ software-engineer│ sre      │ staff-principal-engineer│
+│  technical-program-manager│ technical-writer  │                          │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                            SKILLS LAYER                                 │
 │  35 specialized skills (each with SKILL.md + optional Python scripts)   │
@@ -66,8 +65,8 @@ User Input ──→ Command (loop controller) ──→ Orchestrator Agent
                  │                                  │
                  v                                  v
           Stage Agents                      CI Engine (optional)
-    (researcher, implementer,          (OODA: observe→orient→
-     validator, documentor...)          decide→act per stage)
+    (researcher, software-engineer,    (OODA: observe→orient→
+     validator, technical-writer...)    decide→act per stage)
                  │                                  │
                  v                                  v
           Stage Outputs                    Telemetry + Baselines
@@ -96,7 +95,7 @@ claude-code/
 │   │   ├── skill-chain-contracts.md           (131 lines)
 │   │   └── task-system-integration.md         (246 lines)
 │   ├── references/
-│   │   ├── epic-architect/
+│   │   ├── product-manager/
 │   │   │   ├── patterns.md                    (344 lines)
 │   │   │   ├── examples.md                    (194 lines)
 │   │   │   └── output-format.md               (92 lines)
@@ -114,9 +113,6 @@ claude-code/
 │   ├── orchestrator.md                        (639 lines, 31.7 KB — orchestration core)
 │   ├── session-manager.md                     (149 lines, 7.7 KB — orchestration core)
 │   ├── researcher.md                          (190 lines, 11.5 KB — orchestration core)
-│   ├── documentor.md                          (190 lines)
-│   ├── epic-architect.md                      (283 lines)
-│   ├── implementer.md                         (335 lines)
 │   ├── debugger.md
 │   ├── auditor.md
 │   ├── cloud-engineer.md                      (team agent)
@@ -239,7 +235,7 @@ claude-code/
         v               v           v           v               v
  ┌─────────────┐ ┌─────────────┐ ┌─────────┐ ┌─────────────┐ ┌──────────┐
  │   AGENTS    │ │   SKILLS    │ │COMMANDS │ │  CI ENGINE  │ │  DOMAIN  │
- │  (16 files)  │ │ (35 dirs)   │ │(14 files)│ │  (9 modules)│ │  MEMORY  │
+ │  (21 files)  │ │ (35 dirs)   │ │(14 files)│ │  (9 modules)│ │  MEMORY  │
  └──────┬──────┘ └──────┬──────┘ └─────────┘ └──────┬──────┘ │(4 modules│
         │               │                           │        └──────────┘
         │   ┌───────────┼───────────┐               │
@@ -260,7 +256,7 @@ claude-code/
 | Source Type | References `protocols` | References `lib/` |
 |-------------|------------------------|-------------------|
 | Skills (35) | 5 | 0 (use shared Python library) |
-| Agents (16) | 7 | 2 (orchestrator, debugger) |
+| Agents (18) | 7 | 2 (orchestrator, debugger) |
 | Commands (3) | 3 | 3 (CI engine + domain memory) |
 | Protocols (6) | 3 (internal) | 0 |
 
@@ -285,7 +281,7 @@ claude-code/
 - No deletion without consent
 - max_turns on every Task tool spawn
 - Flow integrity (follow full pipeline, never skip stages)
-- Decomposition gate (verify dispatch_hint before spawning implementer)
+- Decomposition gate (verify dispatch_hint before spawning software-engineer)
 - No auto-commit (NEVER run git commit, git push, or any git write operation)
 - Always-visible processing (progress output before/after every subagent spawn)
 
@@ -310,13 +306,13 @@ PIPELINE LOOP (respects STAGE_CEILING)
   │
   ├─ Stage 0 (researcher) ──→ Domain memory: query research_ledger
   │   └─ If HAS_RECOMMENDER: inject improvement_targets.json
-  ├─ Stage 1 (epic-architect) ──→ Task decomposition
+  ├─ Stage 1 (product-manager) ──→ Task decomposition
   ├─ Stage 2 (spec-creator) ──→ Specifications
-  ├─ Stage 3 (implementer) ──→ Code (to project files)
+  ├─ Stage 3 (software-engineer) ──→ Code (to project files)
   ├─ Stage 4 (test-writer) ──→ Tests (conditional)
   ├─ Stage 4.5 (codebase-stats) ──→ Metrics
   ├─ Stage 5 (validator) ──→ Compliance check
-  ├─ Stage 6 (documentor) ──→ Docs update
+  ├─ Stage 6 (technical-writer) ──→ Docs update
   │
   ├─ After EACH stage:
   │   ├─ Write stage-receipt.json (RECEIPT-001)
@@ -334,8 +330,8 @@ PIPELINE LOOP (respects STAGE_CEILING)
 |-----------|-------|------|
 | Research | `researcher` | Unknowns, exploration |
 | Implementation | `task-executor` | Code, config changes |
-| Epic decomposition | `epic-architect` | Planning large efforts |
-| Documentation | `documentor` | Docs, READMEs |
+| Epic decomposition | `product-manager` | Planning large efforts |
+| Documentation | `technical-writer` | Docs, READMEs |
 | Specifications | `spec-creator` | Technical specs |
 | Python libraries | `library-implementer-python` | Python modules |
 | Tests | `test-writer-pytest` | Pytest tests |
@@ -343,7 +339,7 @@ PIPELINE LOOP (respects STAGE_CEILING)
 
 ---
 
-### 4.2 Documentor
+### 4.2 Technical-Writer
 
 **Purpose**: Documentation specialist orchestrating the full docs lifecycle with anti-duplication principle.
 
@@ -449,7 +445,7 @@ Epic (type: epic, size: large)
 
 **Updated**: 2026-02-15 (GAP-CRIT-001 reopened — tool availability confirmed)
 
-Task management tools (TaskCreate, TaskList, TaskUpdate, TaskGet) are ONLY available to the **auto-orchestrate loop** (main Claude Code instance). Subagents (orchestrator, epic-architect, implementer, etc.) communicate task proposals via files.
+Task management tools (TaskCreate, TaskList, TaskUpdate, TaskGet) are ONLY available to the **auto-orchestrate loop** (main Claude Code instance). Subagents (orchestrator, product-manager, software-engineer, etc.) communicate task proposals via files.
 
 **How It Works**:
 
@@ -457,7 +453,7 @@ Task management tools (TaskCreate, TaskList, TaskUpdate, TaskGet) are ONLY avail
 1. auto-orchestrate spawns orchestrator with current task state in spawn prompt
    └─> Orchestrator reads task state from ## Current Task State section
 
-2. Orchestrator spawns epic-architect for decomposition (or proposes tasks via PROPOSED_ACTIONS if Task tool unavailable)
+2. Orchestrator spawns product-manager for decomposition (or proposes tasks via PROPOSED_ACTIONS if Task tool unavailable)
    └─> Writes task proposals to .orchestrate/<session-id>/proposed-tasks.json
 
 3. Orchestrator returns with PROPOSED_ACTIONS JSON block
@@ -480,8 +476,8 @@ Task management tools (TaskCreate, TaskList, TaskUpdate, TaskGet) are ONLY avail
 
 | Field | Owner | Purpose |
 |-------|-------|---------|
-| `dispatch_hint` | epic-architect | Routing key for auto-orchestrate (REQUIRED field) |
-| `blockedBy` | epic-architect | Dependency edges for task ordering |
+| `dispatch_hint` | product-manager | Routing key for auto-orchestrate (REQUIRED field) |
+| `blockedBy` | product-manager | Dependency edges for task ordering |
 | `PROPOSED_ACTIONS` | orchestrator | Task action proposals in return value |
 | `key_findings` | subagent | Summary for orchestrator consumption (manifest entry) |
 
@@ -489,8 +485,8 @@ Task management tools (TaskCreate, TaskList, TaskUpdate, TaskGet) are ONLY avail
 
 | Value | Subagent | Task Type |
 |-------|----------|-----------|
-| `implementer` | Implementer agent (opus model) | Production code (default for implementation) |
-| `documentor` | Documentor agent | Documentation creation/updates |
+| `software-engineer` | Software-engineer agent (opus model) | Production code (default for implementation) |
+| `technical-writer` | Technical-writer agent | Documentation creation/updates |
 | `validator` | Validator skill | Compliance checks |
 | `test-writer-pytest` | Test writer skill | Pytest test creation |
 | `task-executor` | Task executor skill | Simple config/non-code tasks |
@@ -504,10 +500,10 @@ Task management tools (TaskCreate, TaskList, TaskUpdate, TaskGet) are ONLY avail
   "tasks": [
     {
       "subject": "Implement user authentication endpoints",
-      "description": "Create POST /api/auth/login and POST /api/auth/register endpoints. dispatch_hint: implementer",
+      "description": "Create POST /api/auth/login and POST /api/auth/register endpoints. dispatch_hint: software-engineer",
       "activeForm": "Implementing auth endpoints",
       "blockedBy": [],
-      "dispatch_hint": "implementer",
+      "dispatch_hint": "software-engineer",
       "risk": "medium",
       "acceptance_criteria": ["Endpoint responds correctly", "Validates input"]
     }
@@ -532,13 +528,13 @@ Each auto-orchestrate session creates a per-session output directory in the proj
 .orchestrate/
 └── <session-id>/
     ├── stage-0/               # Researcher output (Stage 0)
-    ├── stage-1/               # Epic-architect plans (Stage 1)
+    ├── stage-1/               # Product-manager plans (Stage 1)
     ├── stage-2/               # Spec-creator output (Stage 2)
-    ├── stage-3/               # Implementer output (Stage 3)
+    ├── stage-3/               # Software-engineer output (Stage 3)
     ├── stage-4/               # Test writer output (Stage 4)
     ├── stage-4.5/             # Codebase stats output (Stage 4.5)
     ├── stage-5/               # Validator output (Stage 5)
-    ├── stage-6/               # Documentor output (Stage 6)
+    ├── stage-6/               # Technical-writer output (Stage 6)
     └── proposed-tasks.json    # Task proposals (written by orchestrator as MANDATORY FIRST ACTION)
 ```
 
@@ -549,7 +545,7 @@ This directory is project-local. `~/.claude/sessions/` is retained as a read-onl
 **References**:
 - `claude-code/commands/TOOL-AVAILABILITY.md` — Full tool availability matrix and workarounds (see also: `commands/CONVENTIONS.md`, `commands/SESSIONS-REGISTRY.md`)
 - `claude-code/agents/orchestrator.md` — Orchestrator file-based protocol
-- `claude-code/agents/epic-architect.md` — Task proposal output format
+- `claude-code/agents/product-manager.md` — Task proposal output format
 - `claude-code/commands/auto-orchestrate.md` — Task management proxy implementation
 
 ---
@@ -568,14 +564,14 @@ Blocks implementation spawns if mandatory pre-implementation stages (0, 1, 2) ar
 # Located in: orchestrator.md - Execution Loop
 # PRE-IMPL-GATE: Block implementation if mandatory pre-impl stages are incomplete
 missing_pre_impl = [s for s in [0, 1, 2] if s not in stages_completed]
-if missing_pre_impl and agent in ["implementer", "library-implementer-python"]:
-    log("[PRE-IMPL-GATE] BLOCKED: Cannot spawn implementer -- stages missing.")
+if missing_pre_impl and agent in ["software-engineer", "library-implementer-python"]:
+    log("[PRE-IMPL-GATE] BLOCKED: Cannot spawn software-engineer -- stages missing.")
     # Re-route to first missing stage
 ```
 
 #### BUDGET-RESERVATION
 
-Reserves 3 budget slots for mandatory post-implementation stages (4.5, 5, 6). Prevents the orchestrator from exhausting its spawn budget on implementation tasks and then being unable to spawn the validator, codebase-stats, and documentor agents.
+Reserves 3 budget slots for mandatory post-implementation stages (4.5, 5, 6). Prevents the orchestrator from exhausting its spawn budget on implementation tasks and then being unable to spawn the validator, codebase-stats, and technical-writer agents.
 
 ```
 # Located in: orchestrator.md - Execution Loop
@@ -589,15 +585,15 @@ if REMAINING_BUDGET <= POST_IMPL_RESERVED:
 
 #### POST-IMPL-EXIT-GATE (Budget Exemption)
 
-Budget exhaustion is NEVER a valid reason to skip Stages 5 or 6. Even if REMAINING_BUDGET reaches 0, the validator (Stage 5) and documentor (Stage 6) spawns are **exempt from budget limits**. This ensures the quality gate and documentation always run regardless of how many implementation iterations occurred.
+Budget exhaustion is NEVER a valid reason to skip Stages 5 or 6. Even if REMAINING_BUDGET reaches 0, the validator (Stage 5) and technical-writer (Stage 6) spawns are **exempt from budget limits**. This ensures the quality gate and documentation always run regardless of how many implementation iterations occurred.
 
-**Enhanced Fix-Loop (FIX_ITER)**: After every implementer spawn, the orchestrator runs an explicit fix loop with an iteration counter (`FIX_ITER`, max `MAX_FIX_ITER = 3`). Each iteration: spawns validator (including user journey testing) → if errors=0 AND warnings=0 AND all journeys pass → exits loop. Otherwise increments FIX_ITER and re-spawns implementer with validator findings. If `FIX_ITER >= MAX_FIX_ITER`, the orchestrator escalates to the user with a blocked task rather than looping indefinitely.
+**Enhanced Fix-Loop (FIX_ITER)**: After every software-engineer spawn, the orchestrator runs an explicit fix loop with an iteration counter (`FIX_ITER`, max `MAX_FIX_ITER = 3`). Each iteration: spawns validator (including user journey testing) → if errors=0 AND warnings=0 AND all journeys pass → exits loop. Otherwise increments FIX_ITER and re-spawns software-engineer with validator findings. If `FIX_ITER >= MAX_FIX_ITER`, the orchestrator escalates to the user with a blocked task rather than looping indefinitely.
 
 **User Journey Gate**: The validator MUST perform user journey testing (CRUD, authentication, navigation, error handling, edge cases) as part of Stage 5. Advancement is blocked if ANY user journey fails, in addition to the existing errors/warnings=0 requirement.
 
 #### SEQUENTIAL-STAGE-GATE
 
-Enforces strict sequential ordering within the execution loop. The orchestrator MUST NOT spawn a Stage N+1 agent while any Stage N task is still pending or in-progress. When this gate fires, the orchestrator skips the higher-stage task and processes the incomplete prior-stage task first. This prevents out-of-order execution where, for example, epic-architect (Stage 1) would be spawned while researcher (Stage 0) is still running.
+Enforces strict sequential ordering within the execution loop. The orchestrator MUST NOT spawn a Stage N+1 agent while any Stage N task is still pending or in-progress. When this gate fires, the orchestrator skips the higher-stage task and processes the incomplete prior-stage task first. This prevents out-of-order execution where, for example, product-manager (Stage 1) would be spawned while researcher (Stage 0) is still running.
 
 Output when gate fires: `[GATE] Blocking Stage {N} — Stage {N-1} incomplete.`
 
@@ -617,12 +613,12 @@ Three sub-mechanisms support AUTO-004:
 
 2. **Step 8b -- Proactive missing-stage injection**: After updating `stages_completed`, proactively checks if any mandatory stage (0, 1, 2, 4.5, 5, 6) is absent AND unscheduled. Creates tasks immediately without waiting for enforcement to trigger. Output: `[AUTO-004] Proactive injection: created task(s) for missing stage(s)`.
 
-3. **Condition 1a**: When all tasks are completed but `stages_completed` is missing mandatory stages, immediately injects the missing-stage tasks via TaskCreate (dispatcher: `researcher` for 0, `epic-architect` for 1, `spec-creator` for 2, `codebase-stats` for 4.5, `validator` for 5, `documentor` for 6) and forces one more iteration with `mandatory_stage_enforcement: true`.
+3. **Condition 1a**: When all tasks are completed but `stages_completed` is missing mandatory stages, immediately injects the missing-stage tasks via TaskCreate (dispatcher: `researcher` for 0, `product-manager` for 1, `spec-creator` for 2, `codebase-stats` for 4.5, `validator` for 5, `technical-writer` for 6) and forces one more iteration with `mandatory_stage_enforcement: true`.
 
 **Impact**: These guards collectively close the loop on "never-skip" violations where the orchestrator would complete implementation but skip validation, technical debt measurement, or documentation due to budget exhaustion or iteration limits.
 
 
-### 4.4 Implementer
+### 4.4 Software-Engineer
 
 **Purpose**: Fast implementation agent that implements, reviews, and fixes code in a single pass.
 
@@ -643,20 +639,20 @@ Three sub-mechanisms support AUTO-004:
 - MUST read and apply researcher findings (IMPL-014) -- read Stage 0 output before writing any code; blocked packages are FORBIDDEN; pin exact CVE-free versions confirmed by researcher
 - **CVE-free enforcement (IMPL-015)** -- if a required package has an unpatched HIGH/CRITICAL CVE, STOP and invoke FEEDBACK-LOOP-001 before proceeding; document the alternative used
 
-**Single-File Implementer Pattern (SFI-001)** — **UPDATED 2026-02-12**:
+**Single-File Software-Engineer Pattern (SFI-001)** — **UPDATED 2026-02-12**:
 
-The implementer enforces a **single-file scope** constraint to eliminate context exhaustion. Each implementer invocation targets exactly **one file** — either one file to create OR one file to modify.
+The software-engineer enforces a **single-file scope** constraint to eliminate context exhaustion. Each software-engineer invocation targets exactly **one file** — either one file to create OR one file to modify.
 
-**Rationale**: Multi-file implementer tasks caused context exhaustion patterns where the agent would read N files, write N files, and run the quality pipeline on N files. This accumulated context (from file reads + writes + pipeline execution) exhausted the 30-turn budget before completion, forcing expensive orchestrator-mediated continuation.
+**Rationale**: Multi-file software-engineer tasks caused context exhaustion patterns where the agent would read N files, write N files, and run the quality pipeline on N files. This accumulated context (from file reads + writes + pipeline execution) exhausted the 30-turn budget before completion, forcing expensive orchestrator-mediated continuation.
 
 **Architecture change** (2026-02-12):
-1. **Epic-Architect** (decomposition stage): When `dispatch_hint` is `implementer` or `library-implementer-python`, tasks MUST target exactly one file. Multi-file features are decomposed into sequential single-file tasks connected by `blockedBy` dependencies.
+1. **Product-Manager** (decomposition stage): When `dispatch_hint` is `software-engineer` or `library-implementer-python`, tasks MUST target exactly one file. Multi-file features are decomposed into sequential single-file tasks connected by `blockedBy` dependencies.
 
-2. **Orchestrator** (routing stage): Pre-spawn check verifies implementer tasks target exactly 1 file. If multi-file detected (description mentions 2+ files, uses plural scope), route back to epic-architect for single-file decomposition.
+2. **Orchestrator** (routing stage): Pre-spawn check verifies software-engineer tasks target exactly 1 file. If multi-file detected (description mentions 2+ files, uses plural scope), route back to product-manager for single-file decomposition.
 
-3. **Implementer** (execution stage): Enforces IMPL-012 — stops if task description mentions multiple files. Simplified Context Window Management (CWM) protocol for single-file scope: write target file to disk immediately after Phase 3, checkpoint by turn count (not file count).
+3. **Software-Engineer** (execution stage): Enforces IMPL-012 — stops if task description mentions multiple files. Simplified Context Window Management (CWM) protocol for single-file scope: write target file to disk immediately after Phase 3, checkpoint by turn count (not file count).
 
-**Impact**: Single-file scope eliminates the multi-file context accumulation that previously caused implementer exhaustion. The 30-turn budget is now sufficient for single-file tasks. Context exhaustion becomes rare.
+**Impact**: Single-file scope eliminates the multi-file context accumulation that previously caused software-engineer exhaustion. The 30-turn budget is now sufficient for single-file tasks. Context exhaustion becomes rare.
 
 **Example decomposition**:
 | Feature scope | Before SFI-001 | After SFI-001 |
@@ -664,12 +660,12 @@ The implementer enforces a **single-file scope** constraint to eliminate context
 | 3-file feature (UserService, UserController, UserDto) | 1 task: "Implement UserService, UserController, UserDto" (exhausts context) | 3 tasks: T1: "Implement UserService.ts", T2: "Implement UserController.ts" (blockedBy T1), T3: "Implement UserDto.ts" (blockedBy T1) |
 | Interface + implementation | 1 task: "Implement IUserService interface and UserService class" | 2 tasks: T1: "Create IUserService.ts interface", T2: "Create UserService.ts" (blockedBy T1, includes instruction to read interface for patterns) |
 
-**Cross-file consistency**: When multiple files share patterns or interfaces, epic-architect includes in each task description:
+**Cross-file consistency**: When multiple files share patterns or interfaces, product-manager includes in each task description:
 - Reference to sibling tasks and their target files
 - Key patterns/interfaces established by predecessor tasks
 - Instruction: "Read [predecessor file] for patterns before implementing"
 
-**Non-implementer agents unaffected**: The single-file constraint applies ONLY to `implementer` and `library-implementer-python`. Other agents (researcher, documentor, validator, etc.) may handle multiple files per the general 3-file limit.
+**Non-software-engineer agents unaffected**: The single-file constraint applies ONLY to `software-engineer` and `library-implementer-python`. Other agents (researcher, technical-writer, validator, etc.) may handle multiple files per the general 3-file limit.
 
 **Decision Flow**:
 ```
@@ -719,8 +715,8 @@ START: Implementation Request
 **Task Routing**:
 | Task Type | Action | Notes |
 |-----------|--------|-------|
-| Implementation (single file) | Execute directly | This IS the implementer |
-| Implementation (multi-file) | Return to orchestrator | Violates SFI-001 — route to epic-architect for splitting |
+| Implementation (single file) | Execute directly | This IS the software-engineer |
+| Implementation (multi-file) | Return to orchestrator | Violates SFI-001 — route to product-manager for splitting |
 | Research needed | Return to orchestrator | Flag as blocked |
 | Review needed | Self-review in Phase 4 | No delegation |
 | Build failure | Fix immediately | Don't report |
@@ -763,7 +759,7 @@ active -> /workflow-end -> ended
 
 **Purpose**: Internet-enabled research agent for gathering information on packages, CVEs, best practices, Docker images, and technology evaluation. Mandatory first stage of every orchestration pipeline.
 
-**Spawned At**: Stage 0 (mandatory) — always spawned by the orchestrator before epic-architect decomposition begins.
+**Spawned At**: Stage 0 (mandatory) — always spawned by the orchestrator before product-manager decomposition begins.
 
 **Tools**: Read, Glob, Grep, Bash, WebSearch, WebFetch
 
@@ -780,7 +776,7 @@ active -> /workflow-end -> ended
 - RES-010: **Risks & Remedies section** — research output MUST include a structured Risks & Remedies section mapping each risk to a remedy, severity level, and which pipeline stage applies the remedy
 - RES-011: **Package version pinning** — for every dependency referenced, specify the exact CVE-free version confirmed via NVD/GitHub Security Advisories; never recommend unpinned or "latest" versions
 - RES-012: **Transitive dependency audit** — CVE checks MUST cover direct AND transitive dependencies; flag any transitive chain that includes a HIGH/CRITICAL CVE
-- RES-013: **Re-audit trigger** — if the implementer or debugger encounters a new package not in the original research, they MUST trigger a FEEDBACK-LOOP-001 cycle before proceeding
+- RES-013: **Re-audit trigger** — if the software-engineer or debugger encounters a new package not in the original research, they MUST trigger a FEEDBACK-LOOP-001 cycle before proceeding
 
 **Output**: Research findings file at `.orchestrate/<SESSION_ID>/stage-0/YYYY-MM-DD_<slug>.md` and manifest entry with `key_findings`.
 
@@ -829,18 +825,18 @@ debug-diagnostics (Phase 1: categorize error)
           NO (>= 3 retries) --> Escalate to user
 ```
 
-### FEEDBACK-LOOP-001: Implementer → Researcher CVE Re-Audit Protocol
+### FEEDBACK-LOOP-001: Software-Engineer → Researcher CVE Re-Audit Protocol
 
 **Trigger**: Any of the following events during Stage 3 or Stage 5 (debug/fix) invoke this protocol:
-- Implementer encounters a package not covered by Stage 0 research (RES-013)
-- Implementer finds a package with an unpatched HIGH/CRITICAL CVE (IMPL-015)
+- Software-engineer encounters a package not covered by Stage 0 research (RES-013)
+- Software-engineer finds a package with an unpatched HIGH/CRITICAL CVE (IMPL-015)
 - Debugger introduces or upgrades a package as part of a fix (DBG-013)
 
 **4-Step Protocol**:
-1. **PAUSE** — the implementer or debugger immediately halts further code changes
+1. **PAUSE** — the software-engineer or debugger immediately halts further code changes
 2. **ESCALATE** — spawn a `researcher` sub-task scoped to the specific package(s) flagged, producing a mini Stage-0 findings file at `.orchestrate/<SESSION_ID>/stage-0/YYYY-MM-DD_<slug>-reaudit.md`
 3. **EVALUATE** — if the researcher confirms a CVE-free alternative exists, update the implementation plan to use that alternative; if no alternative exists, escalate to the orchestrator as a BLOCKED task
-4. **RESUME** — once the researcher confirms a safe version/alternative, the implementer or debugger resumes with the CVE-free package pinned to the exact version specified
+4. **RESUME** — once the researcher confirms a safe version/alternative, the software-engineer or debugger resumes with the CVE-free package pinned to the exact version specified
 
 **Iteration cap**: Maximum 2 FEEDBACK-LOOP-001 cycles per task. If still unresolved after 2 cycles, mark task BLOCKED and surface to human review.
 
@@ -1102,7 +1098,7 @@ All subagents operating under an orchestrator MUST follow this protocol.
 **Pattern 2: Skill Chaining (Within Agent)**
 ```
 ┌─────────────────────┐
-│    documentor       │ <- Loaded by user request
+│  technical-writer   │ <- Loaded by user request
 └─────────┬───────────┘
           │
     ┌─────┴─────┬────────────┐
@@ -1123,7 +1119,7 @@ All subagents operating under an orchestrator MUST follow this protocol.
           v
 ┌─────────────────────┐
 │ SUB-ORCHESTRATOR    │  Level 1: Epic decomposition
-│ (epic-architect)    │
+│ (product-manager)   │
 └─────────┬───────────┘
           │ Task tool
           v
@@ -1497,7 +1493,7 @@ Analyze input -> Check existing plans -> Check tasks -> Generate prompt
 | `S`/`s` | `fullstack` | `["backend", "frontend"]` |
 | *(omitted)* | `custom` | `[]` |
 
-When scope is not `custom`, the full scope specification (Appendix A/B of auto-orchestrate.md) is injected verbatim into every orchestrator spawn and subagent prompt (SCOPE-001). The scope spec defines **Implementation Quality Criteria** — quality requirements for Stage 3 implementers and Stage 5 validators. These are explicitly labeled as NOT a pipeline sequence to prevent confusion with the pipeline stages (0→1→2→3→4.5→5→6).
+When scope is not `custom`, the full scope specification (Appendix A/B of auto-orchestrate.md) is injected verbatim into every orchestrator spawn and subagent prompt (SCOPE-001). The scope spec defines **Implementation Quality Criteria** — quality requirements for Stage 3 software-engineers and Stage 5 validators. These are explicitly labeled as NOT a pipeline sequence to prevent confusion with the pipeline stages (0→1→2→3→4.5→5→6).
 
 **Execution Flow**:
 ```
@@ -1506,8 +1502,10 @@ When scope is not `custom`, the full scope specification (Appendix A/B of auto-o
          v
 ┌──────────────────────┐
 │ Step 0: Permission   │──> Scope resolution (F/B/S/custom)
-│ + manifest validate  │    Manifest check (MANIFEST-001)
+│ + manifest validate  │    Pre-flight: 9 components (MANIFEST-001)
 │ + domain memory init │    mkdir -p .domain/
+│ + greenfield detect  │    Step 0g: project type classification
+│ + gate state check   │    Step 2d: read .gate-state.json
 └────────┬─────────────┘
          │
          v
@@ -1634,9 +1632,9 @@ Terminal states: completed | max_iterations_reached | stalled | all_blocked | us
 | Agent | References |
 |-------|------------|
 | `orchestrator` | subagent-protocol-base, skill-chaining-patterns, task-system-integration, SUBAGENT-PROTOCOL-BLOCK |
-| `documentor` | style-guide, task-system-integration |
-| `epic-architect` | task-system-integration, subagent-protocol-base, skill-boilerplate, patterns, examples, output-format |
-| `implementer` | production-code-workflow, task-system-integration |
+| `technical-writer` | style-guide, task-system-integration |
+| `product-manager` | task-system-integration, subagent-protocol-base, skill-boilerplate, patterns, examples, output-format |
+| `software-engineer` | production-code-workflow, task-system-integration |
 | `session-manager` | task-system-integration |
 
 ### Skills -> Templates
@@ -1732,8 +1730,8 @@ This diagram shows which skills each agent can delegate to:
 │  │ Routes to:                                               │   │
 │  │   researcher ----------> Research tasks                  │   │
 │  │   task-executor -------> Implementation                  │   │
-│  │   epic-architect ------> Planning (spawns as sub-orch)   │   │
-│  │   documentor ----------> Documentation (chains skills)   │   │
+│  │   product-manager -----> Planning (spawns as sub-orch)   │   │
+│  │   technical-writer ----> Documentation (chains skills)   │   │
 │  │   spec-creator --------> Specifications                  │   │
 │  │   library-implementer-python -> Python libraries         │   │
 │  │   test-writer-pytest --> Tests                           │   │
@@ -1766,7 +1764,7 @@ This diagram shows which skills each agent can delegate to:
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                     DOCUMENTOR                                  │
+│                   TECHNICAL-WRITER                              │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Chains (sequential):                                     │   │
 │  │   docs-lookup --> docs-write --> docs-review             │   │
@@ -1774,7 +1772,7 @@ This diagram shows which skills each agent can delegate to:
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                    EPIC-ARCHITECT                               │
+│                    PRODUCT-MANAGER                              │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Mandatory skills:                                        │   │
 │  │   spec-analyzer ---------> Requirements validation (Ph1) │   │
@@ -1785,7 +1783,7 @@ This diagram shows which skills each agent can delegate to:
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                     IMPLEMENTER                                  │
+│                   SOFTWARE-ENGINEER                              │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Mandatory skills:                                        │   │
 │  │   production-code-workflow -> ALL scopes (mandatory)     │   │
@@ -1823,10 +1821,10 @@ This diagram shows which skills each agent can delegate to:
 | Agent | Delegation Style | Depth Limit | Spawned By |
 |-------|-----------------|-------------|------------|
 | Orchestrator | Routes to all stage agents | Level 1 | auto-orchestrate, auto-audit |
-| Epic-Architect | Creates tasks, spawns workers | Level 2 (sub-orch) | orchestrator |
-| Implementer | Executes directly (no delegation) | Level 0 | orchestrator |
+| Product-Manager | Creates tasks, spawns workers | Level 2 (sub-orch) | orchestrator |
+| Software-Engineer | Executes directly (no delegation) | Level 0 | orchestrator |
 | Researcher | Research + docs-lookup | Level 1 | orchestrator |
-| Documentor | Chains skills sequentially | Level 1 | orchestrator |
+| Technical-Writer | Chains skills sequentially | Level 1 | orchestrator |
 | Debugger | Diagnose + fix + verify loop | Level 0 | auto-debug |
 | Auditor | Read-only compliance analysis | Level 0 | auto-audit |
 | Session-Manager | Coordinates via state machine | Level 1 | orchestrator |
@@ -1862,11 +1860,11 @@ User request -> /workflow-plan -> TaskCreate -> /workflow-start -> /workflow-foc
 
 **Documentation Workflow**:
 ```
-/workflow-start -> /workflow-focus -> documentor -> docs-lookup -> docs-write -> docs-review -> /workflow-end
+/workflow-start -> /workflow-focus -> technical-writer -> docs-lookup -> docs-write -> docs-review -> /workflow-end
 ```
 1. `/workflow-start` initializes session
 2. `/workflow-focus` activates documentation task
-3. Documentor agent takes over
+3. Technical-writer agent takes over
 4. `docs-lookup` finds existing docs (prevent duplication)
 5. `docs-write` creates/updates content
 6. `docs-review` validates style compliance
@@ -1874,10 +1872,10 @@ User request -> /workflow-plan -> TaskCreate -> /workflow-start -> /workflow-foc
 
 **Feature Development (Epic)**:
 ```
-/workflow-plan -> epic-architect -> [Program 0 tasks] -> [Program 1 tasks] -> ... -> /workflow-end
+/workflow-plan -> product-manager -> [Program 0 tasks] -> [Program 1 tasks] -> ... -> /workflow-end
 ```
-1. `/workflow-plan` invokes epic-architect for large feature
-2. Epic-architect decomposes into tasks with dependencies
+1. `/workflow-plan` invokes product-manager for large feature
+2. Product-manager decomposes into tasks with dependencies
 3. Program 0 tasks execute (no dependencies)
 4. Program 1 tasks execute (depend on Program 0)
 5. Continue through all Programs
@@ -1895,7 +1893,7 @@ All components integrate via the Task tools:
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  TaskCreate <--- auto-orchestrate loop ONLY                     │
-│       │         (epic-architect proposes via files)              │
+│       │         (product-manager proposes via files)             │
 │       v                                                         │
 │  TaskList <---- auto-orchestrate loop ONLY                      │
 │       │         (passes state to orchestrator in spawn prompt)   │
@@ -1973,7 +1971,7 @@ The `validator` skill serves as the terminal quality gate. Six upstream skills c
 | Producer Skill | Produces | Consumers |
 |----------------|----------|-----------|
 | `codebase-stats` | metrics, hotspots, debt-inventory | refactor-analyzer, test-gap-analyzer, security-auditor, dependency-analyzer |
-| `researcher` | findings, recommendations | spec-creator, documentor |
+| `researcher` | findings, recommendations | spec-creator, technical-writer |
 | `refactor-analyzer` | extraction-plan, function-groups | refactor-executor |
 | `test-gap-analyzer` | coverage-gaps, test-stubs | test-writer-pytest |
 | `security-auditor` | vulnerabilities, remediation-plan | error-standardizer |
@@ -2007,7 +2005,7 @@ The `_shared/` directory contains cross-cutting resources that skills and agents
 
 | Directory | Purpose | Consumer |
 |-----------|---------|----------|
-| `references/epic-architect/` | Patterns, examples, output-format | `epic-architect` agent |
+| `references/product-manager/` | Patterns, examples, output-format | `product-manager` agent |
 | `references/orchestrator/` | Subagent protocol block | `orchestrator` agent |
 
 **How @-references resolve**: Skills and agents reference shared files using `@_shared/` paths (e.g., `@_shared/protocols/subagent-protocol-base.md#output-requirements`). These resolve to the `_shared/` directory within the skills installation path.
@@ -2052,7 +2050,7 @@ jq '._meta.totalAgents, ._meta.totalSkills, ._meta.totalCommands' claude-code/ma
 ```
 
 **Component Verification**:
-- [ ] All 17 agents documented (3 orchestration-core: orchestrator, session-manager, researcher + 5 pipeline: implementer, epic-architect, documentor, debugger, auditor + 13 team agents)
+- [ ] All 18 agents documented (2 pipeline-core: orchestrator, researcher + 3 pipeline: debugger, auditor, session-manager + 13 team agents)
 - [ ] All 35 skills cataloged
 - [ ] All 19 commands referenced (auto-orchestrate, auto-debug, auto-audit + 16 workflow/org commands)
 - [ ] All 6 protocols described
@@ -2289,9 +2287,9 @@ The domain memory system (`claude-code/lib/domain_memory/`) provides project-lev
 | Store | Purpose | Written By | Queried By |
 |-------|---------|-----------|-----------|
 | `research_ledger.jsonl` | Research findings, CVEs, recommendations | Orchestrator (Stage 0) | Researcher (avoid re-research) |
-| `decision_log.jsonl` | Architecture decisions with rationale | Orchestrator (Stage 1) | Epic-architect (prior context) |
-| `pattern_library.jsonl` | Success patterns and anti-patterns | Implementer, Retrospective | Implementer (learn from past) |
-| `fix_registry.jsonl` | Error fingerprint → verified fix | Debugger, Implementer | OODA controller, Debugger |
+| `decision_log.jsonl` | Architecture decisions with rationale | Orchestrator (Stage 1) | Product-manager (prior context) |
+| `pattern_library.jsonl` | Success patterns and anti-patterns | Software-engineer, Retrospective | Software-engineer (learn from past) |
+| `fix_registry.jsonl` | Error fingerprint → verified fix | Debugger, Software-engineer | OODA controller, Debugger |
 | `codebase_analysis.jsonl` | Per-file risk, tech debt, findings | Auditor, Validator | All stages (file context) |
 | `user_preferences.jsonl` | User corrections and preferences | Any command | All stages (respect choices) |
 
@@ -2424,10 +2422,10 @@ Override: If `gate_N.override` is non-null with required fields (reason ≥10 ch
 | Stage 3 | P-034, P-036, P-040 | notify | false |
 | Stage 4 | P-035, P-037 | link | false |
 | Stage 4.5 | P-062 | link | false |
-| Stage 5 | P-034, P-036, P-037 | notify | false |
-| Stage 6 | P-058, P-059, P-061 | link | false |
+| Stage 5 | **P-034**, P-036, **P-037** | gate | **true** (P-034, P-037 enforced V2) |
+| Stage 6 | **P-058**, P-059, P-061 | gate | **true** (P-058 enforced V2) |
 
-P-038 (Security by Design) is the only enforced gate in V1. Process stubs cover gaps at Stage 1→3 transition (sprint planning), parallel to Stage 0-2 (dependency coordination), and post-Stage 6 (onboarding).
+P-038 (Security by Design) is enforced at Stage 2. P-034 (Code Review) and P-037 (Automated Testing) are enforced at Stage 5 exit. P-058 (Technical Documentation) is enforced at Stage 6 exit. All V2 enforced hooks use a 3-iteration escalation pattern (WARN → ENFORCE → ESCALATE). Process stubs cover gaps at Stage 1→3 transition (sprint planning), parallel to Stage 0-2 (dependency coordination), and post-Stage 6 (onboarding).
 
 ### 17.6 Agent Reconciliation
 
@@ -2517,3 +2515,114 @@ The `/sprint-ceremony` command enforces Gate 4 (Sprint Readiness) before facilit
 **Override requirements**: `override.reason` (>=10 chars), `override.authorized_by`, `override.timestamp`
 
 **Reference**: `claude-code/commands/sprint-ceremony.md` — Gate Enforcement Check section
+
+### 17.10 Greenfield Detection (Step 0g)
+
+**Added**: 2026-04-14 (Session: auto-orc-20260414-mainpipe)
+
+The auto-orchestrate pipeline classifies the target project before spawning the first stage agent. Step 0g runs between domain memory initialization (Step 0f) and prompt enhancement (Step 1), using metadata-only operations to preserve the Execution Guard (no source file reading).
+
+**Classification**:
+
+| Type | Condition | Pipeline Adaptation |
+|------|-----------|---------------------|
+| `continuation` | Prior session exists with status `in_progress` or `superseded` | Researcher checks prior research output; builds incrementally |
+| `greenfield` | < 5 git commits AND < 10 source files | Researcher prioritizes technology selection, scaffolding patterns, dependency evaluation; product-manager includes scaffolding tasks |
+| `existing` | All other cases | Researcher prioritizes codebase analysis, change impact assessment, existing pattern identification; product-manager includes regression risk analysis |
+
+**Detection signals** (4 metadata probes):
+1. Git history depth (`git rev-list HEAD --count`)
+2. Source file count (`.py`, `.ts`, `.js`, `.go`, `.rs`, `.java`, `.rb` within 3 levels)
+3. Handoff receipt presence (`.orchestrate/{session_id}/handoff-receipt.json`)
+4. Prior orchestration history (`.orchestrate/auto-orc-*/checkpoint.json` count)
+
+The detected `project_type` is stored in the checkpoint and passed as `PROJECT_TYPE` in every orchestrator spawn prompt.
+
+**Reference**: `claude-code/commands/auto-orchestrate.md` — Step 0g
+
+### 17.11 Gate Enforcement Integration in Auto-Orchestrate
+
+**Added**: 2026-04-14 (Session: auto-orc-20260414-mainpipe)
+
+Step 2d of auto-orchestrate reads `.gate-state.json` from the project root (written by `/gate-review`) and maps organizational gates to pipeline stage prerequisites. This creates a bidirectional enforcement link between the organizational workflow (`/new-project`) and the technical pipeline (`/auto-orchestrate`).
+
+**Gate-to-stage mapping**:
+
+| Organizational Gate | Pipeline Stage Prerequisite |
+|--------------------|-----------------------------|
+| Gate 1 — Intent Review | Stage 0 (Research) |
+| Gate 2 — Scope Lock | Stage 2 (Specification) |
+| Gate 3 — Dependency Acceptance | Stage 3 (Implementation) |
+| Gate 4 — Sprint Readiness | Stage 5 (Validation) |
+
+**Enforcement in STAGE_CEILING** (Step 3a): After calculating the stages-based ceiling, a `gate_ceiling` is computed from the gate state. The final `STAGE_CEILING` is `min(stages_ceiling, gate_ceiling)`. Three outcomes are possible:
+
+1. `[GATE-BLOCK]` — gate not passed and no override: ceiling reduced to block the stage
+2. `[GATE-OVERRIDE]` — gate not passed but override set: progression allowed with audit trail
+3. `[GATE-SKIP]` — no `.gate-state.json` exists: backward compatible, no enforcement
+
+**Checkpoint fields**: `gate_state` (object or null), `gate_override` (boolean)
+
+**Reference**: `claude-code/commands/auto-orchestrate.md` — Steps 2d and 3a
+
+### 17.12 Bridge Protocol Enhancements
+
+**Added**: 2026-04-14 (Session: auto-orc-20260414-mainpipe)
+
+The handoff validation in auto-orchestrate was strengthened with BRIDGE-BLOCK enforcement:
+
+- **Before**: When `source_gate_status != "PASSED"` in the handoff receipt, auto-orchestrate emitted `[HANDOFF-WARN]` and continued. This allowed pipeline execution without proper gate passage.
+- **After**: Emits `[BRIDGE-BLOCK]` and aborts with checkpoint status `"bridge_blocked"`. This enforces the bridge protocol contract that gate passage is mandatory before auto-orchestration.
+
+The return path completion on termination now includes:
+- `return_path.stage6_artifacts_path` — path to Stage 6 documentation artifacts
+- `completed_timestamp` (renamed from `completed_at`) — ISO-8601 completion time
+
+**Reference**: `claude-code/commands/auto-orchestrate.md` — Handoff Resume and Return Path sections
+
+### 17.13 Process Hook Enforcement (V2 Upgrade)
+
+**Added**: 2026-04-14 (Session: auto-orc-20260414-mainpipe)
+
+Three process hooks were upgraded from advisory to enforced with a 3-iteration escalation pattern:
+
+| Process | Stage | Enforcement Change |
+|---------|-------|--------------------|
+| P-034 (Code Review) | Stage 5 (Validator exit) | Advisory → Enforced |
+| P-037 (Automated Testing / UAT) | Stage 5 (Validator exit) | Advisory → Enforced |
+| P-058 (Technical Documentation) | Stage 6 (Technical-writer exit) | Advisory → Enforced |
+
+**Enforcement escalation** (3 iterations per process):
+1. **Iteration 1 — WARN**: `[PROC-WARN] P-0XX not acknowledged — will enforce next iteration`
+2. **Iteration 2 — ENFORCE**: `[PROC-ENFORCE] P-0XX — adding remediation task`
+3. **Iteration 3 — ESCALATE**: `[PROC-ESCALATE] P-0XX — blocking pipeline, user intervention required`
+
+**Acknowledgment detection**: The pipeline checks stage output for process-specific markers (e.g., `"[P-034]"`, `"code review: PASS"`, `"test results:"`, `"documentation: COMPLETE"`).
+
+**Checkpoint tracking**: Each enforced process has `P-0XX_acknowledged` (boolean) and `P-0XX_iterations` (counter) fields in the `process_gates` checkpoint object.
+
+**Reference**: `claude-code/commands/auto-orchestrate.md` — Step 4.8a; `claude-code/processes/process_injection_map.md`
+
+### 17.14 Expanded Pre-flight Verification
+
+**Added**: 2026-04-14 (Session: auto-orc-20260414-mainpipe)
+
+Pre-flight verification was expanded from 3 skills to 9 pipeline components. Before spawning Stage 0 (researcher), auto-orchestrate verifies all pipeline-critical components exist in the manifest:
+
+| Stage | Component | Type | Mandatory |
+|-------|-----------|------|-----------|
+| 0 | researcher | agent | Yes |
+| 1 | product-manager | agent | Yes |
+| 2 | spec-creator | skill | Yes |
+| 3 | software-engineer | agent | Yes |
+| 3 | library-implementer-python | skill | No (alternative) |
+| 4 | test-writer-pytest | skill | No (Stage 4 optional) |
+| 4.5 | codebase-stats | skill | Yes |
+| 5 | validator | skill | Yes |
+| 6 | technical-writer | agent | Yes |
+
+**Verification output**: A summary table showing each component with pass/warn status and a final count line: `Result: 7/7 mandatory present, 2 optional (N missing)`.
+
+**Failure behavior**: Missing mandatory components abort with `[MANIFEST-001]`. Missing optional components emit `[MANIFEST-WARN]` and continue.
+
+**Reference**: `claude-code/commands/auto-orchestrate.md` — Pre-flight Component Verification section

@@ -14,13 +14,13 @@ last_reviewed: 2026-04-14
 **Type**: Process stub — minimal placeholder  
 **Status**: STUB — No auto-orchestrate pipeline stage implements these processes  
 **Date**: 2026-04-06  
-**Produced by**: implementer (Task #8, SPEC T018)
+**Produced by**: software-engineer (Task #8, SPEC T018)
 
 ---
 
 ## Gap Description
 
-Sprint planning processes P-022 through P-024 occur **between Stage 1 (Epic Architecture) and Stage 3 (Implementation)** in the auto-orchestrate pipeline but have no dedicated AO stage. The epic-architect (Stage 1) produces task decomposition aligned with P-007 (Decompose Deliverables) and P-008 (Definition of Done), but the subsequent sprint goal authoring, intent tracing, and story writing steps are not performed by any AO stage.
+Sprint planning processes P-022 through P-024 occur **between Stage 1 (Product Management) and Stage 3 (Implementation)** in the auto-orchestrate pipeline but have no dedicated AO stage. The product-manager (Stage 1) produces task decomposition aligned with P-007 (Decompose Deliverables) and P-008 (Definition of Done), but the subsequent sprint goal authoring, intent tracing, and story writing steps are not performed by any AO stage.
 
 In autonomous mode, the orchestrator treats each Stage 1 task as a story. In human-led mode, these three processes MUST be performed manually between Stage 1 completion and Stage 3 start.
 
@@ -31,7 +31,7 @@ In autonomous mode, the orchestrator treats each Stage 1 task as a story. In hum
 ### P-022: Sprint Goals
 
 **Owner**: Engineering Manager  
-**When**: After Stage 1 (Epic Architecture) completes, before Stage 3 (Implementation) begins  
+**When**: After Stage 1 (Product Management) completes, before Stage 3 (Implementation) begins  
 **Purpose**: Author clear, measurable sprint objectives that define what the team will deliver in this sprint
 
 **Minimum required actions**:
@@ -53,7 +53,7 @@ In autonomous mode, the orchestrator treats each Stage 1 task as a story. In hum
 2. Flag any orphan tasks (no deliverable mapping) — these may be infrastructure or risk mitigation; document them as such
 3. Document the trace in the Sprint Kickoff Brief
 
-**In auto-orchestrate mode**: The Stage 1 epic-architect is instructed to produce tasks driven by the research output (Stage 0) and the spec (Stage 2). Intent tracing is implicit through the research → epic → spec chain. For compliance, the Stage 1 output should be reviewed for deliverable alignment before Stage 3 begins.
+**In auto-orchestrate mode**: The Stage 1 product-manager is instructed to produce tasks driven by the research output (Stage 0) and the spec (Stage 2). Intent tracing is implicit through the research → epic → spec chain. For compliance, the Stage 1 output should be reviewed for deliverable alignment before Stage 3 begins.
 
 ### P-024: Story Writing
 

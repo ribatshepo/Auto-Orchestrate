@@ -14,7 +14,7 @@ last_reviewed: 2026-04-14
 **Type**: Process stub — minimal placeholder  
 **Status**: STUB — No auto-orchestrate pipeline stage implements these processes  
 **Date**: 2026-04-06  
-**Produced by**: implementer (Task #8, SPEC T018)
+**Produced by**: software-engineer (Task #8, SPEC T018)
 
 ---
 
@@ -44,7 +44,7 @@ The `/new-project` command guides dependency coordination in Stage 3, but when a
 ### P-016: Critical Path Analysis
 
 **Owner**: Technical Program Manager + Staff/Principal Engineer  
-**When**: After Stage 1 (Epic Architecture), before Stage 3 (Implementation)  
+**When**: After Stage 1 (Product Management), before Stage 3 (Implementation)  
 **Purpose**: Identify which dependencies block implementation
 
 **Minimum required actions**:
@@ -52,7 +52,7 @@ The `/new-project` command guides dependency coordination in Stage 3, but when a
 2. Mark blocking dependencies (without resolution, Stage 3 cannot proceed for those tasks)
 3. Mark non-blocking dependencies (implementation can proceed; integration tested later)
 
-**In auto-orchestrate mode**: Stage 1 epic-architect produces a dependency graph for internal tasks. External dependency blocking is not modeled. TPM must overlay external blocking analysis before Stage 3.
+**In auto-orchestrate mode**: Stage 1 product-manager produces a dependency graph for internal tasks. External dependency blocking is not modeled. TPM must overlay external blocking analysis before Stage 3.
 
 ### P-017: Resource Conflict Resolution
 
@@ -60,7 +60,7 @@ The `/new-project` command guides dependency coordination in Stage 3, but when a
 **When**: Before Stage 3  
 **Purpose**: Negotiate shared resource allocation with dependent teams
 
-**In auto-orchestrate mode**: Not applicable unless shared infrastructure (clusters, databases, test environments) is involved. If Stage 3 requires shared resources, EM must coordinate before implementers begin.
+**In auto-orchestrate mode**: Not applicable unless shared infrastructure (clusters, databases, test environments) is involved. If Stage 3 requires shared resources, EM must coordinate before software-engineers begin.
 
 ### P-018: Communication Plan
 

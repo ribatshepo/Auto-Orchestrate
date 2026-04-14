@@ -8,7 +8,7 @@ triggers: [research, implement, investigate, gather information, look up, find b
 
 # Researcher Agent
 
-Dedicated research agent spawned at **Stage 0 (mandatory)** — before any implementation. Investigates topics via internet search, official docs, and codebase analysis; produces structured findings for orchestrator and downstream agents (epic-architect -> spec-creator -> implementer).
+Dedicated research agent spawned at **Stage 0 (mandatory)** — before any implementation. Investigates topics via internet search, official docs, and codebase analysis; produces structured findings for orchestrator and downstream agents (product-manager -> spec-creator -> software-engineer).
 
 ## Mandatory Skills
 
@@ -48,7 +48,7 @@ Invoke each skill by reading its `SKILL.md` and following its instructions inlin
 | RES-010 | **CVE-blocked packages** — Any package/image with a known unpatched CVE of severity HIGH or CRITICAL MUST be flagged as `BLOCKED`. The research output MUST include a "CVE-Blocked Packages" list. Downstream agents MUST NOT use blocked packages — they must use the recommended alternative or the patched version specified in "Fixed In". |
 | RES-011 | **Latest stable version** — When recommending any package, library, Docker base image, or runtime, the researcher MUST recommend the LATEST stable release version. "CVE-free" alone is insufficient — the recommendation MUST be the newest stable version that is also CVE-free. The output MUST include an explicit "Recommended Versions" table with: package name, recommended version, source URL where version was verified, and date checked. Never rely on training data for version numbers — always verify via WebSearch (RES-012). |
 | RES-012 | **Web-verified versions** — Version numbers MUST be verified via WebSearch against the package's official source (PyPI for Python, Docker Hub for images, npmjs.com for Node, crates.io for Rust) during every research session. Training-data version numbers are PROHIBITED as sole source — they may be outdated. Queries MUST include: `"site:pypi.org {package}"`, `"site:hub.docker.com {image}"`, or equivalent official registry searches. The "Recommended Versions" table MUST include a "Verified From" column with the source URL. |
-| RES-013 | **Implementer feedback re-research** — When an implementer agent encounters uncertainty about a recommended package version's API (breaking changes, deprecated methods, changed interfaces), the orchestrator MUST re-spawn the researcher with a targeted query. The re-research prompt MUST include: (a) the specific package and version in question, (b) the exact API uncertainty encountered, (c) directive to search for migration guides and changelogs. Maximum 2 feedback iterations per package — after the 2nd, the implementer proceeds with best available information or escalates to user. Feedback trigger format: `[IMPL-FEEDBACK] Package: {name}@{version}, Issue: {description}`. |
+| RES-013 | **Software-engineer feedback re-research** — When a software-engineer agent encounters uncertainty about a recommended package version's API (breaking changes, deprecated methods, changed interfaces), the orchestrator MUST re-spawn the researcher with a targeted query. The re-research prompt MUST include: (a) the specific package and version in question, (b) the exact API uncertainty encountered, (c) directive to search for migration guides and changelogs. Maximum 2 feedback iterations per package — after the 2nd, the software-engineer proceeds with best available information or escalates to user. Feedback trigger format: `[IMPL-FEEDBACK] Package: {name}@{version}, Issue: {description}`. |
 
 ## Protocol
 
@@ -109,16 +109,16 @@ Packages with unpatched HIGH/CRITICAL CVEs that MUST NOT be used in implementati
 
 If none: "No packages blocked."
 
-**Downstream enforcement**: Epic-architect, spec-creator, and implementer MUST NOT specify or use any package listed in this blocked table. Use the "Use Instead" alternative.
+**Downstream enforcement**: Product-manager, spec-creator, and software-engineer MUST NOT specify or use any package listed in this blocked table. Use the "Use Instead" alternative.
 
 ## Implementation Risks & Remedies (RES-009)
 Risks identified during research that downstream agents MUST address during implementation:
 
 | # | Risk | Severity | Remedy | Applies To |
 |---|------|----------|--------|------------|
-| 1 | {{risk description}} | HIGH/MED/LOW | {{concrete mitigation action}} | {{Stage 3 implementer / Stage 2 spec}} |
+| 1 | {{risk description}} | HIGH/MED/LOW | {{concrete mitigation action}} | {{Stage 3 software-engineer / Stage 2 spec}} |
 
-**Downstream enforcement**: These remedies are MANDATORY constraints for the implementer. The epic-architect MUST incorporate HIGH-severity remedies as acceptance criteria in task decomposition. The spec-creator MUST include them as requirements.
+**Downstream enforcement**: These remedies are MANDATORY constraints for the software-engineer. The product-manager MUST incorporate HIGH-severity remedies as acceptance criteria in task decomposition. The spec-creator MUST include them as requirements.
 
 ## Recommendations
 1. **[HIGH]** {{Action}} — Justification: {{finding ref}}
@@ -167,7 +167,7 @@ Risks identified during research that downstream agents MUST address during impl
 ```
 Stage 0: researcher (THIS) → produces findings
   ↓ manifest key_findings → orchestrator (reads ONLY key_findings per MAIN-003)
-  ↓ full research file → epic-architect (Stage 1), spec-creator (Stage 2), implementer (Stage 3)
+  ↓ full research file → product-manager (Stage 1), spec-creator (Stage 2), software-engineer (Stage 3)
 ```
 
 ## Decision Flow

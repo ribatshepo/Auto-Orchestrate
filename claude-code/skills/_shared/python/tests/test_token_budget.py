@@ -80,7 +80,7 @@ class TestCreateTracker:
 
     def test_custom_context_limit(self) -> None:
         # Arrange / Act
-        tracker = create_tracker("implementer", context_limit=100_000)
+        tracker = create_tracker("software-engineer", context_limit=100_000)
 
         # Assert
         assert tracker["context_limit"] == 100_000

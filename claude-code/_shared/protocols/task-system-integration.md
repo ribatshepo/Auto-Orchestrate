@@ -7,7 +7,7 @@ Skills and templates SHOULD reference this file for consistent task handling.
 
 ## Subagent Availability Warning
 
-**CRITICAL**: TaskCreate, TaskList, TaskUpdate, and TaskGet are ONLY available to the **auto-orchestrate loop** (main Claude Code instance). They are **NOT available** to any subagent (orchestrator, epic-architect, implementer, documentor, session-manager).
+**CRITICAL**: TaskCreate, TaskList, TaskUpdate, and TaskGet are ONLY available to the **auto-orchestrate loop** (main Claude Code instance). They are **NOT available** to any subagent (orchestrator, product-manager, software-engineer, technical-writer, session-manager).
 
 Subagents MUST use the file-based task proposal protocol instead:
 - **To propose tasks**: Write to `.orchestrate/<session-id>/proposed-tasks.json`

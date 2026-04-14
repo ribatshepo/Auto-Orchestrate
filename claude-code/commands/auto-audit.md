@@ -56,7 +56,7 @@ arguments:
 
 | ID | Rule |
 |----|------|
-| AUD-LOOP-001 | **Dual-gateway** — Spawn ONLY `subagent_type: "auditor"` (Phase A) or `subagent_type: "orchestrator"` (Phase B). Never spawn implementer, researcher, debugger, etc. directly. If 2 consecutive retries return empty output, abort with `[AUD-LOOP-001]` message. |
+| AUD-LOOP-001 | **Dual-gateway** — Spawn ONLY `subagent_type: "auditor"` (Phase A) or `subagent_type: "orchestrator"` (Phase B). Never spawn software-engineer, researcher, debugger, etc. directly. If 2 consecutive retries return empty output, abort with `[AUD-LOOP-001]` message. |
 | AUD-LOOP-002 | **Cycle-based termination** — Cannot declare `completed` unless the most recent audit returned verdict PASS or ACCEPTABLE (score ≥ threshold). |
 | AUD-LOOP-003 | **Spec context passthrough** — Every auditor spawn receives the FULL spec path. Every orchestrator spawn receives the FULL gap report as enhanced prompt context. Never summarize. |
 | AUD-LOOP-004 | **Checkpoint-before-spawn** — Write checkpoint to disk before every agent spawn. |
@@ -428,7 +428,7 @@ When the gap report contains gaps categorized as `implementation_error` or `runt
 
 ## Step 5: Spawn Orchestrator — Phase B (Remediation)
 
-> **AUD-LOOP-001 GUARD**: Only spawn `subagent_type: "orchestrator"` here. Never spawn implementer, researcher, or any other agent type.
+> **AUD-LOOP-001 GUARD**: Only spawn `subagent_type: "orchestrator"` here. Never spawn software-engineer, researcher, or any other agent type.
 
 ### 5a. Read gap report
 
@@ -812,7 +812,7 @@ Do NOT call EnterPlanMode. NEVER git commit/push.
 ## Delegation Guard — YOU ARE A COORDINATOR, NOT A WORKER
 ╔══════════════════════════════════════════════════════════════╗
 ║  Delegate ALL work to subagents. NEVER implement yourself.   ║
-║  Spawn researcher, epic-architect, spec-creator, implementer ║
+║  Spawn researcher, product-manager, spec-creator, software-engineer ║
 ║  as needed following the standard pipeline.                  ║
 ╚══════════════════════════════════════════════════════════════╝
 

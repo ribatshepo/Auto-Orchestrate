@@ -85,11 +85,11 @@ class TestSendMessage:
         payload = {"type": "task_complete", "task_id": "5"}
 
         # Act
-        message_id = send_message("orchestrator", "implementer", payload, SESSION_ID)
+        message_id = send_message("orchestrator", "software-engineer", payload, SESSION_ID)
 
         # Assert
         pending_dir = (
-            _messages_root(claude_home, SESSION_ID) / "implementer" / PENDING_DIR_NAME
+            _messages_root(claude_home, SESSION_ID) / "software-engineer" / PENDING_DIR_NAME
         )
         assert pending_dir.is_dir()
         files = list(pending_dir.glob(f"*{MESSAGE_FILE_SUFFIX}"))

@@ -146,7 +146,7 @@ All skill scripts MUST:
 }
 ```
 
-**Consumed by**: security-auditor SKILL.md, implementer quality pipeline
+**Consumed by**: security-auditor SKILL.md, software-engineer quality pipeline
 
 ## File Analyzer (`refactor-executor/scripts/file_analyzer.py`)
 

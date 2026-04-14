@@ -150,13 +150,13 @@ def _stage_number_from_name(stage_name: str) -> int:
     """
     mapping = {
         "stage_0": 0, "researcher": 0,
-        "stage_1": 1, "epic_creator": 1,
+        "stage_1": 1, "product_manager": 1,
         "stage_2": 2, "spec_creator": 2,
-        "stage_3": 3, "implementer": 3,
+        "stage_3": 3, "software_engineer": 3,
         "stage_4": 4, "tester": 4,
         "stage_4_5": 4, "integration_tester": 4,
         "stage_5": 5, "validator": 5,
-        "stage_6": 6, "documenter": 6,
+        "stage_6": 6, "technical_writer": 6,
     }
     return mapping.get(stage_name, -1)
 

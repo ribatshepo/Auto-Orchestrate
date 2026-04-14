@@ -642,7 +642,7 @@ PM or QA formally verifies each story against its acceptance criteria before sto
 | Criterion | Measurement | Target |
 |-----------|-------------|--------|
 | Verification coverage | % of stories with recorded acceptance verification | 100% |
-| Independent verification | % of verifications performed by non-implementer | 100% |
+| Independent verification | % of verifications performed by non-software-engineer | 100% |
 | Cycle time | Median time from "ready for acceptance" to verification complete | < 4 hours (business hours) |
 | Rejection quality | Rejected stories include specific, actionable feedback | 100% of rejections |
 

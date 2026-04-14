@@ -71,7 +71,7 @@ After installation, components are immediately available:
 
 ### 3.1 Full Installation
 
-Install all 35 skills, 17 agents, and 19 commands:
+Install all 35 skills, 18 agents, and 19 commands:
 
 ```bash
 # Create directories if they don't exist
@@ -104,7 +104,7 @@ Install only specific categories based on your needs:
 cp -r claude-code/skills/docs-lookup ~/.claude/skills/
 cp -r claude-code/skills/docs-write ~/.claude/skills/
 cp -r claude-code/skills/docs-review ~/.claude/skills/
-cp claude-code/agents/documentor.md ~/.claude/agents/
+cp claude-code/agents/technical-writer.md ~/.claude/agents/
 ```
 
 **Research and analysis skills:**
@@ -126,7 +126,7 @@ cp -r claude-code/skills/validator ~/.claude/skills/
 ```bash
 cp -r claude-code/skills/task-executor ~/.claude/skills/
 cp -r claude-code/skills/library-implementer-python ~/.claude/skills/
-cp claude-code/agents/implementer.md ~/.claude/agents/
+cp claude-code/agents/software-engineer.md ~/.claude/agents/
 ```
 
 **Debugging subsystem:**
@@ -354,9 +354,9 @@ triggers:
 Agents specify their model in frontmatter. To change an agent's model:
 
 ```yaml
-# ~/.claude/agents/implementer.md
+# ~/.claude/agents/software-engineer.md
 ---
-name: implementer
+name: software-engineer
 model: opus           # Change from 'sonnet' for complex tasks
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
@@ -441,9 +441,6 @@ After installation, your `~/.claude/` should look like:
 │   ├── orchestrator.md                 ← orchestration core
 │   ├── researcher.md                   ← orchestration core
 │   ├── session-manager.md              ← orchestration core
-│   ├── documentor.md                   ← pipeline agent
-│   ├── epic-architect.md               ← pipeline agent
-│   ├── implementer.md                  ← pipeline agent
 │   ├── debugger.md                     ← pipeline agent
 │   ├── auditor.md                      ← pipeline agent
 │   ├── cloud-engineer.md               ← team agent
@@ -533,7 +530,7 @@ rm -rf ~/.claude/skills/researcher
 
 **Uninstall specific agent:**
 ```bash
-rm ~/.claude/agents/documentor.md
+rm ~/.claude/agents/technical-writer.md
 ```
 
 ---
@@ -752,6 +749,17 @@ Expected output:
 Import successful: EXIT_SUCCESS = 0
 ```
 
+### 11.7 CI Engine Dependencies
+
+**Added**: 2026-04-14 (Session: auto-orc-20260414-mainpipe)
+
+The CI engine (`claude-code/lib/ci_engine/`) and domain memory (`claude-code/lib/domain_memory/`) libraries use only Python standard library modules (no third-party dependencies). A `claude-code/requirements.txt` file documents this explicitly.
+
+**install.sh integration**:
+- If `requirements.txt` contains non-comment, non-empty lines, `install.sh` runs `pip install --user -r requirements.txt` with graceful degradation on failure
+- Post-install verification attempts to import CI engine and domain memory modules to confirm correct installation
+- The `--check` flag includes Python module import verification in its dry-run output
+
 ---
 
 ## 12. Organizational Workflow Integration
@@ -820,10 +828,12 @@ If `/auto-orchestrate` is unavailable at handoff time:
 ### 12.5 Return Path
 
 After `/auto-orchestrate` completes Stage 6:
-1. Update `handoff-receipt.json`: set `auto_orchestrate_status: "completed"`
+1. Update `handoff-receipt.json`: set `auto_orchestrate_status: "completed"`, `return_path.stage6_artifacts_path`, and `completed_timestamp`
 2. Link Stage 6 documentation to the project record
 3. Present Stage 5 validation report as sprint completion evidence
 4. Run `/sprint-ceremony` to close the sprint
+
+**Handoff validation**: When auto-orchestrate reads a handoff receipt with `source_gate_status != "PASSED"`, it emits `[BRIDGE-BLOCK]` and aborts with checkpoint status `"bridge_blocked"`. This enforces that gate passage is mandatory before pipeline execution.
 
 **Artifact locations**:
 - Stage 6 docs: `.orchestrate/{session_id}/stage-6/`
@@ -908,7 +918,7 @@ done
 ### 13.3 Verifying Team Agent Installation
 
 ```bash
-# Total agent count (should be 17)
+# Total agent count (should be 18)
 ls ~/.claude/agents/*.md | wc -l
 
 # List all installed agents
@@ -918,10 +928,10 @@ ls ~/.claude/agents/*.md | xargs -I{} basename {}
 head -10 ~/.claude/agents/software-engineer.md
 ```
 
-Expected: 17 agent files total (3 orchestration-core: orchestrator, session-manager, researcher + 5 pipeline agents: implementer, epic-architect, documentor, debugger, auditor + 13 team agents).
+Expected: 18 agent files total (2 pipeline-core: orchestrator, researcher + 3 pipeline: debugger, auditor, session-manager + 13 team agents).
 
 
-> **Manifest completeness**: As of 2026-04-14, `manifest.json` includes all 17 agents and all 19 commands in its `agents[]` and `commands[]` arrays (plus all 35 skills). This ensures full orchestrator routing coverage — every agent can be dispatched by `dispatch_triggers`, and every command is registered for discovery. Verify with: `python3 -c "import json; m=json.load(open('claude-code/manifest.json')); print('agents:', len(m['agents']), '| commands:', len(m['commands']), '| skills:', len(m['skills']))"`
+> **Manifest completeness**: As of 2026-04-14, `manifest.json` includes all 18 agents and all 19 commands in its `agents[]` and `commands[]` arrays (plus all 35 skills). This ensures full orchestrator routing coverage — every agent can be dispatched by `dispatch_triggers`, and every command is registered for discovery. Verify with: `python3 -c "import json; m=json.load(open('claude-code/manifest.json')); print('agents:', len(m['agents']), '| commands:', len(m['commands']), '| skills:', len(m['skills']))"`
 
 ### 13.4 Routing Tasks with /assign-agent
 
@@ -973,11 +983,11 @@ At each pipeline stage (0 through 6) and at run completion, the injection map sp
 
 This provides an audit trail of which organizational processes were applied during each autonomous run, supporting compliance, retrospectives, and process improvement.
 
-### 14.2 V1 State: Advisory Hooks with One Enforced Exception
+### 14.2 Current Enforcement State
 
-In V1 (current), **all 8 stage hooks are advisory (non-blocking)** — the pipeline continues regardless of whether the process was followed. The one exception is **P-038 (Security by Design)** at Stage 2, which is **enforced (blocking)**.
+As of 2026-04-14, **4 process hooks are enforced (blocking)** and the remaining are advisory (non-blocking). V2 enforcement was applied to P-034, P-037, and P-058, joining the existing P-038 enforced hook.
 
-**Hook enforcement state (V1):**
+**Hook enforcement state:**
 
 | Stage | Event | Process IDs | Enforcement |
 |-------|-------|-------------|-------------|
@@ -987,13 +997,25 @@ In V1 (current), **all 8 stage hooks are advisory (non-blocking)** — the pipel
 | Stage 2 | before | P-010, P-011 (Spec standards) | Advisory |
 | Stage 3 | before | P-020 through P-025 (Implementation standards) | Advisory |
 | Stage 4 | before | P-030 through P-033 (Testing standards) | Advisory |
-| Stage 5 | before | P-040 through P-043 (Validation standards) | Advisory |
-| Stage 6 | before | P-050 through P-052 (Documentation standards) | Advisory |
+| Stage 5 | after | **P-034** (Code Review), **P-037** (Automated Testing / UAT) | **ENFORCED — 3-iteration escalation** |
+| Stage 6 | after | **P-058** (Technical Documentation) | **ENFORCED — 3-iteration escalation** |
+| Stage 6 | before | P-059, P-061 (API Docs, Runbook) | Advisory |
 | Run complete | after | P-070 (Retrospective) | Advisory |
 
-### 14.3 Why P-038 Is the Only Enforced Hook
+**V2 enforcement escalation** (3-iteration pattern for P-034, P-037, P-058):
+1. WARN — process not acknowledged, advisory log
+2. ENFORCE — remediation task injected
+3. ESCALATE — pipeline blocked, user intervention required
 
-Security by Design (P-038) is enforced at Stage 2 because security requirements identified after the specification phase are significantly more expensive to remediate. The spec is the last point before implementation where security constraints can be incorporated at zero cost. All other process hooks are positioned as advisory because V1 prioritizes adoption over enforcement — teams should build familiarity with the process framework before enforcement gates are added.
+Acknowledgment is detected via process-specific markers in stage output (e.g., `"[P-034]"`, `"code review: PASS"`, `"test results:"`, `"documentation: COMPLETE"`). Each enforced process has tracking fields (`P-0XX_acknowledged`, `P-0XX_iterations`) in the checkpoint `process_gates` object.
+
+### 14.3 Enforcement Rationale
+
+**P-038 (Security by Design)** — enforced at Stage 2 because security requirements identified after the specification phase are significantly more expensive to remediate. The spec is the last point before implementation where security constraints can be incorporated at zero cost.
+
+**P-034 (Code Review)** and **P-037 (Automated Testing / UAT)** — enforced at Stage 5 (validator exit) because code review and testing are the final quality gates before documentation. Enforcement ensures the validator stage produces verified review and test evidence before the pipeline advances.
+
+**P-058 (Technical Documentation)** — enforced at Stage 6 (technical-writer exit) because documentation completeness is a mandatory deliverable. Enforcement ensures the technical-writer produces acknowledged documentation artifacts before pipeline completion.
 
 ### 14.4 V2 Enforcement Roadmap
 
@@ -1003,10 +1025,14 @@ Additional hooks may be promoted to enforced in V2 under the following condition
 2. **Retrospective confirmation**: At least 2 sprint retrospectives have identified the process as adding measurable value (reduced defects, faster delivery, or improved handoff quality).
 3. **Team approval**: Engineering leadership sign-off confirming the enforcement will not block critical hotfix or incident response flows.
 
-**Processes most likely to be promoted in V2** (based on voluntary compliance data):
+**Processes promoted to enforced in V2** (2026-04-14):
+- P-034 (Code Review) — Stage 5 exit
+- P-037 (Automated Testing / UAT) — Stage 5 exit
+- P-058 (Technical Documentation) — Stage 6 exit
+
+**Processes that may be promoted in a future version** (based on voluntary compliance data):
 - P-001 (Epic decomposition standards) — Stage 1
 - P-030 (Test coverage requirements) — Stage 4
-- P-050 (Documentation completeness) — Stage 6
 
 The V2 enforcement promotion mechanism is documented in `claude-code/processes/process_injection_map.md` under the "Enforcement Policy" section.
 

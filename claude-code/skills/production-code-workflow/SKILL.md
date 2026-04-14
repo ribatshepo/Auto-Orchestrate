@@ -35,7 +35,7 @@ This skill provides:
 ## Used By
 
 This skill is referenced by:
-- `claude-code/agents/implementer.md` - Uses patterns and examples
+- `claude-code/agents/software-engineer.md` - Uses patterns and examples
 - Orchestrator agents - Via Task tool delegation
 
 ## Core Principle
@@ -238,7 +238,7 @@ Write to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md`:
 ```
 claude-code/
 ├── agents/
-│   └── implementer.md            # Fast implementation agent
+│   └── software-engineer.md      # Fast implementation agent
 └── skills/
     └── production-code-workflow/
         ├── SKILL.md              # This file

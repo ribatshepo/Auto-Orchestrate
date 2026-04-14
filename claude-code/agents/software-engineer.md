@@ -1,7 +1,7 @@
 ---
 name: software-engineer
 description: Use when implementing features, writing production code, debugging, running unit tests, performing code reviews, or doing technical design within a single team's scope. Handles L3-L5 IC work and Tech Lead responsibilities.
-model: claude-opus-4-5
+model: opus
 tools: Read, Write, Edit, Bash, Glob, Grep, Task
 ---
 

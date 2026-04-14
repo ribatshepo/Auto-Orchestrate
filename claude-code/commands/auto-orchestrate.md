@@ -50,20 +50,84 @@ arguments:
 
 # Autonomous Orchestration Loop
 
-## Pre-flight Skill Verification
+## Pre-flight Component Verification
 
-Before spawning Stage 0 (researcher), verify required skills exist in manifest:
+Before spawning Stage 0 (researcher), verify ALL 9 pipeline-critical components exist in manifest:
+
+### Pipeline Component Matrix
+
+| Stage | Component Name | Type | Mandatory | Manifest Location |
+|-------|---------------|------|-----------|-------------------|
+| 0 | researcher | agent | YES | `agents[]` where `name == "researcher"` |
+| 1 | product-manager | agent | YES | `agents[]` where `name == "product-manager"` |
+| 2 | spec-creator | skill | YES | `skills[]` where `name == "spec-creator"` |
+| 3 | software-engineer | agent | YES (one of) | `agents[]` where `name == "software-engineer"` |
+| 3 | library-implementer-python | skill | NO (alternative) | `skills[]` where `name == "library-implementer-python"` |
+| 4 | test-writer-pytest | skill | NO (Stage 4 optional) | `skills[]` where `name == "test-writer-pytest"` |
+| 4.5 | codebase-stats | skill | YES | `skills[]` where `name == "codebase-stats"` |
+| 5 | validator | skill | YES | `skills[]` where `name == "validator"` |
+| 6 | technical-writer | agent | YES | `agents[]` where `name == "technical-writer"` |
+
+### Verification Steps
 
 1. Read `~/.claude/manifest.json`
-2. Verify the following skills exist in the `skills` array:
-   - `researcher` — required for Stage 0
-   - `spec-creator` — required for Stage 2
-   - `implementer` or `library-implementer-python` — required for Stage 3
-3. If any required skill is missing:
-   - Log: `[MANIFEST-001] Skill "<name>" not found in manifest — Stage N may fail`
-   - Abort orchestration with error if Stage 0 skill (researcher) is missing
-   - Warn but continue if Stage 2+ skill is missing (orchestrator will fail when it reaches that stage)
-4. Also verify that the orchestrator agent itself exists at `~/.claude/agents/orchestrator.md`
+2. Verify orchestrator agent exists at `~/.claude/agents/orchestrator.md`
+3. For each component in the matrix:
+   a. Check if component exists in the appropriate manifest array (`agents[]` or `skills[]`)
+   b. For agents, also verify the `.md` file exists at `~/.claude/agents/<name>.md`
+   c. Record result in `manifest_validation` object
+
+4. Classify results:
+   - **MANDATORY MISSING**: researcher, product-manager, spec-creator, software-engineer, codebase-stats, validator, technical-writer
+     - Abort with: `[MANIFEST-001] Mandatory {type} "{name}" not found in manifest. Stage {N} will fail. Aborting.`
+   - **OPTIONAL MISSING**: library-implementer-python, test-writer-pytest
+     - Warn: `[MANIFEST-WARN] Optional {type} "{name}" not found. Stage {N} may use alternatives.`
+   - **ALL MANDATORY PRESENT**: proceed
+
+5. Display pre-flight verification summary:
+```
+Pre-flight Manifest Check:
+  ✓ researcher (Stage 0, agent)
+  ✓ product-manager (Stage 1, agent)
+  ✓ spec-creator (Stage 2, skill)
+  ✓ software-engineer (Stage 3, agent)
+  ? library-implementer-python (Stage 3, optional skill)
+  ? test-writer-pytest (Stage 4, optional skill)
+  ✓ codebase-stats (Stage 4.5, skill)
+  ✓ validator (Stage 5, skill)
+  ✓ technical-writer (Stage 6, agent)
+  Result: 7/7 mandatory present, 2 optional (0 missing)
+```
+
+6. Log: `[MANIFEST] Verified {checked_count}/{total_count} pipeline components. Missing: {missing_list or "none"}`
+
+### Checkpoint Schema Addition
+
+Record verification result in checkpoint:
+```json
+{
+  "manifest_validation": {
+    "checked_at": "<ISO-8601>",
+    "total_checked": 9,
+    "mandatory_present": 7,
+    "mandatory_missing": [],
+    "optional_present": ["library-implementer-python", "test-writer-pytest"],
+    "optional_missing": [],
+    "warnings": [],
+    "components": [
+      { "name": "researcher", "type": "agent", "stage": 0, "mandatory": true, "found": true },
+      { "name": "product-manager", "type": "agent", "stage": 1, "mandatory": true, "found": true },
+      { "name": "spec-creator", "type": "skill", "stage": 2, "mandatory": true, "found": true },
+      { "name": "software-engineer", "type": "agent", "stage": 3, "mandatory": true, "found": true },
+      { "name": "library-implementer-python", "type": "skill", "stage": 3, "mandatory": false, "found": true },
+      { "name": "test-writer-pytest", "type": "skill", "stage": 4, "mandatory": false, "found": true },
+      { "name": "codebase-stats", "type": "skill", "stage": 4.5, "mandatory": true, "found": true },
+      { "name": "validator", "type": "skill", "stage": 5, "mandatory": true, "found": true },
+      { "name": "technical-writer", "type": "agent", "stage": 6, "mandatory": true, "found": true }
+    ]
+  }
+}
+```
 
 ## Session Resume from Handoff
 
@@ -83,6 +147,20 @@ If starting from a /new-project handoff:
 3. If found but `status != "pending"`: Treat as normal session (may already be in progress)
 4. If not found: Treat as fresh start
 
+### Handoff Validation (Enhanced)
+If resuming from handoff, perform additional validation after loading:
+
+5. **Validate `source_gate_status`** — If present, check that required gate was passed:
+   - If `source_gate_status == "PASSED"`: proceed
+   - If `source_gate_status != "PASSED"`: emit `[BRIDGE-BLOCK] Handoff receipt source_gate_status is "{status}", expected "PASSED". Bridge protocol requires gate passage before auto-orchestration.` Abort. Set checkpoint status to `"bridge_blocked"`.
+6. **Check `scope_contract_path`** — If present, verify the file exists:
+   - If file exists: log `[BRIDGE] Scope contract found at {path}`
+   - If file missing: log `[BRIDGE-WARN] Scope contract path "{path}" not found. File may have been moved. Proceeding with task_description from receipt.`
+7. **Extract `scope_flag`** — If present, use for scope resolution in Step 0d:
+   - Store extracted flag for use in scope resolution
+   - If `scope_flag` in receipt conflicts with `--scope` argument: argument takes precedence, log `[HANDOFF-OVERRIDE] --scope argument overrides handoff scope_flag`
+8. Log validation result: `[HANDOFF-VALID] Gate: {gate}, Scope: {flag}, Contract: {path}`
+
 ### Handoff Receipt Path
 
 `{working_dir}/.orchestrate/{session_id}/handoff-receipt.json`
@@ -93,8 +171,8 @@ The session_id follows the format: `auto-orc-{YYYYMMDD}-{project_slug}`
 
 | ID | Rule |
 |----|------|
-| AUTO-001 | **Orchestrator-only gateway** — Spawn ONLY `subagent_type: "orchestrator"`. Never spawn implementer, documentor, etc. directly. If 2 consecutive retries return empty output, abort with `[AUTO-001]` message. |
-| AUTO-002 | **Mandatory stage completion** — Cannot declare `completed` unless `stages_completed` includes 0, 1, 2, 4.5, 5, and 6. Stage 4 (test-writer-pytest) is optional — included only when the epic-architect (Stage 1) produces test tasks. If no Stage 4 tasks exist, Stage 4 is considered implicitly complete. |
+| AUTO-001 | **Orchestrator-only gateway** — Spawn ONLY `subagent_type: "orchestrator"`. Never spawn software-engineer, technical-writer, etc. directly. If 2 consecutive retries return empty output, abort with `[AUTO-001]` message. |
+| AUTO-002 | **Mandatory stage completion** — Cannot declare `completed` unless `stages_completed` includes 0, 1, 2, 4.5, 5, and 6. Stage 4 (test-writer-pytest) is optional — included only when the product-manager (Stage 1) produces test tasks. If no Stage 4 tasks exist, Stage 4 is considered implicitly complete. |
 | AUTO-003 | **Stage monotonicity** — `current_pipeline_stage` only increases or holds. Keep high-water mark on regression. |
 | AUTO-004 | **Post-implementation stage gate** — If Stage 3 done but 4.5/5/6 missing for 1+ iterations, set `mandatory_stage_enforcement: true` and inject missing-stage tasks. |
 | AUTO-005 | **Checkpoint-before-spawn** — Write checkpoint to disk before every orchestrator spawn. |
@@ -142,13 +220,13 @@ The session_id follows the format: `auto-orc-{YYYYMMDD}-{project_slug}`
 | Stage | Agent (`dispatch_hint`) | Mandatory | Complete when |
 |-------|------------------------|-----------|---------------|
 | 0 | `researcher` | **YES** | researcher task completed |
-| 1 | `epic-architect` | **YES** | epic-architect task completed |
+| 1 | `product-manager` | **YES** | product-manager task completed |
 | 2 | `spec-creator` | **YES** | spec-creator task completed |
-| 3 | `implementer` / `library-implementer-python` | Per task | implementer task completed |
+| 3 | `software-engineer` / `library-implementer-python` | Per task | software-engineer task completed |
 | 4 | `test-writer-pytest` | Per task | test-writer-pytest task completed |
 | 4.5 | `codebase-stats` | **YES** (post-impl) | codebase-stats task completed |
 | 5 | `validator` | **YES** | validator task completed |
-| 6 | `documentor` | **YES** | documentor task completed |
+| 6 | `technical-writer` | **YES** | technical-writer task completed |
 
 Unknown/no dispatch_hint → "Uncategorized".
 
@@ -236,6 +314,66 @@ mkdir -p .domain
 ```
 
 This directory persists **cross-session, cross-command** domain knowledge (research findings, error→fix mappings, patterns, architecture decisions, codebase analysis, user preferences). All stores are append-only JSONL with file locking for concurrency safety. Pass `DOMAIN_MEMORY_DIR=.domain` in the orchestrator spawn prompt.
+
+### 0g. Project Type Detection
+
+Classify the target project as `greenfield`, `existing`, or `continuation` to adapt pipeline behavior. Detection uses metadata operations only (git history, file counts, file existence) — no source file reading (preserves Execution Guard).
+
+**Detection Signals**:
+
+```bash
+# SIGNAL 1: Git History Depth
+COMMIT_COUNT=$(git rev-list HEAD --count 2>/dev/null || echo "0")
+
+# SIGNAL 2: Source File Count
+SOURCE_FILE_COUNT=$(find . -maxdepth 3 -type f \( -name "*.py" -o -name "*.ts" -o -name "*.js" -o -name "*.go" -o -name "*.rs" -o -name "*.java" -o -name "*.rb" \) | wc -l)
+
+# SIGNAL 3: Handoff Receipt Presence
+HANDOFF_PRESENT=$(test -f .orchestrate/${SESSION_ID}/handoff-receipt.json && echo "present" || echo "absent")
+
+# SIGNAL 4: Prior Orchestration History
+PRIOR_SESSION_COUNT=$(ls -d .orchestrate/auto-orc-*/checkpoint.json 2>/dev/null | wc -l)
+```
+
+**Classification Logic**:
+
+```
+IF PRIOR_SESSION_COUNT > 0 AND any prior session has status "in_progress" or "superseded":
+  project_type = "continuation"
+ELSE IF COMMIT_COUNT < 5 AND SOURCE_FILE_COUNT < 10:
+  project_type = "greenfield"
+ELSE:
+  project_type = "existing"
+```
+
+**Store in checkpoint**:
+
+```json
+{
+  "project_type": "greenfield|existing|continuation",
+  "project_detection": {
+    "commit_count": 0,
+    "source_file_count": 0,
+    "handoff_present": false,
+    "prior_session_count": 0,
+    "detected_at": "<ISO-8601>"
+  }
+}
+```
+
+**Pass to orchestrator spawn prompt**: Add `PROJECT_TYPE: <type>` in the spawn prompt context.
+
+**Inject into enhanced prompt**:
+
+| Project Type | Context Injected |
+|-------------|------------------|
+| `greenfield` | `**Project Type**: Greenfield. This is a new project requiring scaffolding, architecture decisions, dependency selection, and initial project structure. The researcher (Stage 0) should prioritize: technology selection, project scaffolding patterns, dependency evaluation. The product-manager (Stage 1) should include scaffolding tasks.` |
+| `existing` | `**Project Type**: Existing codebase. This project has established patterns, existing dependencies, and production code. The researcher (Stage 0) should prioritize: codebase analysis, change impact assessment, existing pattern identification. The product-manager (Stage 1) should include regression risk analysis.` |
+| `continuation` | `**Project Type**: Continuation of prior orchestration session. Previous session context is available in .orchestrate/. The researcher (Stage 0) should check prior research output and build incrementally.` |
+
+**Detection MUST NOT read project source files** — only metadata (git log, file counts, file existence). Source file reading is the researcher's job (Stage 0).
+
+Log: `[DETECT] Project type: <classification> (commits: <N>, source files: <N>, prior sessions: <N>)`
 
 ---
 
@@ -326,6 +464,29 @@ Write checkpoint **atomically** (write to `checkpoint.tmp.json`, then rename to 
 
 **Checkpoint schema migration**: On resume (Step 2b), check the `schema_version` field of the loaded checkpoint. If the version is older than the current format (e.g., "0.9.0" vs "1.0.0"), attempt graceful migration: add any missing fields with defaults, log `[MIGRATE] Checkpoint migrated from <old> to <new>`. If migration fails, abort with `[MIGRATE-FAIL] Cannot migrate checkpoint from schema_version <version>. Start a new session.`
 
+### 2d. Gate State Check
+
+If `.gate-state.json` exists at the project root (written by `/gate-review`):
+
+1. Read and parse the gate state file
+2. Extract `current_gate`, `gate_status`, and `gates_passed` array (derive from gates with `status: "passed"`)
+3. Map organizational gates to pipeline stages:
+   - Gate 1 (Intent Review / `gate_1_intent_review`) → prerequisite for Stage 0
+   - Gate 2 (Scope Lock / `gate_2_scope_lock`) → prerequisite for Stage 2
+   - Gate 3 (Dependency Acceptance / `gate_3_dependency_acceptance`) → prerequisite for Stage 3
+   - Gate 4 (Sprint Readiness / `gate_4_sprint_readiness`) → prerequisite for Stage 5
+4. Store in checkpoint:
+   ```json
+   "gate_state": {
+     "source": ".gate-state.json",
+     "current_gate": 2,
+     "gates_passed": ["gate_1_intent_review", "gate_2_scope_lock"],
+     "loaded_at": "<ISO-8601>"
+   }
+   ```
+
+**Backward compatibility**: If `.gate-state.json` does not exist, log `[GATE-SKIP] No gate state found — organizational gates not enforced` and proceed normally. Set `gate_state: null` in checkpoint.
+
 ```json
 {
   "schema_version": "1.0.0",
@@ -353,7 +514,10 @@ Write checkpoint **atomically** (write to `checkpoint.tmp.json`, then rename to 
   "mandatory_stage_enforcement": false,
   "stage_3_completed_at_iteration": null,
   "task_limits": { "max_tasks": 50, "max_active_tasks": 30, "max_continuation_depth": 3 },
-  "task_snapshot": { "written_at": null, "iteration": null, "tasks": [] }
+  "task_snapshot": { "written_at": null, "iteration": null, "tasks": [] },
+  "gate_state": null,
+  "gate_override": false,
+  "project_type": null
 }
 ```
 
@@ -382,6 +546,51 @@ STAGE_CEILING = the maximum pipeline stage the orchestrator may work on. Calcula
 
 **STAGE_CEILING is a HARD LIMIT** — the orchestrator MUST NOT spawn agents or do work above this stage.
 
+#### Gate Enforcement at Stage Transitions
+
+Before allowing work at a pipeline stage, check if the mapped organizational gate has been passed (from Step 2d gate_state):
+
+| Pipeline Stage | Required Gate | Gate Name |
+|----------------|---------------|-----------|
+| Stage 0 | Gate 1 | `gate_1_intent_review` |
+| Stage 2 | Gate 2 | `gate_2_scope_lock` |
+| Stage 3 | Gate 3 | `gate_3_dependency_acceptance` |
+| Stage 5 | Gate 4 | `gate_4_sprint_readiness` |
+
+**Enforcement logic**:
+
+1. **Gate NOT passed AND `gate_override` NOT set**:
+   - Log: `[GATE-BLOCK] Stage <N> requires Gate <G> — run /gate-review first`
+   - Reduce STAGE_CEILING to block that stage
+   - Example: If Stage 2 requires Gate 2 but Gate 2 not passed → cap STAGE_CEILING at 1
+
+2. **Gate NOT passed BUT `gate_override: true` in checkpoint**:
+   - Log: `[GATE-OVERRIDE] Proceeding past Gate <G> with override`
+   - Allow progression past the gate
+   - Record override usage in iteration_history for audit
+
+3. **`.gate-state.json` does not exist**:
+   - Log: `[GATE-SKIP] No gate state found — organizational gates not enforced`
+   - Proceed normally (backward compatible)
+   - This is the default state for projects not using the organizational workflow
+
+**Gate ceiling calculation** (applied AFTER stages_completed ceiling):
+```
+gate_ceiling = 6  # Default: no gate restriction
+
+if gate_state is not null:
+    if "gate_1_intent_review" not in gates_passed and not gate_override:
+        gate_ceiling = min(gate_ceiling, -1)  # Block Stage 0
+    if "gate_2_scope_lock" not in gates_passed and not gate_override:
+        gate_ceiling = min(gate_ceiling, 1)   # Block Stage 2+
+    if "gate_3_dependency_acceptance" not in gates_passed and not gate_override:
+        gate_ceiling = min(gate_ceiling, 2)   # Block Stage 3+
+    if "gate_4_sprint_readiness" not in gates_passed and not gate_override:
+        gate_ceiling = min(gate_ceiling, 4.5) # Block Stage 5+
+
+STAGE_CEILING = min(STAGE_CEILING_from_stages, gate_ceiling)
+```
+
 ### 3b. Display iteration banner
 
 ```
@@ -402,7 +611,7 @@ Query `TaskList`, group by `dispatch_hint` using the Pipeline Stage Reference ta
  TASK BOARD:
  ┌─ Stage 0 (Research) ─────────────────────────────
  │  ✓ #2  Research pipeline audit best practices
- ├─ Stage 1 (Epic Architecture) ────────────────────
+ ├─ Stage 1 (Product Management) ────────────────────
  │  ◷ #3  Decompose audit into epic tasks          [blocked by #2]
  ├─ Stage 2 (Specifications) ───────────────────────
  │  ◷ #4  Create technical specifications          [blocked by #3]
@@ -415,7 +624,7 @@ Each task shows: status icon, task ID, subject (truncated to 45 chars), `[blocke
 ### 3d. Pre-spawn self-check
 
 Before spawning, verify ALL of these conditions. If ANY fails, you are off-track:
-- [ ] You are about to spawn exactly ONE agent with `subagent_type: "orchestrator"` — NOT 5 parallel agents, NOT implementer/researcher/documentor agents
+- [ ] You are about to spawn exactly ONE agent with `subagent_type: "orchestrator"` — NOT 5 parallel agents, NOT software-engineer/researcher/technical-writer agents
 - [ ] You have NOT read any project source files, docs, or configs (beyond what Step 1 needed for prompt enhancement)
 - [ ] The only task that exists (besides the parent) was proposed by a previous orchestrator iteration (or this is iteration 1 with no work tasks yet)
 - [ ] The iteration banner (Step 3b) includes `STAGE_CEILING` — if it doesn't, you skipped Step 3a
@@ -482,16 +691,67 @@ After orchestrator returns, execute these sub-steps with visible progress at eac
 
 **4.8 Evaluate pipeline progress**: Use Pipeline Stage Reference to determine completion. A stage is complete ONLY when ALL tasks for that stage are `completed` AND ZERO tasks for that stage are `in_progress`. Tasks still `in_progress` (background agents running) block stage completion — do NOT mark a stage done while any of its tasks are still running. Apply AUTO-003 (monotonicity). Track `stage_3_completed_at_iteration`.
 
+**4.8a Process Hook Verification** (V2 enforcement):
+
+For each completed stage with enforced process hooks, verify process acknowledgments:
+
+```
+ENFORCED_HOOKS = {
+  5: ["P-034", "P-037"],  # Code Review + UAT at Stage 5 (Validator) exit
+  6: ["P-058"]            # Technical Documentation at Stage 6 exit
+}
+
+For each stage in stages_completed:
+  If stage in ENFORCED_HOOKS:
+    1. Read .orchestrate/<session-id>/stage-<N>/stage-receipt.json
+    2. Check for process_acknowledgments array containing required process IDs
+    3. If required process acknowledgment is missing:
+       - Track iteration count in checkpoint.process_gates.stage_<N>.<P-NNN>_iterations
+       - Iteration 1: Log [PROC-WARN] Stage <N> missing P-<NNN> acknowledgment — will enforce next iteration
+       - Iteration 2: Log [PROC-ENFORCE] Stage <N> P-<NNN> not acknowledged — creating remediation task
+         Create remediation task: "Stage <N> Process Gate: Acknowledge P-<NNN> in stage output"
+       - Iteration 3+: Log [PROC-ESCALATE] Stage <N> P-<NNN> still unacknowledged — flagging for review
+         Set checkpoint.process_gates.stage_<N>.escalated = true
+    4. If acknowledgment found:
+       - Set checkpoint.process_gates.stage_<N>.<P-NNN>_acknowledged = true
+       - Log [PROC-PASS] Stage <N> P-<NNN> acknowledged
+
+Acknowledgment detection patterns (grep stage output or stage-receipt.json):
+  - P-034: "[P-034]" or "code review: PASS" or "review checklist"
+  - P-037: "[P-037]" or "test results:" or "tests passed:"
+  - P-058: "[P-058]" or "documentation: COMPLETE" or "docs written:"
+```
+
+**Checkpoint schema addition** for process gates:
+```json
+{
+  "process_gates": {
+    "stage_5": {
+      "P-034_acknowledged": false,
+      "P-034_iterations": 0,
+      "P-037_acknowledged": false,
+      "P-037_iterations": 0,
+      "escalated": false
+    },
+    "stage_6": {
+      "P-058_acknowledged": false,
+      "P-058_iterations": 0,
+      "escalated": false
+    }
+  }
+}
+```
+
 **4.9 Mandatory stage gates**:
 - **AUTO-004**: If Stage 3 done but 4.5/5/6 missing for 1+ iterations → `mandatory_stage_enforcement: true`, inject missing tasks.
 - **Proactive injection**: For any mandatory stage at or below `STAGE_CEILING` absent from `stages_completed` with no pending/in-progress task, create it immediately with proper `blockedBy` chain:
   - Stage 0: `researcher`, no blockedBy
-  - Stage 1: `epic-architect`, blockedBy Stage 0
+  - Stage 1: `product-manager`, blockedBy Stage 0
   - Stage 2: `spec-creator`, blockedBy Stage 1
-  - Stage 4: `test-writer-pytest`, blockedBy Stage 3 (**optional** — inject only if epic-architect produced test tasks)
+  - Stage 4: `test-writer-pytest`, blockedBy Stage 3 (**optional** — inject only if product-manager produced test tasks)
   - Stage 4.5: `codebase-stats`, blockedBy Stage 3
   - Stage 5: `validator`, blockedBy Stage 4.5
-  - Stage 6: `documentor`, blockedBy Stage 5
+  - Stage 6: `technical-writer`, blockedBy Stage 5
 
 **4.10 Evaluate termination** (see Step 5).
 
@@ -538,11 +798,11 @@ Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
 | Stage | Status | Task |
 |-------|--------|------|
 | 0 (researcher) | ✓/✗ | #<id> <subject> |
-| 1 (epic-architect) | ✓/✗ | #<id> <subject> |
+| 1 (product-manager) | ✓/✗ | #<id> <subject> |
 | 2 (spec-creator) | ✓/✗ | #<id> <subject> |
 | 4.5 (codebase-stats) | ✓/✗ | #<id> <subject> |
 | 5 (validator) | ✓/✗ | #<id> <subject> |
-| 6 (documentor) | ✓/✗ | #<id> <subject> |
+| 6 (technical-writer) | ✓/✗ | #<id> <subject> |
 
 ### Terminal State Reference
 
@@ -557,7 +817,7 @@ Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
 
 ### Git Commit Instructions
 > Auto-orchestrate NEVER commits automatically. Review and commit manually.
-**Files modified**: [from implementer DONE blocks]
+**Files modified**: [from software-engineer DONE blocks]
 **Suggested commits**: [Git-Commit-Message values]
 
 ### Iteration Timeline
@@ -598,9 +858,13 @@ After displaying the termination summary, update the handoff receipt and display
 
 1. Check if `.orchestrate/<session-id>/handoff-receipt.json` exists
 2. If found:
-   - Update `auto_orchestrate_status` to `"completed"`
-   - Update `completed_at` to current ISO-8601 timestamp
-   - Atomic write
+   - Update `auto_orchestrate_status` to `"completed"` (or `"failed"` on non-successful termination)
+   - Update `completed_timestamp` to current ISO-8601 timestamp
+   - Set `return_path.stage6_artifacts_path` to `".orchestrate/<session-id>/stage-6/"`
+   - Set `return_status` to `terminal_state` value (e.g., `"completed"`, `"stalled"`, `"max_iterations_reached"`)
+   - Set `return_at` to current ISO-8601 timestamp
+   - Set `return_summary` to the termination summary (first 500 characters of the summary text)
+   - Atomic write (write to `.tmp` then rename)
    - If `return_path.next_command` exists, display:
      ```
      [COMPLETE] Auto-orchestration finished.
@@ -609,6 +873,20 @@ After displaying the termination summary, update the handoff receipt and display
      ```
 3. If no handoff receipt: skip silently (standalone session, no return path)
 4. **Display only — NEVER auto-invoke the return path command** (R-010)
+
+**Updated handoff receipt fields on termination**:
+```json
+{
+  "auto_orchestrate_status": "completed",
+  "completed_timestamp": "<ISO-8601>",
+  "return_path": {
+    "stage6_artifacts_path": ".orchestrate/<session-id>/stage-6/"
+  },
+  "return_status": "<terminal_state>",
+  "return_at": "<ISO-8601>",
+  "return_summary": "<first 500 chars of termination summary>"
+}
+```
 
 ---
 
@@ -661,8 +939,8 @@ No in-memory workarounds, no simulations, no fake data, no placeholder logic. Ev
 
 ### Implementation Quality Criteria (for Stage 3 — NOT a pipeline sequence)
 
-> **IMPORTANT**: These are quality requirements for the implementer (Stage 3) and validator (Stage 5).
-> They are NOT pipeline stages. The pipeline sequence is always: Stage 0 (Research) -> 1 (Epic Architecture) -> 2 (Specifications) -> 3 (Implementation) -> 4.5 (Codebase Stats) -> 5 (Validation) -> 6 (Documentation).
+> **IMPORTANT**: These are quality requirements for the software-engineer (Stage 3) and validator (Stage 5).
+> They are NOT pipeline stages. The pipeline sequence is always: Stage 0 (Research) -> 1 (Product Management) -> 2 (Specifications) -> 3 (Implementation) -> 4.5 (Codebase Stats) -> 5 (Validation) -> 6 (Documentation).
 
 - **Branch** — Create a feature branch.
 
@@ -786,8 +1064,8 @@ Every list and table must support:
 
 ### Frontend Implementation Quality Criteria (for Stage 3 — NOT a pipeline sequence)
 
-> **IMPORTANT**: These are quality requirements for the implementer (Stage 3) and validator (Stage 5).
-> They are NOT pipeline stages. The pipeline sequence is always: Stage 0 (Research) -> 1 (Epic Architecture) -> 2 (Specifications) -> 3 (Implementation) -> 4.5 (Codebase Stats) -> 5 (Validation) -> 6 (Documentation).
+> **IMPORTANT**: These are quality requirements for the software-engineer (Stage 3) and validator (Stage 5).
+> They are NOT pipeline stages. The pipeline sequence is always: Stage 0 (Research) -> 1 (Product Management) -> 2 (Specifications) -> 3 (Implementation) -> 4.5 (Codebase Stats) -> 5 (Validation) -> 6 (Documentation).
 
 - **Map Every Feature to UI** — For every backend endpoint/module, identify every screen, form, list, detail view, and interaction needed.
 
@@ -835,7 +1113,7 @@ Format:
   "iteration": <N>,
   "tasks": [
     {"subject": "...", "description": "...", "activeForm": "...", "stage": 0, "dispatch_hint": "researcher", "blockedBy": []},
-    {"subject": "...", "description": "...", "activeForm": "...", "stage": 1, "dispatch_hint": "epic-architect", "blockedBy": ["<stage-0-task-subject>"]},
+    {"subject": "...", "description": "...", "activeForm": "...", "stage": 1, "dispatch_hint": "product-manager", "blockedBy": ["<stage-0-task-subject>"]},
     {"subject": "...", "description": "...", "activeForm": "...", "stage": 2, "dispatch_hint": "spec-creator", "blockedBy": ["<stage-1-task-subject>"]}
   ]
 }
@@ -853,6 +1131,21 @@ SCOPE: <resolved scope>
 SCOPE_LAYERS: <layers array>
 STAGE_CEILING: <calculated ceiling>
 MANIFEST_PATH: ~/.claude/manifest.json
+GATE_STATE: <current gate state or "not_enforced">
+PROJECT_TYPE: <greenfield|existing|continuation>
+
+**GATE_STATE values**:
+- `"not_enforced"` — No `.gate-state.json` found; organizational gates not active
+- `"gate_1_passed"` — Gate 1 (Intent Review) passed; Stage 0 unlocked
+- `"gate_2_passed"` — Gates 1-2 passed; Stages 0-2 unlocked
+- `"gate_3_passed"` — Gates 1-3 passed; Stages 0-3 unlocked
+- `"gate_4_passed"` — All gates passed; full pipeline unlocked
+- `"gate_N_blocked"` — Stage blocked due to missing gate; see STAGE_CEILING
+
+**PROJECT_TYPE values**:
+- `"greenfield"` — New project (< 5 commits AND < 10 source files)
+- `"existing"` — Existing project with established codebase
+- `"continuation"` — Continuation of a prior orchestration session
 
 ## STAGE_CEILING — HARD STRUCTURAL LIMIT
 ╔══════════════════════════════════════════════════════════════╗
@@ -924,7 +1217,7 @@ Output visible progress before/after each subagent spawn, at loop start, between
 ║  - Stage 0: Spawn `researcher` agent — do NOT read project  ║
 ║    files, do NOT use WebSearch yourself, do NOT analyze      ║
 ║    the codebase. The researcher agent does this.             ║
-║  - Stage 1: Spawn `epic-architect` agent — do NOT decompose ║
+║  - Stage 1: Spawn `product-manager` agent — do NOT decompose ║
 ║    tasks yourself.                                           ║
 ║  - Stage 2: Spawn `spec-creator` agent — do NOT write       ║
 ║    specs yourself.                                           ║
@@ -1003,23 +1296,23 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns and file paths.
 - MUST recommend LATEST stable versions of all packages/images, not just CVE-free ones (RES-011).
 - MUST verify version numbers via WebSearch against official registries — training-data versions are PROHIBITED as sole source (RES-012).
 - Output MUST include a "Recommended Versions" table: package name, version, source URL, date checked.
-- If implementer triggers feedback (IMPL-FEEDBACK), re-spawn researcher with targeted version/API query (RES-013). Max 2 re-research iterations per package.
+- If software-engineer triggers feedback (IMPL-FEEDBACK), re-spawn researcher with targeted version/API query (RES-013). Max 2 re-research iterations per package.
 - Output: .orchestrate/<SESSION_ID>/stage-0/YYYY-MM-DD_<slug>.md
 
-**epic-architect** (Stage 1 — mandatory, after researcher):
-- You MUST spawn an `epic-architect` subagent via `Agent(subagent_type: "epic-architect")`. Do NOT decompose tasks or design architecture yourself.
+**product-manager** (Stage 1 — mandatory, after researcher):
+- You MUST spawn a `product-manager` subagent via `Agent(subagent_type: "product-manager")`. Do NOT decompose tasks or design architecture yourself.
 - 4-Phase Pipeline: Scope Analysis -> Task Decomposition -> Dependency Graph -> Quick Reference
 - Every task needs dispatch_hint (required) and risk level.
 - MUST read Stage 0 research: no CVE-blocked packages; include HIGH-severity remedies as acceptance criteria.
 - Output: .orchestrate/<SESSION_ID>/stage-1/
 
-**spec-creator** (Stage 2 — mandatory, after epic-architect):
+**spec-creator** (Stage 2 — mandatory, after product-manager):
 - You MUST spawn a `spec-creator` subagent. Do NOT write specs yourself.
 - Technical specs: scope, interface contracts, acceptance criteria.
 - MUST read Stage 0 research: no CVE-blocked packages in specs; include remedies as requirements.
 - Output: .orchestrate/<SESSION_ID>/stage-2/
 
-**implementer** (Stage 3):
+**software-engineer** (Stage 3):
 - IMPL-001: No placeholders. IMPL-006: Enterprise production-ready. IMPL-008: 0 security issues. IMPL-013/MAIN-014: No auto-commit.
 - IMPL-014: MUST read Stage 0 research. Apply all remedies. MUST NOT use CVE-blocked packages. Pin to CVE-free versions.
 - IMPL-015: MUST use exact versions from researcher's "Recommended Versions" table. If the recommended version's API differs from expected patterns, emit `[IMPL-FEEDBACK] Package: {name}@{version}, Issue: {description}` and HALT — orchestrator re-spawns researcher (RES-013). Max 2 feedback loops; after 2nd, proceed with best info or escalate to user.
@@ -1050,7 +1343,7 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns and file paths.
   3. If user declines (n): Continue with normal termination as `stalled`.
   4. **NEVER trigger auto-debug automatically** — always require explicit user confirmation.
 
-**documentor** (Stage 6 — mandatory after stable implementation):
+**technical-writer** (Stage 6 — mandatory after stable implementation):
 - Pipeline: docs-lookup -> docs-write -> docs-review.
 - Update ARCHITECTURE.md, INTEGRATION.md, relevant docs.
 ```
@@ -1065,3 +1358,69 @@ When scope is `fullstack`, prefix both Appendix A and B with:
 ## Scope
 **Backend** and **Frontend** — covers every module, service, feature, and/or endpoint in the codebase.
 ```
+
+---
+
+## Appendix E: Unified Pipeline Flow Integration
+
+This appendix maps the auto-orchestrate pipeline stages to the organizational process framework defined in `Engineering_Team_Structure_Guide.md` and `clarity_of_intent.md`.
+
+### E.1 Clarity of Intent Gate Mapping
+
+The four Clarity of Intent gates (from `clarity_of_intent.md`) map to auto-orchestrate preconditions and stage boundaries:
+
+| Clarity of Intent Stage | Gate | Auto-Orchestrate Mapping | Enforcement |
+|------------------------|------|-------------------------|-------------|
+| Stage 1: Intent Frame | Intent Review Gate (P-004) | Handoff receipt contains valid `task_description`; P-001 intent captured | Informational — logged if present |
+| Stage 2: Scope Contract | Scope Lock Gate (P-013) | `gate_2_scope_lock.status == "passed"` required before pipeline start | **Enforced** — blocks pipeline if not passed |
+| Stage 3: Dependency Map | Dependency Acceptance Gate (P-019) | Dependency Charter exists at `scope_contract_path` | Informational — not enforced by auto-orchestrate |
+| Stage 4: Sprint Bridge | Sprint Readiness Gate (P-025) | Sprint Kickoff Brief present in handoff | Informational — logged when passed |
+
+### E.2 Engineering Team Role Mapping
+
+Auto-orchestrate pipeline stages map to the Engineering Team Structure Guide roles:
+
+| Pipeline Stage | Agent | Engineering Team Role(s) | Typical Organizational Level |
+|---------------|-------|-------------------------|------------------------------|
+| Stage 0 | researcher | Staff Engineer, Principal Engineer | L6-L7 (technical research) |
+| Stage 1 | product-manager | Product Manager, Tech Lead | L5-L6 (architecture) |
+| Stage 2 | spec-creator | Tech Lead, Product Manager | L5 + PM (specification) |
+| Stage 3 | software-engineer | Software Engineer, Senior Software Engineer | L4-L5 (implementation) |
+| Stage 4 | test-writer-pytest | SDET, QA Engineer | L4-L5 (quality) |
+| Stage 4.5 | codebase-stats | Staff Engineer | L6 (codebase analysis) |
+| Stage 5 | validator | QA Engineer, Tech Lead | L4-L6 (validation) |
+| Stage 6 | technical-writer | Technical Writer, Software Engineer | L3-L5 (documentation) |
+
+### E.3 Process Injection Points
+
+The process injection map (`process_injection_map.md`) links organizational processes to pipeline stages:
+
+| Pipeline Stage | Injected Processes | Enforcement Level |
+|---------------|-------------------|-------------------|
+| Stage 0 | P-001 (Intent), P-038 (AppSec Scope) | Advisory (notify) |
+| Stage 1 | P-007, P-008, P-009, P-010 (Deliverables, DoD, Metrics, RAID) | Advisory (link) |
+| Stage 2 | P-033 (Technical Design), P-038 (Security by Design) | **Gate** (P-038 enforced) |
+| Stage 3 | P-034 (Code Review), P-036 (Security), P-040 (Dependency) | Advisory (notify) |
+| Stage 4 | P-035 (Testing), P-037 (Automated Testing) | Advisory (link) |
+| Stage 4.5 | P-062 (Technical Debt Audit) | Advisory (link) |
+| Stage 5 | P-034, P-036, P-037 (Review, Security, UAT) | **Gate** (P-034, P-037 enforced V2) |
+| Stage 6 | P-058 (Technical Docs), P-059 (API Docs), P-061 (Runbook) | **Gate** (P-058 enforced V2) |
+
+### E.4 Audit Layer Coverage
+
+Per the 7-layer audit system from the Engineering Team Structure Guide:
+
+| Audit Layer | Applicable Pipeline Stages | Automated Coverage |
+|-------------|---------------------------|-------------------|
+| Layer 7: IC/Squad Engineer | Stages 3, 4 | Stage 3 (software-engineer), Stage 4 (test-writer-pytest) |
+| Layer 6: Tech Lead/Staff | Stages 1, 2, 4.5, 5 | Stage 1 (product-manager), Stage 2 (spec-creator), Stage 5 (validator) |
+| Layer 5: Engineering Manager | Pre-pipeline (handoff) | Gate enforcement at pipeline start |
+| Layers 1-4 | Outside pipeline scope | Organizational processes, not automated |
+
+### E.5 Cross-Reference Documents
+
+For full process details, consult:
+- `clarity_of_intent.md` — Four-stage intent-to-execution framework
+- `Engineering_Team_Structure_Guide.md` — Team roles, hierarchy, delivery methodology
+- `claude-code/processes/process_injection_map.md` — Process-to-stage injection hooks
+- `claude-code/processes/UNIFIED_END_TO_END_PROCESS.md` — 93-process lifecycle synthesis

@@ -224,9 +224,9 @@ class TestStageMetricsCollector:
             session_id="test-session",
             telemetry_dir=tmp_telemetry,
         )
-        collector.record_stage_start("implementer", 3)
-        collector.record_error("implementer", "transient", "timeout")
-        collector.record_stage_end("implementer", "partial")
+        collector.record_stage_start("software_engineer", 3)
+        collector.record_error("software_engineer", "transient", "timeout")
+        collector.record_stage_end("software_engineer", "partial")
 
     def test_finalize_run_produces_summary(self, tmp_telemetry: Path) -> None:
         """Test that finalize_run creates a run summary."""

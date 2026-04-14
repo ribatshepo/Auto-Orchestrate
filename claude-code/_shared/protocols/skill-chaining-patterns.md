@@ -68,11 +68,11 @@ template=$(ti_load_template "skills/researcher/SKILL.md")
 
 A skill invokes other skills to complete workflow phases. The loaded skill maintains context while delegating specialized work.
 
-### Example: documentor
+### Example: technical-writer
 
 ```
 ┌─────────────────────┐
-│   documentor        │ <- Loaded by user request
+│   technical-writer  │ <- Loaded by user request
 │  (Documentation     │
 │   Specialist)       │
 └─────────┬───────────┘
@@ -109,7 +109,7 @@ Read: skills/<skill-name>/SKILL.md → follow all steps using available tools
 Task(description: "Execute docs-lookup", prompt: "<SKILL.md content>", subagent_type: "general-purpose", max_turns: 15)
 ```
 
-**IMPORTANT**: Agents spawned via the Task tool (documentor, session-manager, implementer, etc.) do NOT have access to the `Skill()` tool. They MUST use one of the subagent invocation methods above. Attempting `Skill(skill="...")` from a subagent will fail silently or produce no result.
+**IMPORTANT**: Agents spawned via the Task tool (technical-writer, session-manager, software-engineer, etc.) do NOT have access to the `Skill()` tool. They MUST use one of the subagent invocation methods above. Attempting `Skill(skill="...")` from a subagent will fail silently or produce no result.
 
 ### When to Use Skill Chaining
 
@@ -176,7 +176,7 @@ A subagent can itself become an orchestrator, spawning further subagents for com
           v
 ┌─────────────────────┐
 │ SUB-ORCHESTRATOR    │  Level 1: Epic decomposition
-│ (epic-architect)    │
+│ (product-manager)   │
 └─────────┬───────────┘
           │ Task tool
           v
@@ -249,8 +249,8 @@ Before chaining to another skill:
 | Skill | Demonstrates |
 |-------|--------------|
 | `orchestrator` | Single-level spawning via Task tool |
-| `documentor` | Skill chaining (lookup -> write -> review) |
-| `epic-architect` | Potential multi-level orchestration |
+| `technical-writer` | Skill chaining (lookup -> write -> review) |
+| `product-manager` | Potential multi-level orchestration |
 
 ---
 

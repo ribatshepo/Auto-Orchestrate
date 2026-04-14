@@ -14,7 +14,7 @@ last_reviewed: 2026-04-14
 **Type**: Process stub — minimal placeholder  
 **Status**: STUB — No auto-orchestrate pipeline stage implements these processes  
 **Date**: 2026-04-06  
-**Produced by**: implementer (Task #8, SPEC T018)
+**Produced by**: software-engineer (Task #8, SPEC T018)
 
 ---
 
@@ -40,7 +40,7 @@ Onboarding and knowledge transfer processes P-090 through P-093 occur **after St
 
 **Artifact produced**: Knowledge Transfer Completion record (sign-off from operations team lead)
 
-**In auto-orchestrate context**: Stage 6 `documentor` produces ARCHITECTURE.md, INTEGRATION.md, and referenced doc files. These feed P-090 as the base documentation. The knowledge transfer session is a human-led activity that cannot be automated.
+**In auto-orchestrate context**: Stage 6 `technical-writer` produces ARCHITECTURE.md, INTEGRATION.md, and referenced doc files. These feed P-090 as the base documentation. The knowledge transfer session is a human-led activity that cannot be automated.
 
 ### P-091: Runbook Handover
 
@@ -50,10 +50,10 @@ Onboarding and knowledge transfer processes P-090 through P-093 occur **after St
 
 **Minimum required actions**:
 1. Review Stage 6 documentation for runbook content (P-061 — Runbook, referenced by Stage 6 injection hook)
-2. If runbook is incomplete or missing operational scenarios: flag to documentor for a follow-up Stage 6 run
+2. If runbook is incomplete or missing operational scenarios: flag to technical-writer for a follow-up Stage 6 run
 3. Formal handover: SRE lead signs off on runbook completeness
 
-**In auto-orchestrate context**: The Stage 6 documentor is responsible for P-061 (Runbook) documentation per the process injection map. If the runbook produced by Stage 6 is incomplete, request a targeted re-run of Stage 6 with explicit runbook completion instructions.
+**In auto-orchestrate context**: The Stage 6 technical-writer is responsible for P-061 (Runbook) documentation per the process injection map. If the runbook produced by Stage 6 is incomplete, request a targeted re-run of Stage 6 with explicit runbook completion instructions.
 
 ### P-092: Team Onboarding Brief
 

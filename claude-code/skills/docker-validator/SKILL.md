@@ -279,7 +279,7 @@ Write to `{{OUTPUT_DIR}}/{{DATE}}_{{SLUG}}.md`:
 
 | Direction | Skills | Pattern |
 |-----------|--------|---------|
-| Consumes from | `docker-workflow`, `task-executor`, `implementer` | Compose config, deliverables |
+| Consumes from | `docker-workflow`, `task-executor`, `software-engineer` | Compose config, deliverables |
 | Produces for | `validator` | Validation report, checkpoint JSON |
 
 This skill is a **quality-gate sub-component** — invoked by the `validator` skill as a mandatory sub-step when Docker is available.

@@ -66,24 +66,24 @@ except ImportError:
 
 VALID_STAGE_NAMES: frozenset[str] = frozenset({
     "researcher",
-    "epic_architect",
+    "product_manager",
     "spec_creator",
-    "implementer",
+    "software_engineer",
     "test_writer",
     "codebase_stats",
     "validator",
-    "documentor",
+    "technical_writer",
 })
 
 STAGE_NAME_TO_NUMBER: dict[str, int] = {
     "researcher": 0,
-    "epic_architect": 1,
+    "product_manager": 1,
     "spec_creator": 2,
-    "implementer": 3,
+    "software_engineer": 3,
     "test_writer": 4,
     "codebase_stats": 45,
     "validator": 5,
-    "documentor": 6,
+    "technical_writer": 6,
 }
 
 VALID_ERROR_TYPES: frozenset[str] = frozenset({
@@ -119,13 +119,13 @@ _SUCCESS_RATE_WINDOW = 10
 # Bit position for each stage in the failure bitmap
 _STAGE_BIT_POSITIONS: dict[str, int] = {
     "researcher": 0,
-    "epic_architect": 1,
+    "product_manager": 1,
     "spec_creator": 2,
-    "implementer": 3,
+    "software_engineer": 3,
     "test_writer": 4,
     "codebase_stats": 5,
     "validator": 6,
-    "documentor": 7,
+    "technical_writer": 7,
 }
 
 # Composite quality score weights for improvement_delta_pct

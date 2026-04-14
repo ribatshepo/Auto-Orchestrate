@@ -1,6 +1,6 @@
 # Epic Output Format — Multi-Phase Planning Pipeline
 
-The epic-architect produces output in **4 mandatory phases**. Each phase builds on the previous one. All phases are written to a single output file.
+The product-manager produces output in **4 mandatory phases**. Each phase builds on the previous one. All phases are written to a single output file.
 
 ---
 
@@ -75,7 +75,7 @@ Group tasks by concern area. Each category contains related tasks with full spec
 **{{T_ID}}: {{TITLE}}**
 - **Description**: {{WHAT_AND_WHY}}
 - **Acceptance Criteria**: {{MEASURABLE_OUTCOMES}}
-- **Files**: {{AFFECTED_FILES}} (max 3; max 1 for implementer)
+- **Files**: {{AFFECTED_FILES}} (max 3; max 1 for software-engineer)
 - **Risk**: {{RISK_LEVEL}} — {{RISK_REASON}}
 - **dispatch_hint**: `{{SKILL_NAME}}`
 
@@ -170,7 +170,7 @@ These tasks have no dependencies and can start immediately:
 
 - [ ] All tasks have `dispatch_hint` set
 - [ ] All tasks have acceptance criteria
-- [ ] All tasks fit context budget (≤3 files, ~600 lines; implementer: 1 file)
+- [ ] All tasks fit context budget (≤3 files, ~600 lines; software-engineer: 1 file)
 - [ ] No circular dependencies
 - [ ] At least one Program 0 task exists
 - [ ] Critical path identified

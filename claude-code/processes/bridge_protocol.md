@@ -2,7 +2,7 @@
 
 **Version**: 1.0  
 **Date**: 2026-04-06  
-**Produced by**: implementer (Task #6, SPEC T009)  
+**Produced by**: software-engineer (Task #6, SPEC T009)  
 **Status**: Active
 
 ---

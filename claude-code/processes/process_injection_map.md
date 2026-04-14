@@ -2,7 +2,7 @@
 
 **Version**: 1.0  
 **Date**: 2026-04-06  
-**Produced by**: implementer (Task #8, SPEC T018)  
+**Produced by**: software-engineer (Task #8, SPEC T018)  
 **Status**: Active — V1 advisory injection (enforced: false by default)
 
 ---
@@ -18,13 +18,13 @@ The auto-orchestrate pipeline (Stages 0-6) and the organizational process framew
 | AO Stage | Stage Name | Agent | Primary Org Processes | Injection Event | Action | Enforced |
 |----------|-----------|-------|----------------------|----------------|--------|----------|
 | Stage 0 | Research | researcher | P-001 (Intent), P-038 (AppSec Scope) | Before Stage 0: Verify P-001 Intent Brief exists in handoff receipt | notify | false |
-| Stage 1 | Epic Architecture | epic-architect | P-007 (Decompose Deliverables), P-008 (Definition of Done), P-009 (Success Metrics), P-010 (RAID) | During Stage 1: Link task decomposition to P-007; DoD per epic = P-008 | link | false |
+| Stage 1 | Product Management | product-manager | P-007 (Decompose Deliverables), P-008 (Definition of Done), P-009 (Success Metrics), P-010 (RAID) | During Stage 1: Link task decomposition to P-007; DoD per epic = P-008 | link | false |
 | Stage 2 | Specification | spec-creator | P-033 (Technical Design Review), P-038 (Security by Design) | During Stage 2: Spec must reference P-033 design review checklist; P-038 security requirements embedded | gate | **true** (P-038 only) |
-| Stage 3 | Implementation | implementer | P-034 (Code Review), P-036 (Security Review), P-040 (Dependency Inventory) | After Stage 3: Present P-034 Code Review checklist; P-040 dependency inventory written | notify | false |
-| Stage 4 | Test Writing | test-writer-pytest | P-035 (Testing Protocols), P-037 (UAT) | During Stage 4: Tests must cover P-035 test coverage requirements; UAT scenarios from P-037 | link | false |
+| Stage 3 | Implementation | software-engineer | P-034 (Code Review), P-036 (Security Review), P-040 (Dependency Inventory) | After Stage 3: Present P-034 Code Review checklist; P-040 dependency inventory written | notify | false |
+| Stage 4 | Test Writing | test-writer-pytest | P-035 (Testing Protocols), P-037 (Automated Testing) | During Stage 4: Tests must cover P-035 test coverage requirements; test results captured via P-037 | link | false |
 | Stage 4.5 | Codebase Stats | codebase-stats | P-062 (Technical Debt Audit) | After Stage 4.5: Tech debt report written; link to P-062 audit record | link | false |
-| Stage 5 | Validation | validator | P-034 (Code Review), P-036 (Security), P-037 (UAT pass criteria) | Before Stage 5 exit: Confirm P-034 + P-036 + P-037 pass criteria met in validation report | notify | false |
-| Stage 6 | Documentation | documentor | P-058 (Technical Docs), P-059 (API Docs), P-061 (Runbook) | After Stage 6: Link Stage 6 docs to P-058 + P-059 + P-061 process records | link | false |
+| Stage 5 | Validation | validator | P-034 (Code Review), P-036 (Security), P-037 (UAT pass criteria) | Before Stage 5 exit: Confirm P-034 + P-036 + P-037 pass criteria met in validation report | gate | **true** (P-034, P-037) |
+| Stage 6 | Documentation | technical-writer | P-058 (Technical Docs), P-059 (API Docs), P-061 (Runbook) | After Stage 6: Link Stage 6 docs to P-058 + P-059 + P-061 process records; P-058 acknowledgment required | gate | **true** (P-058) |
 
 ---
 
@@ -47,12 +47,12 @@ Each injection hook is defined with the following fields. Hooks are stored in pr
 ```yaml
 hook:
   ao_stage: 3
-  ao_agent: implementer
+  ao_agent: software-engineer
   event: "after_stage_complete"
   process_ids: ["P-034", "P-036"]
   action: "notify"
   action_detail: >
-    After Stage 3 (implementer) completes: present P-034 Code Review
+    After Stage 3 (software-engineer) completes: present P-034 Code Review
     checklist to user. Gate optional — user may proceed without P-034
     in auto mode but must acknowledge the skip.
   output_artifact: null
@@ -64,7 +64,7 @@ hook:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `ao_stage` | integer or string | YES | The AO pipeline stage number (0, 1, 2, 3, 4, 4.5, 5, 6) |
-| `ao_agent` | string | YES | The agent name that triggers this hook (e.g., "implementer", "validator") |
+| `ao_agent` | string | YES | The agent name that triggers this hook (e.g., "software-engineer", "validator") |
 | `event` | string | YES | When the hook fires: `"before_stage_start"`, `"during_stage"`, `"after_stage_complete"` |
 | `process_ids` | string[] | YES | List of organizational process IDs this hook engages (e.g., ["P-034", "P-036"]) |
 | `action` | string | YES | One of: `"notify"`, `"gate"`, `"link"` |
@@ -90,11 +90,18 @@ hook:
 |---------|-------|--------|
 | P-038 (Security by Design) | Stage 2 (spec-creator) | Security requirements cannot be skipped at specification time. A spec that omits security design is structurally incomplete. The auto-orchestrate spec-creator MUST reference P-038 checklist items before the spec is accepted. |
 
-**Future enforcement candidates** (V2+):
+**V2 Enforcement** (current):
 
-- P-034 (Code Review) at Stage 5 — Enforce after human reviewer integration is built
-- P-037 (UAT) at Stage 5 — Enforce when UAT tooling is integrated with validator
-- P-058 (Technical Docs) at Stage 6 — Enforce when doc completeness scoring is implemented
+| Process | Stage | Enforcement Rationale |
+|---------|-------|----------------------|
+| P-034 (Code Review) | Stage 5 exit | Code review is a quality gate; validation without review is incomplete |
+| P-037 (Automated Testing) | Stage 5 exit | UAT criteria from scope contract must be verified against implementation |
+| P-058 (Technical Docs) | Stage 6 exit | Documentation is a mandatory pipeline stage; its process must be enforced |
+
+**V3+ Enforcement Candidates** (future):
+
+- P-036 (Security Review) at Stage 3 — Enforce when automated security review tooling is integrated
+- P-040 (Dependency Inventory) at Stage 3 — Enforce when dependency verification tooling is built
 
 ---
 
@@ -137,7 +144,7 @@ The following locations in `claude-code/agents/orchestrator.md` (and `~/.claude/
 | Stage 3 post-impl | Post-impl fix loop completion — after `validation.errors == 0` | P-034 notify, P-036 notify, P-040 link |
 | Stage 4.5 completion | After codebase-stats agent completes | P-062 link |
 | Stage 5 pre-exit | Zero-error gate check — add process confirmation | P-034 notify, P-036 notify, P-037 notify |
-| Stage 6 completion | After documentor completes — before PDCA Check phase | P-058 link, P-059 link, P-061 link |
+| Stage 6 completion | After technical-writer completes — before PDCA Check phase | P-058 link, P-059 link, P-061 link |
 | Run completion hook | `hook:run:complete` emission — add process receipts finalization | All linked processes |
 
 **Exact file**: `claude-code/agents/orchestrator.md` (source) and `~/.claude/agents/orchestrator.md` (runtime).  

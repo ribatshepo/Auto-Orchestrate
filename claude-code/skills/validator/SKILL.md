@@ -132,7 +132,7 @@ Totals: N tested, N passed, N failed
 Verify that every feature implemented in the current session works correctly. This is **MANDATORY** for Stage 5 validation.
 
 **Process:**
-1. Identify all features implemented in the current session (from implementer DONE blocks)
+1. Identify all features implemented in the current session (from software-engineer DONE blocks)
 2. For each feature, define expected behavior from the end-user perspective
 3. Test each feature against its expected behavior
 4. Report PASS/FAIL per feature with details

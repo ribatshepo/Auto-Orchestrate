@@ -46,7 +46,7 @@ arguments:
 
 | ID | Rule |
 |----|------|
-| DBG-LOOP-001 | **Debugger-only gateway** — Spawn ONLY `subagent_type: "debugger"`. Never spawn implementer, researcher, orchestrator, etc. directly. The debugger agent handles internal delegation. If 2 consecutive retries return empty output, abort with `[DBG-LOOP-001]` message. |
+| DBG-LOOP-001 | **Debugger-only gateway** — Spawn ONLY `subagent_type: "debugger"`. Never spawn software-engineer, researcher, orchestrator, etc. directly. The debugger agent handles internal delegation. If 2 consecutive retries return empty output, abort with `[DBG-LOOP-001]` message. |
 | DBG-LOOP-002 | **Cycle-based termination** — Cannot declare `completed` unless the most recent verification passed with zero errors. Unlike auto-orchestrate (linear stages), auto-debug CYCLES through triage→research→fix→verify. |
 | DBG-LOOP-003 | **Error context passthrough** — Every debugger spawn receives the FULL error context: original error, error history, previous fix attempts, and any new errors from failed verification. |
 | DBG-LOOP-004 | **Checkpoint-before-spawn** — Write checkpoint to disk before every debugger spawn. |

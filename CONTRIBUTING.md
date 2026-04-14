@@ -66,7 +66,7 @@ Auto-Orchestrate/
 ├── install.sh                   # Copies claude-code/ → ~/.claude/
 ├── uninstall.sh                 # Removes ~/.claude/ installed files
 └── claude-code/
-    ├── agents/                  # Agent definitions (8 agents)
+    ├── agents/                  # Agent definitions (18 agents)
     ├── commands/                # Slash commands (auto-orchestrate, auto-debug, auto-audit)
     ├── lib/                     # Python libraries
     │   ├── ci_engine/           # Continuous improvement engine

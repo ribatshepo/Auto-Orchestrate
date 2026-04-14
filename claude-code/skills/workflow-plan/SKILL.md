@@ -170,7 +170,7 @@ When conditions are met, spawn the orchestrator:
        3. Spawn appropriate subagents per Task Routing table:
           - Research → researcher
           - Implementation → task-executor
-          - Documentation → documentor
+          - Documentation → technical-writer
           - Tests → test-writer-pytest
        4. Coordinate sequentially, respecting dependencies
        5. Update task status upon completion

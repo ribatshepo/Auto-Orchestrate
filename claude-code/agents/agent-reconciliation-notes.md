@@ -2,7 +2,7 @@
 
 **Session**: auto-orc-20260406-gapintg  
 **Date Verified**: 2026-04-06  
-**Produced by**: implementer (Task #5, SPEC T001/T002/T003)  
+**Produced by**: software-engineer (Task #5, SPEC T001/T002/T003)  
 **Status**: COMPLETE — All three agents verified IDENTICAL
 
 ---
@@ -51,7 +51,7 @@ Both files are byte-for-byte identical as of 2026-04-06. Running `install.sh` wi
 - Stage 0 mandatory research protocol (RES-001 through RES-013)
 - CVE checking via NVD and GitHub Security Advisories (RES-005, RES-010)
 - Web-verified version numbers with currency requirement (RES-002, RES-012)
-- Implementer feedback re-research loop (RES-013)
+- Software-engineer feedback re-research loop (RES-013)
 - Evidence-based findings with source citations (RES-001)
 - Actionable recommendations with Risks and Remedies section (RES-004, RES-009)
 - Structured output to `.orchestrate/<SESSION_ID>/stage-0/YYYY-MM-DD_<slug>.md` (RES-006, RES-007)
@@ -185,13 +185,13 @@ This guard is referenced in SPEC T003 and is required for T009 (bridge protocol)
 | Stage | Agent | Purpose | Mandatory |
 |-------|-------|---------|-----------|
 | Stage 0 | `researcher` | Research, CVEs, codebase context | YES |
-| Stage 1 | `epic-architect` | Task decomposition, deps, risk | YES |
+| Stage 1 | `product-manager` | Task decomposition, deps, risk | YES |
 | Stage 2 | `spec-creator` | Technical specifications | YES |
-| Stage 3 | `implementer` / `library-implementer-python` | Production code | Per task |
+| Stage 3 | `software-engineer` / `library-implementer-python` | Production code | Per task |
 | Stage 4 | `test-writer-pytest` | Tests | Per task |
 | Stage 4.5 | `codebase-stats` | Technical debt measurement | YES (post-impl) |
 | Stage 5 | `validator` (+ `docker-validator`) | Compliance/correctness | YES |
-| Stage 6 | `documentor` | Documentation updates | YES |
+| Stage 6 | `technical-writer` | Documentation updates | YES |
 
 #### Orchestration Constraints (MAIN-001 through MAIN-015)
 
@@ -209,7 +209,7 @@ This guard is referenced in SPEC T003 and is required for T009 (bridge protocol)
 | MAIN-010 | No deletion without consent |
 | MAIN-011 | `max_turns` on every spawn |
 | MAIN-012 | Flow integrity — ALWAYS follow full pipeline; STAGE_CEILING is a hard structural limit |
-| MAIN-013 | Decomposition gate — NEVER spawn implementer unless task has `dispatch_hint` |
+| MAIN-013 | Decomposition gate — NEVER spawn software-engineer unless task has `dispatch_hint` |
 | MAIN-014 | No auto-commit — NEVER git commit/push |
 | MAIN-015 | Always-visible processing — output progress before/after every spawn |
 
@@ -261,3 +261,23 @@ grep -c "^## Agent:" claude-code/agents/agent-reconciliation-notes.md
 ---
 
 *Last verified: 2026-04-06 | Next required verification: on every install.sh run*
+
+---
+
+## Consolidation: 2026-04-14 (Session: auto-orc-20260414-rmdupes)
+
+**Action**: Removed 3 duplicate agents and updated all references across 40+ files.
+
+| Removed Agent | Replaced By | Pipeline Stage |
+|---------------|------------|----------------|
+| `epic-architect` | `product-manager` | Stage 1 |
+| `implementer` | `software-engineer` | Stage 3 |
+| `documentor` | `technical-writer` | Stage 6 |
+
+**Agent count**: 21 → 18
+
+**Rationale**: The removed agents were duplicates of existing team agents with identical capabilities and skill bindings. Consolidation eliminates routing ambiguity in `manifest.json` and reduces maintenance burden. The replacement agents retain all constraints (IMPL-001 through IMPL-015, SFI-001) and skill bindings from the removed agents.
+
+**Files affected**: Agent definitions, manifest.json, orchestrator.md, auto-orchestrate.md, ARCHITECTURE.md, INTEGRATION.md, PERMISSION-MODES.md, and all process/reference files that referenced the old agent names.
+
+**Verification**: Stage 5 validation confirmed zero remaining references to removed agents in active (non-historical) documentation.

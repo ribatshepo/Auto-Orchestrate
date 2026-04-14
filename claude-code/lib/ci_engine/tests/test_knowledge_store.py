@@ -1081,16 +1081,16 @@ class TestStageMetricsCollectorTier3:
             token_input=100, token_output=50,
             research_completeness_score=85.0,
         )
-        collector.record_stage_start("implementer", 3)
-        collector.record_stage_error("implementer", "transient", "timeout")
-        collector.record_stage_end("implementer", "partial", token_input=200, token_output=100)
+        collector.record_stage_start("software_engineer", 3)
+        collector.record_stage_error("software_engineer", "transient", "timeout")
+        collector.record_stage_end("software_engineer", "partial", token_input=200, token_output=100)
 
         kpis = collector.finalize_run()
 
         assert "run_total_duration_seconds" in kpis
         assert "run_stage_failure_bitmap" in kpis
         assert kpis["research_completeness_score"] == 85.0
-        # Bitmap should have implementer bit set (bit 3)
+        # Bitmap should have software_engineer bit set (bit 3)
         assert kpis["run_stage_failure_bitmap"] & (1 << 3) != 0
 
     def test_finalize_emits_run_finalize_event(self, collector: Any) -> None:

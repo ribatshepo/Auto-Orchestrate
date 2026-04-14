@@ -287,7 +287,7 @@ For clearly sequential work:
 
 ## Orchestrator Integration
 
-### When to Invoke epic-architect
+### When to Invoke product-manager
 
 | Trigger | Example Request |
 |---------|-----------------|
@@ -300,10 +300,10 @@ For clearly sequential work:
 
 ```
 # Via Skill tool
-Skill(skill="epic-architect")
+Skill(skill="product-manager")
 
 # Via slash command
-/epic-architect
+/product-manager
 ```
 
 ### Subagent Skill Specification
@@ -318,7 +318,7 @@ Skills are session-scoped - subagents don't automatically get parent skills.
 
 ### Output Protocol
 
-When epic-architect creates an epic:
+When product-manager creates an epic:
 
 1. Write output file: `{{OUTPUT_DIR}}/{{DATE}}_epic-{{FEATURE_SLUG}}.md`
 2. Append manifest entry to `{{MANIFEST_PATH}}`
@@ -330,7 +330,7 @@ When epic-architect creates an epic:
 
 | Anti-Pattern | Problem | Solution |
 |--------------|---------|----------|
-| Giving all subagents epic-architect | Context bloat | Only nested orchestrators need it |
+| Giving all subagents product-manager | Context bloat | Only nested orchestrators need it |
 | Returning full epic details | Bloats orchestrator context | Return manifest summary only |
 | Skipping research check | Duplicate work | Query existing research first |
 | Parallel epic creation | Task conflicts | Create epics sequentially |
@@ -438,7 +438,7 @@ Before creating any TaskCreate calls, validate the full plan.
 
 1. **Dependency check**: No circular references; every `blockedBy` target exists
 2. **Program 0 check**: At least one task has no dependencies
-3. **Context budget check**: Every task ≤ 3 files, ~600 lines (implementer: 1 file)
+3. **Context budget check**: Every task ≤ 3 files, ~600 lines (software-engineer: 1 file)
 4. **dispatch_hint check**: Every task has a `dispatch_hint` set
 5. **Acceptance criteria check**: Every task has measurable acceptance criteria
 6. **Risk check**: Every task has a risk level assigned
@@ -485,13 +485,13 @@ dispatch_hint: "{{skill_name}}"
 | Anti-Pattern | Problem | Solution |
 |--------------|---------|----------|
 | Missing dispatch_hint | Orchestrator guesses wrong skill | Always set explicitly |
-| Generic "implementer" for everything | Misses specialized skills | Match task type to skill |
+| Generic "software-engineer" for everything | Misses specialized skills | Match task type to skill |
 | dispatch_hint on epic | Epics aren't dispatched | Only set on leaf tasks |
 
 ---
 
 ## See Also
 
-- @_shared/references/epic-architect/examples.md - Detailed epic examples
+- @_shared/references/product-manager/examples.md - Detailed epic examples
 - @_shared/protocols/subagent-protocol-base.md - Output protocol
 - @_shared/protocols/task-system-integration.md - Task tools

@@ -22,10 +22,10 @@ Tool availability in Claude Code is determined by the **built-in agent type defi
 | Agent | Actually Available | NOT Available | Spawned By |
 |-------|-------------------|---------------|------------|
 | orchestrator | Read, Glob, Grep, Bash | Task*, TaskCreate/List/Update/Get | auto-orchestrate, auto-audit |
-| epic-architect | Read, Glob, Grep, Bash | Task*, TaskCreate/List/Update/Get | orchestrator |
+| product-manager | Read, Glob, Grep, Bash | Task*, TaskCreate/List/Update/Get | orchestrator |
 | researcher | Read, Glob, Grep, Bash, WebSearch, WebFetch | Task*, TaskCreate/List/Update/Get | orchestrator |
-| implementer | Read, Write, Edit, Bash, Glob, Grep | Task*, TaskCreate/List/Update/Get | orchestrator |
-| documentor | Read, Glob, Grep, Edit, Write | Task*, TaskCreate/List/Update/Get | orchestrator |
+| software-engineer | Read, Write, Edit, Bash, Glob, Grep | Task*, TaskCreate/List/Update/Get | orchestrator |
+| technical-writer | Read, Glob, Grep, Edit, Write | Task*, TaskCreate/List/Update/Get | orchestrator |
 | debugger | Read, Write, Edit, Bash, Glob, Grep | Task*, TaskCreate/List/Update/Get | auto-debug |
 | auditor | Read, Glob, Grep, Bash | Task*, TaskCreate/List/Update/Get | auto-audit |
 | session-manager | Read, Glob, Grep, Bash | Task*, TaskCreate/List/Update/Get | orchestrator |
@@ -36,7 +36,7 @@ Tool availability in Claude Code is determined by the **built-in agent type defi
 - TaskCreate, TaskList, TaskUpdate, and TaskGet are **NEVER** available to any subagent. Only the loop controllers (auto-orchestrate, auto-debug, auto-audit) have these tools.
 - The **researcher** agent uniquely has WebSearch and WebFetch for internet research.
 - The **auditor** agent is read-only — it has no Write or Edit tools.
-- The **debugger** agent has the same write tools as the implementer (it fixes code).
+- The **debugger** agent has the same write tools as the software-engineer (it fixes code).
 
 ## Workaround: File-Based Task Proposal Protocol
 
@@ -53,10 +53,10 @@ Subagents write task proposals to `.orchestrate/<session-id>/proposed-tasks.json
   "tasks": [
     {
       "subject": "Task title",
-      "description": "Detailed description. dispatch_hint: implementer",
+      "description": "Detailed description. dispatch_hint: software-engineer",
       "activeForm": "Working on X",
       "blockedBy": [],
-      "dispatch_hint": "implementer",
+      "dispatch_hint": "software-engineer",
       "risk": "medium",
       "acceptance_criteria": ["Criterion 1", "Criterion 2"]
     }
@@ -105,15 +105,15 @@ It does NOT:
   - The orchestrator rationalizes a "more practical approach" due to tool limitations
   - The orchestrator claims direct work is "more efficient for [task type] anyway"
   - The orchestrator wants to "do the research phase directly by reading the codebase"
-  - The orchestrator proposes to "create the tasks myself and spawn implementer agents"
+  - The orchestrator proposes to "create the tasks myself and spawn software-engineer agents"
 
   **Observed violation patterns** (from production incidents):
-  1. "Given the orchestrator approach has tool limitations that prevent effective task creation from subagents, let me take a more practical approach. I'll do the research phase directly (Stage 0) by reading the codebase, then create the tasks myself and spawn implementer agents for the actual fixes." — This is a MAIN-001/MAIN-002/MAIN-012 violation disguised as pragmatism.
+  1. "Given the orchestrator approach has tool limitations that prevent effective task creation from subagents, let me take a more practical approach. I'll do the research phase directly (Stage 0) by reading the codebase, then create the tasks myself and spawn software-engineer agents for the actual fixes." — This is a MAIN-001/MAIN-002/MAIN-012 violation disguised as pragmatism.
   2. "The subagent tools can't write files reliably. Let me do the research directly - this is more efficient for an audit task anyway. I'll read the key files across all services systematically." — This is a MAIN-001/MAIN-002 violation disguised as efficiency.
 
   The ONLY permitted actions when Task tool is unavailable: read existing files (Read/Glob/Grep) ONLY to compose PROPOSED_ACTIONS task descriptions, then return PROPOSED_ACTIONS.
 
-### Epic-Architect
+### Product-Manager
 - Cannot call TaskCreate → writes task proposals to `.orchestrate/<session-id>/proposed-tasks.json`
 - Cannot call TaskList → receives relevant task context in spawn prompt
 - Task proposals follow the JSON format above
@@ -123,7 +123,7 @@ It does NOT:
 - HAS WebSearch and WebFetch (only agent with internet access)
 - Writes `stage-receipt.json` on completion (per output-standard.md RECEIPT-001)
 
-### Implementer
+### Software-Engineer
 - Cannot call TaskUpdate → reports completion status in return value (DONE block)
 - Can read/write/edit files (its core function works correctly)
 - Writes `stage-receipt.json` + `changes.md` to stage directory
@@ -154,7 +154,7 @@ It does NOT:
 ## See Also
 
 - `agents/orchestrator.md` — Orchestrator with fallback protocol
-- `agents/epic-architect.md` — File-based task proposal output
+- `agents/product-manager.md` — File-based task proposal output
 - `agents/debugger.md` — Debug agent with fix_registry integration
 - `agents/auditor.md` — Read-only audit agent
 - `commands/auto-orchestrate.md` — Task management proxy (orchestration)

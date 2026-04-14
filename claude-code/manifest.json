@@ -1697,16 +1697,16 @@
     ],
     "references": [
       {
-        "name": "epic-architect/patterns",
-        "path": "_shared/references/epic-architect/patterns.md"
+        "name": "product-manager/patterns",
+        "path": "_shared/references/product-manager/patterns.md"
       },
       {
-        "name": "epic-architect/examples",
-        "path": "_shared/references/epic-architect/examples.md"
+        "name": "product-manager/examples",
+        "path": "_shared/references/product-manager/examples.md"
       },
       {
-        "name": "epic-architect/output-format",
-        "path": "_shared/references/epic-architect/output-format.md"
+        "name": "product-manager/output-format",
+        "path": "_shared/references/product-manager/output-format.md"
       },
       {
         "name": "orchestrator/SUBAGENT-PROTOCOL-BLOCK",

@@ -224,9 +224,9 @@ When writing a partial manifest entry, use `"status": "partial"` and include rem
 {"id":"{{SLUG}}-{{DATE}}","file":"{{DATE}}_{{SLUG}}.md","title":"{{TITLE}}","date":"{{DATE}}","status":"partial","topics":["topic1"],"key_findings":["Finding 1"],"actionable":true,"needs_followup":["remaining-task-description"],"linked_tasks":["{{TASK_ID}}"]}
 ```
 
-### Implementation-Specific Partial Results (Implementer Agent)
+### Implementation-Specific Partial Results (Software-Engineer Agent)
 
-When the implementer exits early due to context/turn budget exhaustion, the partial result MUST include enough context for a continuation task to resume seamlessly:
+When the software-engineer exits early due to context/turn budget exhaustion, the partial result MUST include enough context for a continuation task to resume seamlessly:
 
 **`needs_followup` format for code tasks**:
 ```json
@@ -244,9 +244,9 @@ When the implementer exits early due to context/turn budget exhaustion, the part
 - List ALL files already written to disk (the continuation task must not overwrite them)
 - List remaining files with brief scope descriptions
 - Flag any partially-written files and describe what's done vs. remaining
-- Reference `REMAINING_WORK.md` if created by the implementer
+- Reference `REMAINING_WORK.md` if created by the software-engineer
 
-The orchestrator will pass this information to epic-architect, which creates a scoped continuation task. The continuation implementer then reads existing files from disk and resumes from where the previous implementer stopped.
+The orchestrator will pass this information to product-manager, which creates a scoped continuation task. The continuation software-engineer then reads existing files from disk and resumes from where the previous software-engineer stopped.
 
 ---
 
