@@ -1042,6 +1042,17 @@ IF task_description contains "release", "deploy to production", "ship", "go live
 
 These fields have safe defaults for backward compatibility — existing sessions that lack them are treated as having empty dispatch state.
 
+### 0g.5 Initialize domain activation checkpoint fields
+
+```json
+{
+  "domain_activations": [],
+  "domain_reviews": { "0": [], "1": [], "2": [], "3": [], "4": [], "4.5": [], "5": [], "6": [] }
+}
+```
+
+These fields track conditional domain agent activations per `_shared/protocols/agent-activation.md`. `domain_activations` is an append-only log of all activations; `domain_reviews` maps stages to agent names that produced reviews.
+
 ---
 
 ## Step 1: Enhance User Input (Inline)
@@ -1189,7 +1200,7 @@ If `.gate-state.json` exists at the project root (written by `/gate-review`):
 
 ```json
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.3.0",
   "session_id": "<session-id>",
   "created_at": "<ISO-8601>",
   "updated_at": "<ISO-8601>",
@@ -1237,7 +1248,9 @@ If `.gate-state.json` exists at the project root (written by `/gate-review`):
   "dispatch_context": { "0": [], "1": [], "2": [], "3": [], "4": [], "4.5": [], "5": [], "6": [] },
   "dispatch_gates": {},
   "dispatch_summary": null,
-  "release_flag": false
+  "release_flag": false,
+  "domain_activations": [],
+  "domain_reviews": { "0": [], "1": [], "2": [], "3": [], "4": [], "4.5": [], "5": [], "6": [] }
 }
 ```
 
@@ -1252,6 +1265,17 @@ If `.gate-state.json` exists at the project root (written by `/gate-review`):
 }
 ```
 Log: `[MIGRATE] Added dispatch fields to checkpoint (1.1.0 → 1.2.0)`
+
+**Domain activation fields migration (1.2.0 → 1.3.0)**: When resuming a session without domain activation fields, add them with defaults:
+```json
+{
+  "domain_activations": [],
+  "domain_reviews": { "0": [], "1": [], "2": [], "3": [], "4": [], "4.5": [], "5": [], "6": [] }
+}
+```
+Log: `[MIGRATE] Added domain activation fields to checkpoint (1.2.0 → 1.3.0)`
+
+Update `schema_version` to `"1.3.0"` after migration.
 
 ---
 
@@ -1598,6 +1622,49 @@ After evaluating pipeline progress (4.8), process hooks (4.8a), and human gates 
 
 > **DISPATCH-NOCIRCLE-001**: Domain guides invoked here do NOT evaluate dispatch triggers themselves. They produce output and return.
 
+**4.8d Domain Activation Review (AGENT-ACTIVATE-001)**:
+
+After dispatch evaluation, check if the orchestrator reported domain agent activations in this iteration. Domain agent activation is handled BY the orchestrator (not the loop controller) per `_shared/protocols/agent-activation.md`. The loop controller's role here is to log and track activations in the checkpoint.
+
+1. **Scan for new domain review artifacts**:
+   ```
+   new_reviews = glob(".orchestrate/<session>/domain-reviews/*-stage-*.md")
+   known_reviews = flatten(checkpoint.domain_reviews.values())
+   new_this_iteration = new_reviews - known_reviews
+   ```
+
+2. **Log activations**:
+   ```
+   IF new_this_iteration is non-empty:
+       display "[DOMAIN-REVIEW] {len(new_this_iteration)} domain review(s) produced this iteration:"
+       FOR EACH review IN new_this_iteration:
+           agent_name = extract_agent_name(review.filename)  # e.g., "security-engineer" from "security-engineer-stage-2.md"
+           stage = extract_stage(review.filename)
+           display "  - {agent_name} reviewed Stage {stage} artifacts"
+   ```
+
+3. **Update checkpoint**:
+   ```
+   FOR EACH review IN new_this_iteration:
+       agent_name = extract_agent_name(review.filename)
+       stage = extract_stage(review.filename)
+       
+       checkpoint.domain_activations.append({
+           "agent": agent_name,
+           "stage": stage,
+           "artifact_path": review.path,
+           "timestamp": now_iso8601(),
+           "iteration": checkpoint.iteration
+       })
+       
+       IF agent_name NOT IN checkpoint.domain_reviews[stage]:
+           checkpoint.domain_reviews[stage].append(agent_name)
+   ```
+
+4. **Inject domain review context for next orchestrator spawn**: If domain reviews exist for stages with pending tasks, include review summaries in the next orchestrator spawn prompt via the Domain Review Context section in Appendix C.
+
+> **AGENT-ACTIVATE-001 boundary**: Domain agents are spawned BY the orchestrator during its execution, not by the loop controller. The loop controller only observes and logs the results. This preserves AUTO-001 (loop controller spawns only orchestrators).
+
 **4.9 Mandatory stage gates**:
 - **AUTO-004**: If Stage 3 done but 4.5/5/6 missing for 1+ iterations → `mandatory_stage_enforcement: true`, inject missing tasks.
 - **Proactive injection**: For any mandatory stage at or below `STAGE_CEILING` absent from `stages_completed` with no pending/in-progress task, create it immediately with proper `blockedBy` chain:
@@ -1757,6 +1824,21 @@ Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
 | Findings consumed | <dispatch_summary.receipts_consumed> |
 | Findings unresolved | <dispatch_summary.receipts_unconsumed> |
 | Lifecycle suggestions | <dispatch_summary.suggestions_made> |
+
+### Domain Agent Activation Summary
+| Metric | Value |
+|--------|-------|
+| Total activations | <len(checkpoint.domain_activations)> |
+| Agents activated | <unique agents from checkpoint.domain_activations> |
+| Stages with reviews | <stages with non-empty checkpoint.domain_reviews> |
+
+{{#if checkpoint.domain_activations is non-empty}}
+| Stage | Agent | Rule | Artifact |
+|-------|-------|------|----------|
+{{#for each activation in checkpoint.domain_activations}}
+| {{activation.stage}} | {{activation.agent}} | {{activation.rule_id}} | {{activation.artifact_path}} |
+{{/for each}}
+{{/if}}
 
 ### Iteration Timeline
 | # | Completed | Running | Pending | Tasks Worked On |
@@ -2134,6 +2216,25 @@ The Command Dispatcher has produced findings relevant to the current stage. Addr
 These findings were produced by domain guide analysis and MUST be incorporated into stage work. For Stage 2 (specification), include as requirements. For Stage 3 (implementation), include as constraints. For Stage 5 (validation), include as acceptance criteria.
 {{else}}
 No dispatch context for the current stage.
+{{/if}}
+
+## Domain Review Context (from Agent Activation Protocol)
+
+Read and follow `~/.claude/_shared/protocols/agent-activation.md`.
+At each stage transition, evaluate activation rules from `manifest.agents[*].activation_rules`. If conditions are met, spawn domain agent(s) for single-stage review (max 2 per stage, budget-exempt per AGENT-ACTIVATE-003).
+Domain review artifacts: `.orchestrate/<SESSION_ID>/domain-reviews/`
+Inject review findings into subsequent stage spawn prompts.
+
+{{#if domain_reviews[STAGE_CEILING] is non-empty}}
+Domain expert agents reviewed artifacts for the current stage. Their findings MUST inform your work:
+
+{{#for each review_agent in domain_reviews[STAGE_CEILING]}}
+### [DOMAIN-REVIEW] {{review_agent}} findings
+Read: `.orchestrate/<SESSION_ID>/domain-reviews/{{review_agent}}-stage-{{STAGE_CEILING}}.md`
+Incorporate CRITICAL/HIGH findings as requirements. Acknowledge MEDIUM/LOW findings.
+{{/for each}}
+{{else}}
+No domain reviews for the current stage.
 {{/if}}
 
 ## Autonomous Mode Permissions (pre-granted)

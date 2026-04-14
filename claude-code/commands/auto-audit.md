@@ -960,6 +960,13 @@ MANIFEST_PATH: ~/.claude/manifest.json
 SPEC_PATH: <spec_path>
 The auditor has already analyzed this spec. Focus on implementing the gaps above.
 
+## Domain Agent Activation Protocol
+
+Read and follow `~/.claude/_shared/protocols/agent-activation.md`.
+At each stage transition during remediation, evaluate activation rules from `manifest.agents[*].activation_rules`. If conditions are met, spawn domain agent(s) for single-stage review (max 2 per stage, budget-exempt per AGENT-ACTIVATE-003).
+Domain review artifacts: `.orchestrate/<SESSION_ID>/domain-reviews/`
+Inject review findings into subsequent stage spawn prompts.
+
 ## Autonomous Mode Permissions (pre-granted)
 Operate without confirmations. Access ~/.claude/ freely. Make assumptions.
 Do NOT call EnterPlanMode. NEVER git commit/push.

@@ -298,6 +298,23 @@ while REMAINING_BUDGET > 0:
     # 4. SEQUENTIAL-STAGE-GATE: no Stage N+1 while Stage N has pending tasks
     # 5. BUDGET-RESERVATION: REMAINING_BUDGET <= POST_IMPL_RESERVED → block impl tasks
 
+    # DOMAIN REVIEW INJECTION: Include domain expert findings in stage spawn prompt
+    domain_reviews = glob(f".orchestrate/{SESSION_ID}/domain-reviews/*-stage-{task.stage}.md")
+    if domain_reviews:
+        review_content = compile_reviews(domain_reviews)
+        constraint_block += f"""
+
+## Domain Expert Review Findings (AGENT-ACTIVATE-001)
+
+The following domain experts reviewed artifacts relevant to this stage. Address their findings:
+
+{review_content}
+
+CRITICAL findings MUST be addressed in your implementation.
+HIGH findings SHOULD be addressed in your implementation.
+MEDIUM/LOW findings: acknowledge in your output but no action required.
+"""
+
     output(f"[STAGE {stage}] Spawning {agent} for: \"{task.subject}\"...")
     spawn_subagent(agent, task, extra_prompt=constraint_block, max_turns=TURN_LIMIT)
     output(f"[STAGE {stage}] {agent} completed. Key findings: {key_findings}")
@@ -315,6 +332,60 @@ while REMAINING_BUDGET > 0:
 
     update_task(completed); REMAINING_BUDGET -= 1
     output(f"[PROGRESS] {completed}/{total} done. Next: \"{next_task}\"")
+
+    # DOMAIN AGENT ACTIVATION (AGENT-ACTIVATE-001)
+    # After completing all tasks for a stage, evaluate activation rules
+    # before processing the next stage's tasks.
+    # Protocol: _shared/protocols/agent-activation.md
+    
+    completed_stage = get_highest_completed_stage(all_tasks)
+    
+    if stage_just_completed(completed_stage):  # First time seeing this stage fully done
+        # Read activation rules from manifest (MANIFEST-001)
+        activation_rules = [
+            rule for agent in manifest.agents
+            if hasattr(agent, 'activation_rules')
+            for rule in agent.activation_rules
+            if rule.trigger_stage == next_stage_after(completed_stage)
+        ]
+        
+        stage_receipt = read(f".orchestrate/{SESSION_ID}/stage-{completed_stage}/stage-receipt.json")
+        dispatch_receipts = glob(f".orchestrate/{SESSION_ID}/dispatch-receipts/dispatch-*.json")
+        
+        activations = evaluate_agent_activation(
+            completed_stage, activation_rules, stage_receipt, dispatch_receipts, task_context
+        )
+        
+        domain_agents_spawned = 0
+        for activation in activations:
+            if domain_agents_spawned >= 2: break  # AGENT-ACTIVATE-005
+            
+            next_stg = next_stage_after(completed_stage)
+            output_path = f".orchestrate/{SESSION_ID}/domain-reviews/{activation.agent}-stage-{next_stg}.md"
+            
+            output(f"[DOMAIN-REVIEW] {activation.rule_id}: Spawning {activation.agent} for Stage {next_stg} review")
+            
+            spawn_subagent(
+                activation.agent,
+                review_task={
+                    "subject": f"Domain review: {activation.review_scope}",
+                    "description": activation.review_scope,
+                    "stage": next_stg,
+                    "output_path": output_path
+                },
+                extra_prompt=COMMON_REVIEW_BLOCK + AGENT_SPECIFIC_TEMPLATE[activation.agent],
+                max_turns=10
+            )
+            # NOTE: Does NOT decrement REMAINING_BUDGET (AGENT-ACTIVATE-003)
+            
+            output(f"[DOMAIN-REVIEW] {activation.agent} review complete. Artifact: {output_path}")
+            domain_agents_spawned += 1
+        
+        # Inject domain review findings into next stage context
+        if domain_agents_spawned > 0:
+            review_summary = compile_domain_reviews(next_stage_after(completed_stage))
+            inject_into_next_stage_prompt(review_summary)
+            output(f"[DOMAIN-REVIEW] {domain_agents_spawned} domain review(s) completed. Findings injected into Stage {next_stage_after(completed_stage)} context.")
 ```
 
 ### Post-Loop Mandatory Gates
@@ -591,6 +662,122 @@ Fix-loop: validate->report->fix->revalidate (max 3 per IMPL-009).
 Pipeline: docs-lookup -> docs-write -> docs-review
 Maintain-don't-duplicate: update existing docs, never create duplicates.
 Update ARCHITECTURE.md, INTEGRATION.md, or relevant docs.
+```
+
+## Domain Review Spawn Templates (AGENT-ACTIVATE-001)
+
+Domain agent reviews are triggered by the Agent Activation Protocol (`_shared/protocols/agent-activation.md`). All domain reviews use the common review block below, plus an agent-specific template. Domain reviews are budget-EXEMPT (AGENT-ACTIVATE-003) and capped at 2 per orchestrator spawn (AGENT-ACTIVATE-005).
+
+### Common Review Block (include in ALL domain agent spawns)
+```
+REVIEW MODE: You are performing a focused domain review, not full implementation work.
+SCOPE: <activation.review_scope>
+INPUT ARTIFACTS: <paths to stage artifacts being reviewed>
+OUTPUT: .orchestrate/<SESSION_ID>/domain-reviews/<agent>-stage-<N>.md
+
+You MUST:
+- Read and analyze the input artifacts from your domain expertise perspective
+- Write a structured review artifact with: findings (with evidence), severity, recommendations
+- Include specific evidence (file paths, line numbers, code snippets) for each finding
+- Assign severity to each finding (CRITICAL, HIGH, MEDIUM, LOW)
+
+You MUST NOT:
+- Create tasks or modify PROPOSED_ACTIONS
+- Modify any source files or project code
+- Run git commit/push or any git write operation (MAIN-014)
+- Spawn subagents
+- Exceed the scope defined above
+- Delete any files
+
+Max output: structured review artifact only.
+```
+
+### Domain Review: qa-engineer
+```
+You are qa-engineer performing a domain review.
+DOMAIN FOCUS: Quality assurance, testability, acceptance criteria, contract testing, test architecture.
+PROCESSES: P-032 (Test Architecture), P-037 (Contract Testing), P-059 (API Docs)
+EVALUATE AGAINST:
+- Test pyramid coverage gaps (unit → integration → contract → e2e)
+- Missing or weak acceptance criteria
+- API contract testability and OpenAPI spec alignment
+- Performance testing requirements (P50/P95/P99 SLO coverage)
+- Definition of Done completeness (P-034)
+```
+
+### Domain Review: security-engineer
+```
+You are security-engineer performing a domain review.
+DOMAIN FOCUS: Application security, threat modeling, OWASP Top 10, auth/crypto, secrets management.
+PROCESSES: P-038 (Threat Modeling), P-039 (SAST/DAST), P-040 (CVE Triage)
+EVALUATE AGAINST:
+- STRIDE threat model coverage for new attack surfaces
+- Injection vulnerabilities (SQL, XSS, command injection)
+- Authentication/authorization flaws
+- Secret exposure risks (hardcoded credentials, env leaks)
+- Dependency vulnerabilities (known CVEs)
+READ-ONLY: You have no Write tool. Evidence-based findings only.
+```
+
+### Domain Review: platform-engineer
+```
+You are platform-engineer performing a domain review.
+DOMAIN FOCUS: CI/CD, golden path templates, container orchestration, environment provisioning.
+PROCESSES: P-044 (Golden Path), P-046 (Environment Self-Service)
+EVALUATE AGAINST:
+- Golden path alignment (easiest path, not only option)
+- CI/CD pipeline feasibility and configuration correctness
+- Container configuration (Dockerfile best practices, multi-stage builds)
+- Environment provisioning patterns (self-service, no ticket queues)
+```
+
+### Domain Review: cloud-engineer
+```
+You are cloud-engineer performing a domain review.
+DOMAIN FOCUS: Cloud infrastructure, IaC, cost optimization, IAM, architecture compliance.
+PROCESSES: P-045 (Infrastructure Provisioning), P-047 (Cloud Architecture Review)
+EVALUATE AGAINST:
+- IaC completeness (all resources defined, no manual provisioning)
+- Cost optimization opportunities (right-sizing, reserved instances, spot)
+- Security group / IAM policy correctness (least privilege)
+- Multi-region / availability zone design
+```
+
+### Domain Review: data-engineer
+```
+You are data-engineer performing a domain review.
+DOMAIN FOCUS: Data pipelines, schema migrations, data quality, streaming, warehouse design.
+PROCESSES: P-049 (Pipeline Quality), P-050 (Schema Migration)
+EVALUATE AGAINST:
+- Schema versioning (destructive changes require manual review + approval)
+- Data quality gates (freshness checks, null checks, row counts)
+- Pipeline idempotency and failure recovery
+- Migration rollback safety (backward-compatible changes preferred)
+```
+
+### Domain Review: ml-engineer
+```
+You are ml-engineer performing a domain review.
+DOMAIN FOCUS: ML pipelines, model serving, experiment tracking, drift monitoring, canary deployment.
+PROCESSES: P-051 (Experiment Logging), P-052 (Model Canary), P-053 (Drift Monitoring)
+EVALUATE AGAINST:
+- Training-serving skew prevention
+- Experiment logging completeness (hyperparams, metrics, data version, artifacts)
+- Canary deployment requirement (never 100% direct promotion)
+- Drift monitoring configuration (input distribution, model performance)
+```
+
+### Domain Review: sre
+```
+You are sre performing a domain review.
+DOMAIN FOCUS: SLO definition, incident response, operational readiness, runbooks, monitoring.
+PROCESSES: P-054 (SLO Definition), P-055 (Incident Response), P-056 (Post-Mortem), P-061 (Runbook)
+EVALUATE AGAINST:
+- SLO coverage for new/modified services
+- Error budget impact assessment
+- Monitoring and alerting configuration (metrics, dashboards, pages)
+- Runbook completeness (rollback steps, scaling procedures, incident response)
+- On-call impact (new alerts, expected page frequency)
 ```
 
 ## CI Feedback Hooks: PDCA Meta-Loop (Cross-Run)

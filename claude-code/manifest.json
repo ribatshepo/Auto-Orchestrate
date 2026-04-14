@@ -230,7 +230,16 @@
           "IAM policy documents"
         ]
       },
-      "path": "agents/cloud-engineer.md"
+      "path": "agents/cloud-engineer.md",
+      "activation_rules": [
+        {
+          "rule_id": "ACT-009",
+          "trigger_stage": 5,
+          "condition": "cloud_iac_provisioned",
+          "keywords": ["Terraform", "CDK", "Pulumi", "Bicep", ".tf", "cloud infrastructure"],
+          "review_scope": "Review IaC for cost optimization, security groups, architecture compliance"
+        }
+      ]
     },
     {
       "name": "data-engineer",
@@ -269,7 +278,23 @@
           "Governance framework documents"
         ]
       },
-      "path": "agents/data-engineer.md"
+      "path": "agents/data-engineer.md",
+      "activation_rules": [
+        {
+          "rule_id": "ACT-004",
+          "trigger_stage": 2,
+          "condition": "spec_contains_data_pipelines",
+          "keywords": ["data pipeline", "ETL", "ELT", "schema migration", "data warehouse", "dbt", "streaming"],
+          "review_scope": "Review spec for data architecture, schema versioning, pipeline quality patterns"
+        },
+        {
+          "rule_id": "ACT-006",
+          "trigger_stage": 3,
+          "condition": "data_schema_changes",
+          "keywords": ["schema", "migration", "data model", "pipeline", "ETL"],
+          "review_scope": "Review data layer implementation for schema versioning, migration safety, data quality"
+        }
+      ]
     },
     {
       "name": "engineering-manager",
@@ -347,7 +372,16 @@
           "Model monitoring dashboards"
         ]
       },
-      "path": "agents/ml-engineer.md"
+      "path": "agents/ml-engineer.md",
+      "activation_rules": [
+        {
+          "rule_id": "ACT-008",
+          "trigger_stage": 5,
+          "condition": "ml_model_involved",
+          "keywords": ["ML model", "training", "inference", "model serving", "TorchServe", "Triton", "BentoML", "MLflow", "W&B", ".ipynb"],
+          "review_scope": "Validate ML pipeline — training-serving skew, canary deployment, experiment logging, drift monitoring"
+        }
+      ]
     },
     {
       "name": "platform-engineer",
@@ -384,7 +418,16 @@
           "Release automation scripts"
         ]
       },
-      "path": "agents/platform-engineer.md"
+      "path": "agents/platform-engineer.md",
+      "activation_rules": [
+        {
+          "rule_id": "ACT-003",
+          "trigger_stage": 2,
+          "condition": "spec_contains_infra_deploy",
+          "keywords": ["infrastructure", "deploy", "Docker", "Kubernetes", "k8s", "Terraform", "CI/CD pipeline", "container"],
+          "review_scope": "Review spec for platform feasibility, golden path alignment, environment provisioning"
+        }
+      ]
     },
     {
       "name": "product-manager",
@@ -463,7 +506,23 @@
           "Definition of done checklists"
         ]
       },
-      "path": "agents/qa-engineer.md"
+      "path": "agents/qa-engineer.md",
+      "activation_rules": [
+        {
+          "rule_id": "ACT-001",
+          "trigger_stage": 2,
+          "condition": "spec_contains_api_contracts",
+          "keywords": ["API", "endpoint", "REST", "GraphQL", "interface contract", "contract testing", "OpenAPI"],
+          "review_scope": "Review spec for testability, acceptance criteria completeness, contract testing gaps"
+        },
+        {
+          "rule_id": "ACT-011",
+          "trigger_stage": 6,
+          "condition": "api_docs_needed",
+          "keywords": ["API docs", "P-059", "API documentation", "endpoint documentation"],
+          "review_scope": "Review API documentation for completeness, accuracy against implementation, example coverage"
+        }
+      ]
     },
     {
       "name": "security-engineer",
@@ -500,7 +559,23 @@
           "IAM policy analysis"
         ]
       },
-      "path": "agents/security-engineer.md"
+      "path": "agents/security-engineer.md",
+      "activation_rules": [
+        {
+          "rule_id": "ACT-002",
+          "trigger_stage": 2,
+          "condition": "spec_contains_auth_crypto",
+          "keywords": ["auth", "authentication", "authorization", "crypto", "secret", "token", "P-038", "OWASP", "security"],
+          "review_scope": "Review spec for security requirements completeness, threat model coverage, OWASP alignment"
+        },
+        {
+          "rule_id": "ACT-005",
+          "trigger_stage": 3,
+          "condition": "security_process_flagged",
+          "keywords": ["P-038", "P-039", "P-040", "P-041", "P-042", "P-043"],
+          "review_scope": "Security review of implementation — injection risks, auth flaws, secret handling"
+        }
+      ]
     },
     {
       "name": "software-engineer",
@@ -573,7 +648,23 @@
           "Alerting rules"
         ]
       },
-      "path": "agents/sre.md"
+      "path": "agents/sre.md",
+      "activation_rules": [
+        {
+          "rule_id": "ACT-007",
+          "trigger_stage": 5,
+          "condition": "deployment_validation_needed",
+          "keywords": ["Docker", "Kubernetes", "k8s", "deploy", "cloud", "infrastructure", "container"],
+          "review_scope": "Validate operational readiness — SLO alignment, monitoring, alerting, runbook existence"
+        },
+        {
+          "rule_id": "ACT-010",
+          "trigger_stage": 6,
+          "condition": "runbook_needed",
+          "keywords": ["runbook", "P-061", "incident response", "rollback", "scaling"],
+          "review_scope": "Co-author runbook sections — incident response, scaling procedures, rollback steps"
+        }
+      ]
     },
     {
       "name": "staff-principal-engineer",
