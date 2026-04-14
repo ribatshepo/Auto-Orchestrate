@@ -38,6 +38,13 @@ arguments:
     required: false
     default: 5
     description: Max fix-verify-retry cycles per unique error before escalating to user.
+  - name: human_gates
+    type: string
+    required: false
+    description: |
+      Comma-separated list of debug stages where the loop pauses for human review.
+      Values: "2" (pause after root cause analysis), "3" (pause after fix applied), "2,3" (both).
+      Default: none (fully autonomous).
 ---
 
 # Autonomous Debug Loop
@@ -57,6 +64,21 @@ arguments:
 | PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. Never leave extended silence. See `commands/CONVENTIONS.md` for format. |
 | MANIFEST-001 | **Manifest-driven pipeline** — The debugger MUST read `~/.claude/manifest.json` at boot and use it as the authoritative registry for skill discovery. Auto-debug passes the manifest path in every debugger spawn. |
 | DBG-LOOP-009 | **Escalation return path** — When the debugger determines that an error is architectural (not a bug) — e.g., missing feature, design flaw, incorrect abstraction — auto-debug MUST offer to escalate back to auto-orchestrate instead of continuing fix attempts. The debugger signals this via `Escalation-Type: architectural` in its DONE block. Auto-debug then displays the return path option to the user. |
+| ESCALATE-001 | **Cross-pipeline escalation hop limit** — Maximum 2 cross-pipeline escalation hops per error context. Before escalating to auto-orchestrate (DBG-LOOP-009), check hop count from `.pipeline-state/escalation-log.jsonl`. If `escalation_hop_count >= 2`, escalate to user instead of auto-orchestrate. Domain guide dispatches (`/infra`, `/security`) do NOT count toward the 2-hop limit. |
+| ESCALATE-002 | **Escalation handoff documentation** — Every cross-pipeline escalation writes a handoff to `.pipeline-state/escalation-log.jsonl` with: `from_command`, `to_command`, `escalation_type`, `hop_count`, `timestamp`, `consumed: false`. |
+
+### Component Taxonomy (TAXONOMY-001)
+
+Auto-debug is a **META-CONTROLLER** — it spawns agents but never does work itself.
+
+| Component | Type | Role in auto-debug |
+|-----------|------|-------------------|
+| auto-debug | meta-controller | This command (loop controller) |
+| debugger | agent | All stages — triage, research, fix, verify |
+| debug-diagnostics | skill | Invoked by debugger for error analysis |
+| researcher | agent | Optional subagent spawned by debugger for LOW-confidence errors |
+
+> See auto-orchestrate `TAXONOMY-001` for the canonical classification table across all pipelines. Three types: META-CONTROLLER (3), AGENT (17+), SKILL (30+).
 
 ## Execution Guard — AUTO-DEBUG IS A LOOP CONTROLLER, NOT A WORKER
 
@@ -304,7 +326,8 @@ Create parent tracking task via `TaskCreate` (if unavailable, log `[CROSS-001] T
   "stall_counter": 0,
   "last_error_snapshot": null,
   "thrash_counter": 0,
-  "state_hash_window": []
+  "state_hash_window": [],
+  "escalation_hop_count": 0
 }
 ```
 
@@ -547,6 +570,70 @@ When thrashing is detected:
 }
 ```
 
+**Diminishing returns detection (DIMINISH-001)**: Track `errors_resolved_per_iteration` for the last 3 iterations. If the count is strictly decreasing for 3 consecutive iterations (e.g., 3→2→1 or 2→1→0) AND `iteration > 5`, fire the diminishing returns signal:
+- Log: `[DIMINISH-001] Errors resolved per iteration decreasing for 3 consecutive iterations — diminishing returns detected`
+- Set `diminishing_returns_triggered: true`
+
+**Cost ceiling detection (COST-CEIL-001)**: If `iteration > 0.7 * max_iterations`, fire the cost ceiling signal:
+- Log: `[COST-CEIL-001] Consumed <iteration>/<max_iterations> iterations (>70%) — approaching cost ceiling`
+- Set `cost_ceiling_triggered: true`
+
+**Multi-signal termination evaluation**: Count active signals (STALL, THRASH, DIMINISH, COST_CEILING):
+- 2+ signals → `auto_terminated`. Log: `[MULTI-SIGNAL] 2+ signals active: <signals>. Auto-terminating.`
+- 1 signal → warn but continue. Log: `[SIGNAL-WARN] 1 signal active: <signal>. Continuing with caution.`
+
+**Additional checkpoint fields for 4-signal model**:
+```json
+{
+  "diminishing_returns_triggered": false,
+  "errors_resolved_window": [],
+  "cost_ceiling_triggered": false
+}
+```
+
+### 4.7-gate Human Checkpoint Gates (HUMAN-GATE-001)
+
+If `human_gates` is configured, check whether the current debug stage requires human review:
+
+```
+IF human_gates is set AND human_gates != "":
+    human_gates_list = human_gates.split(",")  # e.g., ["2", "3"]
+    
+    IF current_debug_stage == "root_cause_identified" AND "2" IN human_gates_list:
+        1. Display root cause analysis:
+           ╔══════════════════════════════════════════════════════════════╗
+           ║  HUMAN REVIEW GATE — Root Cause Analysis completed          ║
+           ║                                                              ║
+           ║  Error: <error summary>                                     ║
+           ║  Root cause: <debugger's diagnosis>                         ║
+           ║  Proposed fix: <debugger's recommendation>                  ║
+           ║                                                              ║
+           ║  Review and respond:                                        ║
+           ║  - "continue" or "y" → apply the fix                       ║
+           ║  - "reject" → re-run root cause analysis                   ║
+           ║  - "stop" → halt debug session                             ║
+           ╚══════════════════════════════════════════════════════════════╝
+        2. Wait for user input (synchronous)
+        3. On "reject": re-run debugger with feedback, log [HUMAN-GATE] Stage 2 — rejected by user
+        4. On "stop": terminal_state = user_stopped
+    
+    IF current_debug_stage == "fix_applied" AND "3" IN human_gates_list:
+        1. Display fix summary (files modified, changes made)
+        2. Wait for user input
+        3. On "continue": proceed to verification
+        4. On "revert": mark fix as failed, re-enter debug cycle
+        5. On "stop": terminate
+        6. Log: [HUMAN-GATE] Stage 3 — user response: <response>
+```
+
+**Checkpoint addition**:
+```json
+{
+  "human_gates": [],
+  "human_gate_history": []
+}
+```
+
 ### 4.7 Evaluate termination (see Step 5)
 
 ### 4.8 If NOT terminated
@@ -572,8 +659,13 @@ When the debugger identifies an issue as **architectural** (not a targeted bug),
 - `spec_mismatch` — The implementation doesn't match the spec; needs re-spec, not debug
 - `dependency_issue` — A dependency needs to be replaced, not patched
 
-**Escalation flow**:
+**Escalation flow** (subject to ESCALATE-001 hop limit):
 ```
+0. Check escalation_hop_count from checkpoint (initialized from .pipeline-state/escalation-log.jsonl on startup).
+   IF escalation_hop_count >= 2:
+       Log: [ESCALATE-001] Hop limit reached (2/2). Cannot escalate to auto-orchestrate — escalating to user.
+       Display architectural issue to user with full context.
+       Skip steps 1-3 below.
 1. Debugger returns: Escalation-Type: architectural, Category: <category>
 2. Auto-debug displays:
    ```
@@ -638,6 +730,7 @@ Evaluate in order:
 | `escalated` | All active errors escalated to user, user stopped |
 | `escalated_to_orchestrate` | Architectural issue identified, escalated back to /auto-orchestrate |
 | `user_stopped` | User manually cancelled |
+| `auto_terminated` | 2+ termination signals active simultaneously |
 
 ### On Termination
 

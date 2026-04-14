@@ -77,6 +77,7 @@ Throughout the pipeline system, components are classified as follows:
 
 | Classification | Definition | Examples | Invocation |
 |---------------|-----------|----------|------------|
+| **Meta-Controller** | Autonomous loop controller that spawns agents but never does work itself. Invoked by user as a slash command. | auto-orchestrate, auto-audit, auto-debug | `/command-name` (user invokes) |
 | **Agent** | Autonomous role with its own `.md` definition in `agents/`, model assignment, and tool access. Can spawn subagents. | orchestrator, researcher, software-engineer, product-manager | `Agent(subagent_type: "<name>")` |
 | **Skill** | Reusable capability with a `SKILL.md` in `skills/`, invoked inline by an agent or via the Skill tool. Cannot spawn subagents. | spec-creator, validator, codebase-stats, test-writer-pytest | Read and follow `SKILL.md` inline |
 
@@ -106,7 +107,7 @@ Throughout the pipeline system, components are classified as follows:
 | production-code-workflow | **skill** | auto-orchestrate (Stage 3, via software-engineer) |
 | dev-workflow | **skill** | auto-orchestrate (Stage 3, via software-engineer) |
 
-> **TAXONOMY-001**: `spec-creator`, `validator`, `spec-compliance`, `refactor-analyzer`, `dependency-analyzer`, `production-code-workflow`, `dev-workflow`, and `codebase-stats` are ALWAYS skills, never agents. They are invoked inline by the orchestrator's subagents. Any document that classifies them as agents is in error — this table is authoritative.
+> **TAXONOMY-001**: Three component types exist: **META-CONTROLLER** (3: auto-orchestrate, auto-audit, auto-debug), **AGENT** (17+: orchestrator, researcher, product-manager, etc.), **SKILL** (30+: spec-creator, validator, codebase-stats, etc.). Meta-controllers spawn agents; agents invoke skills; skills produce output. `spec-creator`, `validator`, `spec-compliance`, `refactor-analyzer`, `dependency-analyzer`, `production-code-workflow`, `dev-workflow`, and `codebase-stats` are ALWAYS skills, never agents. They are invoked inline by the orchestrator's subagents. Any document that classifies them as agents is in error — this table is authoritative.
 
 ### Pipeline Component Matrix
 
@@ -250,15 +251,21 @@ The session_id follows the format: `auto-orc-{YYYYMMDD}-{project_slug}`
 |----|------|
 | AUTO-001 | **Orchestrator-only gateway** — Spawn ONLY `subagent_type: "orchestrator"`. Never spawn software-engineer, technical-writer, etc. directly. If 2 consecutive retries return empty output, abort with `[AUTO-001]` message. |
 | AUTO-002 | **Mandatory stage completion** — Cannot declare `completed` unless `stages_completed` includes 0, 1, 2, 4.5, 5, and 6. Stage 4 (test-writer-pytest) is optional — included only when the product-manager (Stage 1) produces test tasks. If no Stage 4 tasks exist, Stage 4 is considered implicitly complete. |
-| AUTO-003 | **Stage monotonicity with validation regression** — `current_pipeline_stage` only increases or holds, EXCEPT: when Stage 5 (Validation) fails AND the validator identifies implementation defects (not spec or architecture issues), the pipeline MAY regress to Stage 3 (Implementation) for targeted fixes. Regression rules: (1) Only Stage 5 → Stage 3 regression is permitted; (2) Maximum 3 regression cycles per session — tracked in `validation_regression_count`; (3) Each regression creates a new Stage 3 task with `blockedBy` referencing the failed Stage 5 task and `regression: true` flag; (4) After 3 regressions, the pipeline must proceed to termination or escalate to auto-debug; (5) Log `[REGRESS] Stage 5 → 3 regression {N}/3 — <reason>`. The high-water mark `stages_completed` is NOT modified on regression — Stage 3 remains "completed" but new fix tasks are injected. |
+| AUTO-003 | **Stage monotonicity with validation regression** — `current_pipeline_stage` only increases or holds, EXCEPT: when Stage 5 (Validation) fails AND the validator identifies implementation defects (not spec or architecture issues), the pipeline MAY regress to Stage 3 (Implementation) for targeted fixes. Regression rules: (1) Only Stage 5 → Stage 3 regression is permitted (REGRESS-001); (2) Maximum 2 regression cycles per session — tracked in `validation_regression_count` (REGRESS-002); (3) Each regression creates a new Stage 3 task with `blockedBy` referencing the failed Stage 5 task and `regression: true` flag, logged in the task record (REGRESS-003); (4) After 2 regressions, the pipeline must proceed to termination or escalate to auto-debug; (5) Log `[REGRESS] Stage 5 → 3 regression {N}/2 — <reason>`. The high-water mark `stages_completed` is NOT modified on regression — Stage 3 remains "completed" but new fix tasks are injected. |
 | AUTO-004 | **Post-implementation stage gate** — If Stage 3 done but 4.5/5/6 missing for 1+ iterations, set `mandatory_stage_enforcement: true` and inject missing-stage tasks. |
 | AUTO-005 | **Checkpoint-before-spawn** — Write checkpoint to disk before every orchestrator spawn. |
 | AUTO-006 | **No direct agent routing** — Never tell the orchestrator which agent to use; routing is its decision. |
 | AUTO-008 | **Orchestrator delegation mandate** — The orchestrator MUST spawn subagents for ALL stage work. It must NEVER do research, analysis, implementation, testing, or documentation itself. Reading project files to "understand" the codebase is researcher work, not orchestrator work. |
-| AUTO-009 | **Fast-path bypass** — When `fast_path: true` AND `skip_planning: true`, the orchestrator MAY bypass the full stage sequence if it determines the task requires only a single agent and fits within a single stage. Fast-path tasks still write a stage-receipt and proposed-tasks.json. The orchestrator reports `FAST_PATH: true` in PROPOSED_ACTIONS. Auto-orchestrate logs `[FAST-PATH] Single-stage execution — Stage <N> only`. Fast-path is NEVER available when scope is `frontend`, `backend`, or `fullstack` (scoped work always requires the full pipeline). |
+| AUTO-009 | **Fast-path bypass** — When `fast_path: true` AND triage classifies the task as `trivial`, auto-orchestrate bypasses the orchestrator entirely via Step 2a (FAST-001). The loop controller spawns researcher → software-engineer → validator directly. Fast-path tasks still write stage-receipts per stage. Fast-path is NEVER available when scope is `frontend`, `backend`, or `fullstack` (scoped work always requires the full pipeline). See Step 2a for full implementation. |
+| FAST-001 | **Fast-path orchestrator bypass** — Trivial tasks with `fast_path: true` bypass the orchestrator gateway (exception to AUTO-001). Auto-orchestrate spawns researcher (Stage 0), software-engineer (Stage 3), and validator (Stage 5) directly. Fast-path auto-disables if: scope flag is set (F/B/S), researcher reveals complexity > trivial, or Stage 5 validation fails — falling back to the full pipeline at current progress. |
 | AUTO-007 | **Iteration history immutability** — Only append to `iteration_history`; never modify existing entries. |
 | CEILING-001 | **Stage ceiling enforcement** — Calculate `STAGE_CEILING` from `stages_completed` before every spawn (Step 3a). Orchestrator MUST NOT work above STAGE_CEILING. Auto-fix missing `blockedBy` chains. |
 | CHAIN-001 | **Mandatory blockedBy chains with independence exceptions** — Every proposed task for Stage N (N > 0) must include `blockedBy` referencing at least one Stage N-1 task. Auto-orchestrate validates and auto-fixes in Step 4.2. **Independence exception (CHAIN-002)**: When the product-manager (Stage 1) marks tasks as `independent: true` (no shared files, no data dependencies), independent task groups MAY progress through stages concurrently. Task A at Stage 3 and Task B at Stage 0 can execute in parallel if they are in different independence groups. Independence groups are declared in Stage 1 output and validated by the orchestrator. Tasks within the same independence group follow strict sequential staging. The orchestrator MUST NOT run two tasks from the same group at different stages simultaneously. |
+| PARALLEL-001 | **Dependency graph at Stage 1** — The product-manager (Stage 1) MUST compute a task dependency graph with edges `{from_task, to_task, dependency_type}` where `dependency_type` ∈ {`NONE`, `READ-AFTER-WRITE`, `WRITE-AFTER-WRITE`, `API-CONTRACT`}. Output includes `independence_groups` (list of group IDs with task assignments) and the dependency graph itself in `proposed-tasks.json`. |
+| PARALLEL-002 | **Cross-group stage relaxation** — For tasks in different independence groups (CHAIN-002), the CHAIN-001 `blockedBy` requirement is relaxed per PARALLEL-001's dependency graph. Tasks in separate groups may execute at different pipeline stages concurrently, provided no `READ-AFTER-WRITE` or `WRITE-AFTER-WRITE` edge exists between them. |
+| PARALLEL-003 | **Concurrency cap** — Maximum 3 tasks may execute concurrently across independence groups. If more than 3 tasks are independent and unblocked, they queue by priority (highest stage first, then earliest created). |
+| ESCALATE-001 | **Cross-pipeline escalation hop limit** — Maximum 2 cross-pipeline escalation hops per error context. Track `escalation_hop_count` in checkpoint, initialized from `.pipeline-state/escalation-log.jsonl` on startup. Before escalating to another pipeline (e.g., auto-debug), check hop count: if ≥ 2, escalate to user instead. **Domain exemption**: Dispatches to domain guides (`/security`, `/infra`, `/qa`, `/risk`, `/data-ml-ops`, `/org-ops`) do NOT count toward the 2-hop limit — these are advisory, not pipeline transfers. |
+| ESCALATE-002 | **Escalation handoff documentation** — Every cross-pipeline escalation MUST write a handoff entry to `.pipeline-state/escalation-log.jsonl` with: `from_command`, `to_command`, `escalation_type`, `error_context`, `hop_count`, `timestamp`, `consumed: false`. The target pipeline consumes the entry on startup by setting `consumed: true` and `consumed_at`. |
 | PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. Never leave extended silence. See `commands/CONVENTIONS.md` for format. |
 | PROGRESS-002 | **In-progress blocks completion** — Tasks with status `in_progress` mean background agents are still working. NEVER evaluate termination, declare completion, or mark stages done while `in_progress > 0`. Display running task count prominently. |
 | DISPLAY-001 | **Task board at every iteration** — Show full task board with individual tasks grouped by stage at iteration start (Step 3) and post-iteration (Step 4.3). |
@@ -540,6 +547,8 @@ The planning flow supports **conditional backward edges** when a later stage dis
 | PLAN-REV-003 | **Revision budget** — Maximum 2 revision cycles per planning phase. After 2 revisions, the pipeline proceeds with the current artifacts and logs `[PLAN-REV-CAP] Revision budget exhausted — proceeding with current planning artifacts`. |
 | PLAN-REV-004 | **Revision artifact** — The revising agent writes a `P{N}-revision-rationale.md` explaining what changed and why before the target stage re-executes. |
 
+> **Constraint aliases**: BACKTRACK-001 ≡ PLAN-REV-001 (revision trigger), BACKTRACK-002 ≡ PLAN-REV-003 (revision budget), BACKTRACK-003 ≡ PLAN-REV-004 (artifact logging). These aliases are used in the constraint registry (Improvements.md §F2).
+
 **Revision signal format**:
 ```
 [PLAN-REVISION] Target: P2 | Reason: <one-line reason>
@@ -547,10 +556,12 @@ Invalidating finding: <specific dependency/conflict that makes current scope inf
 Recommended change: <what should change in the target artifact>
 ```
 
+**P3 dependency analysis prerequisite (SKILL-REUSE-003)**: The technical-program-manager at P3 MUST invoke the `dependency-analyzer` skill before evaluating whether to trigger a PLAN-REVISION. This ensures the backtrack decision is informed by formal dependency analysis rather than ad-hoc assessment.
+
 **Revision flow**:
 ```
-P1 → P2 → P3 ──[PLAN-REVISION Target:P2]──→ P2' → P3' → P4
-                                                     │
+P1 → P2 → P3 (dependency-analyzer) ──[PLAN-REVISION Target:P2]──→ P2' → P3' → P4
+                                                                          │
 P1 → P2 → P3 → P4 ──[PLAN-REVISION Target:P1]──→ P1' → P2' → P3' → P4'
 ```
 
@@ -933,6 +944,10 @@ ELSE:  # complex
     "signals": { "trivial": 0, "medium": 0, "complex": 0 },
     "planning_skipped_by_triage": false,
     "classified_at": "<ISO-8601>",
+    "tshirt_size": "XS|S|M|L|XL",
+    "files_touched_estimate": 0,
+    "risk_score": 1,
+    "cross_team_impact": [],
     "process_scope": {
       "tier": "trivial|medium|complex",
       "domain_flags": [],
@@ -944,7 +959,34 @@ ELSE:  # complex
 }
 ```
 
-Log: `[TRIAGE] Complexity: <classification> (trivial: <N>, medium: <N>, complex: <N> signals). Planning: <SKIP|REQUIRE>.`
+**Derived triage fields** (computed after classification):
+
+```
+tshirt_size:
+  trivial + signals.trivial >= 3  → "XS"
+  trivial + signals.trivial < 3   → "S"
+  medium                          → "M"
+  complex + signals.complex < 5   → "L"
+  complex + signals.complex >= 5  → "XL"
+
+files_touched_estimate:
+  IF scope == "frontend" OR "backend": word_count / 20 (capped at 30)
+  IF scope == "fullstack": word_count / 15 (capped at 50)
+  IF scope == "custom" OR none: word_count / 25 (capped at 20)
+  Minimum: 1
+
+risk_score (1-5):
+  base = 1
+  + complexity_ordinal (trivial=0, medium=1, complex=2)
+  + 1 IF domain_flags contains "security" OR "risk"
+  + 1 IF length(domain_flags) > 2
+  Capped at 5
+
+cross_team_impact:
+  Copy of active domain_flags keys (e.g., ["security", "infra", "qa"])
+```
+
+Log: `[TRIAGE] Complexity: <classification> | T-shirt: <tshirt_size> | Risk: <risk_score>/5 (trivial: <N>, medium: <N>, complex: <N> signals). Planning: <SKIP|REQUIRE>.`
 Log: `[PROCESS-SCOPE] Tier: <tier>. Domain flags: <flags>. Active categories: <N>. Domain guides: <guides>. Total processes: <count>.`
 
 ### 0h. Planning Phase Gate (PRE-RESEARCH-GATE)
@@ -1257,6 +1299,8 @@ Write checkpoint **atomically** (write to `checkpoint.tmp.json`, then rename to 
   "current_planning_stage": null,
   "planning_skipped": false,
   "triage": null,
+  "fast_path_used": false,
+  "escalation_hop_count": 0,
   "planning_revision_count": 0,
   "planning_revision_history": [],
   "validation_regression_count": 0,
@@ -1391,6 +1435,94 @@ Log: `[MIGRATE] Added process_scope to triage (1.3.0 → 1.4.0). Defaulting to c
 **Note**: Default is `complex` (all processes active) so existing sessions do not lose coverage. New sessions compute the actual scope via Step 0h-pre.
 
 Update `schema_version` to `"1.4.0"` after migration.
+
+**Triage fields migration (1.4.0 → 1.5.0)**: When resuming a session where `triage` exists but lacks `tshirt_size`, add derived fields with safe defaults:
+```json
+{
+  "triage": {
+    "tshirt_size": "M",
+    "files_touched_estimate": 10,
+    "risk_score": 3,
+    "cross_team_impact": []
+  }
+}
+```
+Log: `[MIGRATE] Added tshirt_size/risk_score/files_touched_estimate/cross_team_impact to triage (1.4.0 → 1.5.0). Defaulting to medium estimates.`
+
+Update `schema_version` to `"1.5.0"` after migration.
+
+---
+
+## Step 2a: Fast-Path Evaluation (FAST-001)
+
+After session setup (Step 2) and before entering the orchestrator loop (Step 3), evaluate whether this task qualifies for the fast path — a streamlined 3-stage execution that bypasses the orchestrator entirely.
+
+**Entry condition**:
+```
+IF checkpoint.triage.classification == "trivial"
+   AND fast_path == true
+   AND scope NOT IN ["frontend", "backend", "fullstack"]
+   AND checkpoint.fast_path_used != true  # not already attempted
+THEN:
+    Enter fast-path execution
+ELSE:
+    Skip to Step 3 (normal orchestrator loop)
+```
+
+**Fast-path execution** (exception to AUTO-001 per FAST-001):
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  FAST PATH: TRIVIAL TASK BYPASS                                     │
+│                                                                     │
+│  TRIVIAL + fast_path ──► researcher (S0)                            │
+│                              │                                      │
+│                              ├── checkpoint + stage-receipt          │
+│                              │                                      │
+│                              ▼                                      │
+│                          software-engineer (S3)                     │
+│                              │                                      │
+│                              ├── checkpoint + stage-receipt          │
+│                              │                                      │
+│                              ▼                                      │
+│                          validator skill inline (S5)                │
+│                              │                                      │
+│                              ├── checkpoint + stage-receipt          │
+│                              │                                      │
+│                              ▼                                      │
+│                          DONE (stages_completed: [0, 3, 5])        │
+│                                                                     │
+│  Total: 3 spawns maximum instead of N orchestrator iterations       │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Stage 0 — Researcher**:
+1. Spawn `Agent(subagent_type: "researcher")` with the enhanced prompt from Step 1
+2. Write checkpoint before spawn (AUTO-005 applies)
+3. On completion: write stage-receipt to `.orchestrate/<session>/stage-0/`
+4. **Complexity upgrade check**: If researcher output contains any of: multiple services/components discovered, architectural concerns, dependency conflicts, or security flags → log `[FAST-PATH-ABORT] Researcher revealed complexity > trivial — falling back to full pipeline` and proceed to Step 3 with `stages_completed: [0]`, `fast_path_used: false`
+
+**Stage 3 — Software Engineer**:
+1. Spawn `Agent(subagent_type: "software-engineer")` with researcher findings + enhanced prompt
+2. Write checkpoint before spawn
+3. On completion: write stage-receipt to `.orchestrate/<session>/stage-3/`
+
+**Stage 5 — Validator**:
+1. Read and follow the `validator` skill's `SKILL.md` inline (this is a skill, not an agent)
+2. On completion: write stage-receipt to `.orchestrate/<session>/stage-5/`
+3. **Validation failure fallback**: If validator returns FAIL → log `[FAST-PATH-ABORT] Validation failed — falling back to full pipeline at Stage 3` and proceed to Step 3 with `stages_completed: [0, 3]`, `fast_path_used: false`
+
+**Fast-path completion**:
+```json
+{
+  "stages_completed": [0, 3, 5],
+  "fast_path_used": true,
+  "terminal_state": "completed"
+}
+```
+Log: `[FAST-PATH] Trivial task completed via fast path — 3 stages, no orchestrator overhead.`
+
+Proceed directly to Step 6 (Termination) with `terminal_state: "completed"`.
 
 ---
 
@@ -1668,6 +1800,19 @@ IF human_gates is set AND human_gates != "":
             6. Log: `[HUMAN-GATE] Stage <N> — user response: <response>`
 ```
 
+**Triage-linked defaults**: When `human_gates` is empty (not explicitly set by user) AND triage was performed (Step 0h-pre), apply complexity-based defaults:
+```
+IF human_gates is empty AND checkpoint.triage is not null:
+    IF checkpoint.triage.complexity == "trivial":
+        human_gates = []                    # No gates for trivial tasks
+    ELSE IF checkpoint.triage.complexity == "medium":
+        human_gates = ["2"]                 # Spec-review after Stage 2
+    ELSE IF checkpoint.triage.complexity == "complex":
+        human_gates = ["2", "5"]            # Spec-review + validation-review
+    Log: [HUMAN-GATE-DEFAULT] Applied triage-linked default gates: <human_gates>
+```
+User-provided `human_gates` always override triage-linked defaults.
+
 **Checkpoint addition**:
 ```json
 {
@@ -1879,6 +2024,44 @@ Add `thrashing` to the Terminal State Reference table as:
 
 **In-progress ceiling (AO-INEFF-001)**: Track per-task `in_progress_iterations` count. If any task remains `in_progress` for 5 consecutive iterations without completing, treat it as failed: set status to `failed`, log `[AO-INEFF-001] Task #<id> "<subject>" stuck in_progress for 5 iterations — marking failed`, and do NOT let it reset the stall counter.
 
+**Diminishing returns detection (DIMINISH-001)**: After each iteration, compute `progress_delta = tasks_completed_this_iteration / total_tasks`. Append to `progress_delta_window` (rolling window, last 5 entries). If ALL 5 entries are below 0.02 (2%) AND `iteration > 10`, fire the diminishing returns signal:
+- Log: `[DIMINISH-001] Progress delta below 2% for 5 consecutive iterations — diminishing returns detected`
+- Set `diminishing_returns_triggered: true` in checkpoint
+
+**Cost ceiling detection (COST-CEIL-001)**: After each iteration, check: if `iteration > 0.7 * max_iterations`, fire the cost ceiling signal:
+- Log: `[COST-CEIL-001] Consumed <iteration>/<max_iterations> iterations (>70%) — approaching cost ceiling`
+- Set `cost_ceiling_triggered: true` in checkpoint
+
+**Multi-signal termination evaluation**: After evaluating all individual signals (stall, thrash, diminishing returns, cost ceiling), count active signals:
+```
+active_signals = []
+IF stall_counter >= STALL_THRESHOLD: active_signals.append("STALL")
+IF thrash_counter >= 1: active_signals.append("THRASH")
+IF diminishing_returns_triggered: active_signals.append("DIMINISH")
+IF cost_ceiling_triggered: active_signals.append("COST_CEILING")
+
+IF len(active_signals) >= 2:
+    terminal_state = "auto_terminated"
+    Log: [MULTI-SIGNAL] 2+ signals active: {active_signals}. Auto-terminating.
+ELSE IF len(active_signals) == 1:
+    Log: [SIGNAL-WARN] 1 signal active: {active_signals[0]}. Injecting diagnostic task.
+    # Inject diagnostic task but do NOT terminate yet
+```
+
+**Checkpoint additions for 4-signal model**:
+```json
+{
+  "diminishing_returns_triggered": false,
+  "progress_delta_window": [],
+  "cost_ceiling_triggered": false
+}
+```
+
+Add `auto_terminated` to the Terminal State Reference table:
+```
+| `auto_terminated` | 2+ termination signals active simultaneously |
+```
+
 ### Post-Termination Dispatch (TRIG-005, TRIG-006)
 
 After `terminal_state` is determined but before the termination display:
@@ -1953,6 +2136,7 @@ Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
 | `user_stopped` | User manually cancelled |
 | `thrashing` | System alternating between states without net progress |
 | `escalated_to_debug` | Escalated to /auto-debug after validation failures |
+| `auto_terminated` | 2+ termination signals active simultaneously (MULTI-SIGNAL) |
 
 ### Git Commit Instructions
 > Auto-orchestrate NEVER commits automatically. Review and commit manually.

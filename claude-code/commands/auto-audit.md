@@ -53,6 +53,13 @@ arguments:
     required: false
     default: false
     description: Explicitly resume the latest in-progress audit session.
+  - name: human_gates
+    type: string
+    required: false
+    description: |
+      Comma-separated list of audit phases where the loop pauses for human review.
+      Values: "A" (pause after audit phase), "B" (pause after remediation phase), "A,B" (both).
+      Default: none (fully autonomous).
 ---
 
 # Autonomous Audit-Remediate Loop
@@ -72,6 +79,24 @@ arguments:
 | AUD-LOOP-009 | **Phase ordering** — Phase A (audit) ALWAYS precedes Phase B (remediation) within a cycle. Never remediate without auditing first. |
 | PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. See `commands/CONVENTIONS.md` for format. |
 | MANIFEST-001 | **Manifest-driven pipeline** — Read `~/.claude/manifest.json` at boot. Pass manifest path to all agent spawns. |
+| ESCALATE-001 | **Cross-pipeline escalation hop limit** — Maximum 2 cross-pipeline escalation hops per error context. Before escalating (e.g., advisory hint to auto-debug), check hop count from `.pipeline-state/escalation-log.jsonl`. If ≥ 2, escalate to user instead. Domain guide dispatches (`/security`, `/qa`, `/risk`) do NOT count toward the 2-hop limit. |
+| ESCALATE-002 | **Escalation handoff documentation** — Every cross-pipeline escalation writes a handoff to `.pipeline-state/escalation-log.jsonl` with: `from_command`, `to_command`, `escalation_type`, `hop_count`, `timestamp`, `consumed: false`. |
+| AUD-RUNTIME-001 | **Runtime verification sandbox** — Runtime verification (Phase 3 of auditor) executes in a sandbox context. CAN: run existing tests, send GET requests to health endpoints, start containers in read-only mode. CANNOT: modify source code, modify config files, write to production data stores, execute POST/PUT/DELETE requests. |
+| AUD-RUNTIME-002 | **Runtime finding tagging** — Runtime verification findings are tagged with `[RUNTIME]` prefix in the audit report. Requirements that pass static analysis but fail runtime verification are flagged as `runtime_regression` with severity elevated by one tier (e.g., MAY → SHOULD). |
+
+### Component Taxonomy (TAXONOMY-001)
+
+Auto-audit is a **META-CONTROLLER** — it spawns agents but never does work itself.
+
+| Component | Type | Role in auto-audit |
+|-----------|------|-------------------|
+| auto-audit | meta-controller | This command (loop controller) |
+| auditor | agent | Phase A — audit execution |
+| orchestrator | agent | Phase B — remediation execution |
+| spec-compliance | skill | Invoked by auditor during Phase A |
+| spec-analyzer | skill | Invoked by auditor during Phase A |
+
+> See auto-orchestrate `TAXONOMY-001` for the canonical classification table across all pipelines. Three types: META-CONTROLLER (3), AGENT (17+), SKILL (30+).
 
 ## Execution Guard — AUTO-AUDIT IS A META-LOOP CONTROLLER, NOT A WORKER
 
@@ -139,7 +164,7 @@ The compliance threshold applies to the **overall weighted score**, but individu
 | Severity | Weight | Individual Gate | Description |
 |----------|--------|----------------|-------------|
 | MUST / CRITICAL | 3x | **All must pass** (when `critical_must_pass: true`) | Core requirements that define system correctness. A single CRITICAL failure = overall FAIL regardless of score. |
-| SHOULD / HIGH | 2x | No individual gate | Important requirements that significantly impact quality. Contribute double weight to the overall score. |
+| SHOULD / HIGH | 2x | **Caps verdict at NEEDS_WORK** | Important requirements that significantly impact quality. Contribute double weight to the overall score. Any failing HIGH requirement caps the maximum verdict at NEEDS_WORK regardless of overall score. |
 | MAY / MEDIUM | 1x | No individual gate | Nice-to-have requirements. Standard weight contribution. |
 | OPTIONAL / LOW | 0.5x | Excluded from threshold | Informational findings. Reported but do not affect pass/fail. |
 
@@ -159,6 +184,9 @@ weighted_score = (
 IF critical_must_pass AND any MUST/CRITICAL requirement has status != PASS:
     verdict = FAIL
     reason = "CRITICAL requirement(s) not met: <list>"
+ELSE IF any SHOULD/HIGH requirement has status == FAIL:
+    verdict = NEEDS_WORK
+    reason = "HIGH requirement(s) failing: <list> — manual review required"
 ELSE IF weighted_score >= 100:
     verdict = PASS
 ELSE IF weighted_score >= compliance_threshold:
@@ -176,6 +204,9 @@ ELSE:
  │  PASS: 5/7 (71%) | PARTIAL: 1 | FAIL: 1
  ├─ MEDIUM/MAY Requirements ───────────────────
  │  PASS: 4/5 (80%) | MISSING: 1
+ ├─ Runtime Verification (AUD-RUNTIME-001) ────
+ │  Endpoints checked: 5 | Services healthy: 3/4
+ │  Runtime regressions: 1 (static-pass, runtime-fail)
  ├─ Weighted Score ────────────────────────────
  │  87.3% [ACCEPTABLE — above 85% threshold]
  │  (unweighted: 81.0%)
@@ -362,6 +393,7 @@ Create parent tracking task via `TaskCreate` (if unavailable, log `[CROSS-001] T
   "last_compliance_score": null,
   "last_gap_count": null,
   "stall_counter": 0,
+  "escalation_hop_count": 0,
   "terminal_state": null
 }
 ```
@@ -482,6 +514,48 @@ When the gap report contains gaps categorized as `implementation_error` or `runt
 2. This is **advisory only** — the audit continues normally regardless.
 3. **NEVER trigger auto-debug automatically** from auto-audit. The hint is displayed once per audit cycle, not per gap.
 4. Log: `[AUD-DEBUG-HINT] Displayed for <N> error-type gaps`
+
+### 4.5-gate Human Checkpoint Gates (HUMAN-GATE-001)
+
+If `human_gates` is configured, check whether the current phase requires human review:
+
+```
+IF human_gates is set AND human_gates != "":
+    human_gates_list = human_gates.split(",")  # e.g., ["A", "B"]
+    
+    IF current_phase == "audit" AND "A" IN human_gates_list:
+        1. Display audit results summary:
+           ╔══════════════════════════════════════════════════════════════╗
+           ║  HUMAN REVIEW GATE — Phase A (Audit) completed              ║
+           ║                                                              ║
+           ║  Compliance Score: <score>%  |  Verdict: <verdict>          ║
+           ║  Gaps found: <gap_count>                                     ║
+           ║  Gap report: .audit/<session>/gap-report.json               ║
+           ║                                                              ║
+           ║  Review the audit results and respond:                      ║
+           ║  - "continue" or "y" to proceed to remediation              ║
+           ║  - "stop" to halt the audit loop                            ║
+           ╚══════════════════════════════════════════════════════════════╝
+        2. Wait for user input (synchronous)
+        3. On "continue"/"y": proceed to Phase B (remediation)
+        4. On "stop": set terminal_state to `user_stopped`, terminate
+        5. Log: [HUMAN-GATE] Phase A — user response: <response>
+    
+    IF current_phase == "remediation" AND "B" IN human_gates_list:
+        1. Display remediation summary (after orchestrator completes)
+        2. Wait for user input
+        3. On "continue": proceed to next audit cycle
+        4. On "stop": terminate
+        5. Log: [HUMAN-GATE] Phase B — user response: <response>
+```
+
+**Checkpoint addition**:
+```json
+{
+  "human_gates": [],
+  "human_gate_history": []
+}
+```
 
 ### 4.5a Dispatch Trigger Evaluation (DISPATCH-001)
 
@@ -656,6 +730,7 @@ Evaluate in order:
 | 1 | Verdict = PASS (100% weighted compliance AND all CRITICAL pass) | `fully_compliant` |
 | 2 | Verdict = ACCEPTABLE (weighted score ≥ threshold AND all CRITICAL pass when `critical_must_pass: true`) | `acceptable_compliance` |
 | 2a | Weighted score ≥ threshold BUT CRITICAL requirement(s) failing | `critical_blocked` — cannot accept until CRITICAL requirements pass |
+| 2b | Verdict = NEEDS_WORK (HIGH/SHOULD requirement(s) failing, regardless of overall score) | `needs_work` — cannot achieve PASS/ACCEPTABLE until HIGH requirements pass |
 | 3 | `audit_cycle >= MAX_AUDIT_CYCLES` | `max_cycles_reached` |
 | 4 | `stall_counter >= STALL_THRESHOLD` | `stalled` |
 | 5 | User requests stop | `user_stopped` |
@@ -664,6 +739,34 @@ Evaluate in order:
 - Same or worse score → increment `stall_counter`
 - Improvement < 1.0% (absolute) → increment `stall_counter` (epsilon improvement does not count as progress). Log: `[AA-BREAK-002] Compliance improved by only <delta>% (< 1% minimum) — counting as stall`
 - Improvement >= 1.0% (absolute) → reset `stall_counter` to 0
+
+**Thrashing detection (THRASH-001)**: Track a rolling window of state hashes (last 4 cycles). State hash = `SHA-256(round(compliance_score) + ":" + gap_count)`. If the current hash matches any previous hash in the window, the audit loop is thrashing — oscillating between the same compliance states without net improvement.
+- Log: `[THRASH-001] Compliance state hash collision — cycle <N> matches cycle <M>. Audit loop is thrashing.`
+- Increment `thrash_counter`
+- If `thrash_counter >= 2`: set terminal_state to `thrashing` and terminate
+
+**Diminishing returns detection (DIMINISH-001)**: Track compliance score improvement per cycle. If improvement < 0.5% (absolute) for 3 consecutive cycles AND `audit_cycle > 2`, fire the diminishing returns signal:
+- Log: `[DIMINISH-001] Compliance improvement below 0.5% for 3 consecutive cycles — diminishing returns detected`
+- Set `diminishing_returns_triggered: true`
+
+**Cost ceiling detection (COST-CEIL-001)**: If `audit_cycle > 0.7 * MAX_AUDIT_CYCLES`, fire the cost ceiling signal:
+- Log: `[COST-CEIL-001] Consumed <audit_cycle>/<MAX_AUDIT_CYCLES> cycles (>70%) — approaching cost ceiling`
+- Set `cost_ceiling_triggered: true`
+
+**Multi-signal termination evaluation**: Count active signals (STALL, THRASH, DIMINISH, COST_CEILING):
+- 2+ signals → `auto_terminated`. Log: `[MULTI-SIGNAL] 2+ signals active: <signals>. Auto-terminating.`
+- 1 signal → warn but continue. Log: `[SIGNAL-WARN] 1 signal active: <signal>. Continuing with caution.`
+
+**Checkpoint additions for 4-signal model**:
+```json
+{
+  "thrash_counter": 0,
+  "state_hash_window": [],
+  "diminishing_returns_triggered": false,
+  "score_improvement_window": [],
+  "cost_ceiling_triggered": false
+}
+```
 
 ### Terminal State Reference
 
@@ -675,6 +778,9 @@ Evaluate in order:
 | `stalled` | No meaningful progress for STALL_THRESHOLD cycles |
 | `user_stopped` | User manually cancelled |
 | `critical_blocked` | Overall score acceptable but CRITICAL requirements failing |
+| `needs_work` | HIGH/SHOULD requirements failing — manual review required |
+| `thrashing` | Compliance state oscillating without net improvement |
+| `auto_terminated` | 2+ termination signals active simultaneously |
 
 ### On Termination
 
@@ -760,7 +866,7 @@ Schema (see `~/.claude/processes/schemas/audit-receipt-schema.json` for JSON Sch
   "schema_version": "1.0",
   "session_id": "{session_id}",
   "type": "audit",
-  "verdict": "{fully_compliant|acceptable_compliance|max_cycles_reached|stalled|user_stopped}",
+  "verdict": "{fully_compliant|acceptable_compliance|needs_work|max_cycles_reached|stalled|user_stopped}",
   "final_compliance_score": {last_compliance_score},
   "compliance_threshold": {compliance_threshold},
   "timestamp": "{ISO-8601 completed_at}",
