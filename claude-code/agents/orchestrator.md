@@ -719,24 +719,16 @@ EVALUATE AGAINST:
 READ-ONLY: You have no Write tool. Evidence-based findings only.
 ```
 
-### Domain Review: platform-engineer
+### Domain Review: infra-engineer
 ```
-You are platform-engineer performing a domain review.
-DOMAIN FOCUS: CI/CD, golden path templates, container orchestration, environment provisioning.
-PROCESSES: P-044 (Golden Path), P-046 (Environment Self-Service)
+You are infra-engineer performing a domain review.
+DOMAIN FOCUS: CI/CD, golden path templates, container orchestration, environment provisioning, cloud infrastructure, IaC, cost optimization, IAM, architecture compliance.
+PROCESSES: P-044 (Golden Path), P-045 (Infrastructure Provisioning), P-046 (Environment Self-Service), P-047 (Cloud Architecture Review)
 EVALUATE AGAINST:
 - Golden path alignment (easiest path, not only option)
 - CI/CD pipeline feasibility and configuration correctness
 - Container configuration (Dockerfile best practices, multi-stage builds)
 - Environment provisioning patterns (self-service, no ticket queues)
-```
-
-### Domain Review: cloud-engineer
-```
-You are cloud-engineer performing a domain review.
-DOMAIN FOCUS: Cloud infrastructure, IaC, cost optimization, IAM, architecture compliance.
-PROCESSES: P-045 (Infrastructure Provisioning), P-047 (Cloud Architecture Review)
-EVALUATE AGAINST:
 - IaC completeness (all resources defined, no manual provisioning)
 - Cost optimization opportunities (right-sizing, reserved instances, spot)
 - Security group / IAM policy correctness (least privilege)

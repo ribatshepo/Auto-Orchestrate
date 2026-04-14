@@ -61,7 +61,7 @@ Quarterly: Process health review (P-071)
 | Situation | Primary Agent | Supporting |
 |-----------|---------------|------------|
 | Production incident | `sre` | `software-engineer` |
-| Performance degradation | `sre` | `platform-engineer` |
+| Performance degradation | `sre` | `infra-engineer` |
 | Security incident | `security-engineer` | `sre` |
 | Outcome measurement | `product-manager` | `engineering-manager` |
 | Project retrospective | `engineering-manager` | all participants |

@@ -8,7 +8,7 @@
 
 ## Purpose
 
-The Agent Activation Protocol enables the orchestrator to conditionally spawn domain-expert agents (qa-engineer, security-engineer, sre, platform-engineer, cloud-engineer, data-engineer, ml-engineer) for single-stage review participation during autonomous pipeline execution. Without this protocol, these 7 agents are confined to manual domain commands (`/qa`, `/security`, `/infra`, `/data-ml-ops`) and are never invoked by the Big Three autonomous loops — even when processes P-032 to P-057 require their expertise.
+The Agent Activation Protocol enables the orchestrator to conditionally spawn domain-expert agents (qa-engineer, security-engineer, sre, infra-engineer, data-engineer, ml-engineer) for single-stage review participation during autonomous pipeline execution. Without this protocol, these 6 agents are confined to manual domain commands (`/qa`, `/security`, `/infra`, `/data-ml-ops`) and are never invoked by the Big Three autonomous loops — even when processes P-032 to P-057 require their expertise.
 
 This protocol is **complementary** to the Command Dispatch Protocol. Command dispatch invokes domain guide **Skills** (Tier 2, inline text analysis) via the loop controller. Agent activation spawns domain **agents** (subagents with tool access) via the orchestrator. Dispatch provides high-level findings; activation provides detailed, code-level review.
 
@@ -39,15 +39,16 @@ auto-orchestrate loop controller
 |---------|--------------|-----------|-------|-------------|-----------|
 | ACT-001 | 2 | Stage 2 spec contains API contracts, endpoint definitions, REST/GraphQL interfaces, or contract testing references | qa-engineer | Review spec for testability, acceptance criteria completeness, contract testing gaps | P-032, P-037 |
 | ACT-002 | 2 | Stage 2 spec contains auth, authentication, authorization, crypto, secrets, tokens, OR P-038 flagged in stage-receipt or dispatch receipt | security-engineer | Review spec for security requirements completeness, threat model coverage, OWASP alignment | P-038, P-039 |
-| ACT-003 | 2 | Stage 2 spec contains infrastructure, deploy, Docker, Kubernetes, Terraform, CI/CD pipeline changes | platform-engineer | Review spec for platform feasibility, golden path alignment, environment provisioning | P-044, P-046 |
+| ACT-003 | 2 | Stage 2 spec contains infrastructure, deploy, Docker, Kubernetes, Terraform, CI/CD pipeline changes | infra-engineer | Review spec for platform feasibility, golden path alignment, environment provisioning, IaC design | P-044, P-045, P-046 |
 | ACT-004 | 2 | Stage 2 spec contains data pipeline, ETL, schema migration, data warehouse, dbt, streaming | data-engineer | Review spec for data architecture, schema versioning, pipeline quality patterns | P-049, P-050 |
 | ACT-005 | 3 | Stage-receipt `process_acknowledgments` contains P-038 through P-043 with severity HIGH or CRITICAL, OR a `/security` dispatch receipt exists for this session | security-engineer | Security review of Stage 3 implementation code — injection risks, auth flaws, secret handling | P-038, P-039, P-040 |
 | ACT-006 | 3 | Task description or dispatch_hint contains schema, migration, data model, pipeline, ETL | data-engineer | Review data layer implementation for schema versioning, migration safety, data quality | P-049, P-050 |
 | ACT-007 | 5 | Stage 5 validation involves Docker, Kubernetes, cloud deployment, or infrastructure components | sre | Validate operational readiness — SLO alignment, monitoring, alerting, runbook existence | P-054, P-055 |
 | ACT-008 | 5 | Session artifacts contain ML model files, training scripts, inference endpoints, or model serving config | ml-engineer | Validate ML pipeline — training-serving skew, canary deployment, experiment logging, drift monitoring | P-051, P-052, P-053 |
-| ACT-009 | 5 | Session created or modified Terraform, CDK, Pulumi, or cloud IaC files | cloud-engineer | Review IaC for cost optimization, security groups, architecture compliance | P-045, P-047 |
+| ACT-009 | 5 | Session created or modified Terraform, CDK, Pulumi, or cloud IaC files | infra-engineer | Review IaC for cost optimization, security groups, architecture compliance | P-045, P-047 |
 | ACT-010 | 6 | P-061 (Runbook) flagged in process acknowledgments OR infrastructure/deployment components present in session | sre | Co-author runbook sections — incident response, scaling procedures, rollback steps | P-054, P-056, P-061 |
 | ACT-011 | 6 | P-059 (API Docs) flagged in process acknowledgments OR API endpoints implemented in session | qa-engineer | Review API documentation for completeness, accuracy against implementation, example coverage | P-032, P-059 |
+| ACT-012 | 5 | Session artifacts contain UI components, HTML templates, React/Vue/Svelte components, or front-end code with user-facing interfaces | qa-engineer | Accessibility compliance review — WCAG 2.1 AA/AAA, ARIA patterns, keyboard navigation, color contrast, screen reader compatibility | P-032, P-035 |
 
 ---
 
@@ -63,6 +64,7 @@ The orchestrator evaluates activation conditions by reading stage artifacts with
 | **Task context match** (ACT-006) | Check current task's `description` and `dispatch_hint` fields for domain keywords. |
 | **Artifact presence check** (ACT-007 to ACT-009) | Glob session directory and project root for domain-specific files: `Dockerfile`, `*.tf`, `*.yaml` (k8s manifests), `*.ipynb`, model files, etc. |
 | **Session history check** (ACT-009) | Check `checkpoint.stages_completed` and stage artifacts for IaC file creation/modification records. |
+| **Frontend artifact check** (ACT-012) | Glob session directory and project root for UI component files: `*.jsx`, `*.tsx`, `*.vue`, `*.svelte`, `*.html`, React/Vue/Svelte component directories. Match component creation/modification in stage artifacts. |
 
 **False positive mitigation**: Conditions should match keywords in **context-relevant sections** of artifacts, not in passing references. For example, a spec mentioning "Docker" in a "Deployment" section triggers ACT-003, but "Docker" in a "Background" section describing prior work does not. When in doubt, activate — a focused 10-turn review has minimal overhead and false negatives (missing a needed review) are worse than false positives.
 
@@ -212,6 +214,22 @@ EVALUATE AGAINST:
 - Performance testing requirements (P50/P95/P99 SLO coverage)
 ```
 
+### qa-engineer Accessibility Review Template (ACT-012)
+```
+You are qa-engineer performing an accessibility domain review.
+
+DOMAIN FOCUS: Accessibility compliance, WCAG 2.1 AA/AAA, ARIA patterns, keyboard navigation, color contrast, screen reader compatibility.
+PROCESSES: P-032 (Test Architecture), P-035 (Performance Testing — accessibility performance)
+EVALUATE AGAINST:
+- WCAG 2.1 Level AA compliance for all interactive elements
+- ARIA roles, states, and properties on custom widgets
+- Keyboard navigation (all interactive elements reachable and operable)
+- Color contrast ratios (4.5:1 for normal text, 3:1 for large text)
+- Focus management (visible focus indicators, logical tab order)
+- Screen reader compatibility (meaningful alt text, live regions)
+- Form labels and error messages (programmatically associated)
+```
+
 ### security-engineer Review Template
 ```
 You are security-engineer performing a domain review.
@@ -227,26 +245,17 @@ EVALUATE AGAINST:
 READ-ONLY: You have no Write tool. Evidence-based findings only.
 ```
 
-### platform-engineer Review Template
+### infra-engineer Review Template
 ```
-You are platform-engineer performing a domain review.
+You are infra-engineer performing a domain review.
 
-DOMAIN FOCUS: CI/CD, golden path templates, container orchestration, environment provisioning.
-PROCESSES: P-044 (Golden Path), P-046 (Environment Self-Service)
+DOMAIN FOCUS: CI/CD, golden path templates, container orchestration, environment provisioning, cloud infrastructure, IaC, cost optimization, IAM, architecture compliance.
+PROCESSES: P-044 (Golden Path), P-045 (Infrastructure Provisioning), P-046 (Environment Self-Service), P-047 (Cloud Architecture Review)
 EVALUATE AGAINST:
 - Golden path alignment (easiest path, not only path)
 - CI/CD pipeline feasibility
 - Container configuration correctness
 - Environment provisioning patterns
-```
-
-### cloud-engineer Review Template
-```
-You are cloud-engineer performing a domain review.
-
-DOMAIN FOCUS: Cloud infrastructure, IaC, cost optimization, IAM, architecture compliance.
-PROCESSES: P-045 (Infrastructure Provisioning), P-047 (Cloud Architecture Review)
-EVALUATE AGAINST:
 - IaC completeness (no manual provisioning)
 - Cost optimization opportunities
 - Security group / IAM policy correctness

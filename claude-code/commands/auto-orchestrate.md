@@ -273,6 +273,8 @@ The session_id follows the format: `auto-orc-{YYYYMMDD}-{project_slug}`
 | SCOPE-002 | **Scope template integrity** — A narrow user objective does not reduce the spec — all design principles, steps, and constraints still apply in full. |
 | MANIFEST-001 | **Manifest-driven pipeline** — The orchestrator MUST read `~/.claude/manifest.json` at boot and use it as the authoritative registry for agent routing, skill discovery, and capability validation. Auto-orchestrate passes the manifest path in every orchestrator spawn. Agents MUST verify their mandatory skills exist in the manifest before invoking them. |
 | PRE-RESEARCH-GATE | **Planning phase prerequisite** — Stage 0 (researcher) MUST NOT begin unless `planning_stages_completed` contains all four values `["P1", "P2", "P3", "P4"]` AND all four entries in `planning_gate_statuses` have value `"PASSED"`. Skip conditions: (1) `--skip-planning` flag is passed, or (2) checkpoint field `planning_skipped` is `true` (set when resuming a session that already has planning artifacts from a prior session). Error codes: `[PLAN-GATE-001]` through `[PLAN-GATE-004]` for each incomplete stage. |
+| WORKFLOW-SYNC-001 | **Task board single source of truth** — When auto-orchestrate is running, `.pipeline-state/workflow/task-board.json` is the single source of truth for task state. auto-orchestrate WRITES this file at every iteration (Step 4.8e). `/workflow-dash`, `/workflow-next`, and `/workflow-focus` READ this file. No other command writes to it while auto-orchestrate is active. |
+| WORKFLOW-SYNC-002 | **Read-only workflow commands during orchestration** — When `pipeline-context.json` shows `active_command` as any Big Three AND `last_updated` is within 5 minutes, `/workflow-*` commands operate in read-only mode. They may read `task-board.json`, `focus-stack.json`, and `dashboard-cache.json` but MUST NOT modify task state. Full read/write access resumes when no Big Three session is active. |
 
 ## Execution Guard — AUTO-ORCHESTRATE IS A LOOP CONTROLLER, NOT A WORKER
 
@@ -777,6 +779,8 @@ mkdir -p .pipeline-state .pipeline-state/command-receipts .pipeline-state/proces
 4. Pass `PIPELINE_STATE_DIR=.pipeline-state` in the orchestrator spawn prompt
 5. Read `.pipeline-state/command-receipts/` (STATE-002) — scan for receipts from `/new-project`, `/gate-review`, `/security`, `/qa`, `/infra`, `/risk`, `/data-ml-ops`, `/org-ops`, `/sprint-ceremony`, `/release-prep`. Receipts predating this session's `created_at` are **context** (logged, not acted upon). Receipts from within the current session or with `dispatch_context.invoked_by` matching this session are **actionable** (injected into relevant stage context).
 6. Read `.pipeline-state/workflow/active-session.json` — if a workflow session is active, log task state summary for awareness
+7. Write `.pipeline-state/workflow/active-session.json` with `session_state: "active"`, `source: "auto-orchestrate"`, `session_id: <session_id>`, `started_at: <now>`. This signals WORKFLOW-SYNC-002 (read-only mode for workflow-* commands).
+8. Initialize `.pipeline-state/workflow/task-board.json` with empty task list: `{ "schema_version": "1.0.0", "source": "auto-orchestrate", "session_id": <session_id>, "last_updated": <now>, "iteration": 0, "pipeline_stage": null, "tasks": [], "stages_completed": [], "terminal_state": null }`
 7. Store `last_receipt_scan` timestamp in checkpoint for incremental scanning at stage transitions
 
 **At each stage transition (Step 4.8c)**: Before evaluating dispatch triggers, re-scan `.pipeline-state/command-receipts/` for receipts written since `last_receipt_scan` (STATE-002). This catches receipts from domain guides invoked standalone or from other commands run in parallel. Update `last_receipt_scan`. For each new actionable receipt: if it has `next_recommended_action` pointing to a Tier 1 command, display `[DISPATCH-SUGGEST]` per existing Tier 1 protocol; if it has findings with severity HIGH or CRITICAL, treat as equivalent to TRIG-012 condition.
@@ -785,6 +789,8 @@ mkdir -p .pipeline-state .pipeline-state/command-receipts .pipeline-state/proces
 - Update `.pipeline-state/pipeline-context.json` with final session state
 - Write receipt to `.pipeline-state/command-receipts/auto-orchestrate-<YYYYMMDD>-<HHMMSS>.json` (STATE-001) with: `inputs: { "task_description", "scope" }`, `outputs: { "terminal_state", "stages_completed": [], "tasks_total", "tasks_completed" }`, `processes_executed` aggregated from all stage receipts, `next_recommended_action`: `"release-prep"` if completed, `"auto-debug"` if failed with errors, `null` otherwise
 - Write process log entries for all processes executed across stages (STATE-003) to `.pipeline-state/process-log/<process-id>.jsonl`
+- Update `.pipeline-state/workflow/active-session.json` with `session_state: "ended"`, `ended_at: <now>`, final `tasks_completed` and `task_count` tallies
+- Write final `.pipeline-state/workflow/task-board.json` with `terminal_state` set and all task statuses finalized (WORKFLOW-SYNC-001). This releases the read-only lock for workflow-* commands.
 
 ### 0g. Project Type Detection
 
@@ -1096,6 +1102,14 @@ ELSE:
             Append stage to planning_stages_completed
             Set planning_artifacts.{artifact_key} = "<path>"
             Log: "[P{N}:PASSED] {gate_name} gate passed -- artifact: {filename}"
+            
+            ## Post-Gate Dispatch (PHASE-TRIG-001 — C1: Phase Command Integration)
+            display "[DISPATCH-SUGGEST] PHASE-TRIG-001: P{N} gate passed."
+            display "  Consider running /gate-review {gate} {session_id} for formal organizational review."
+            append to checkpoint.dispatch_log:
+              { trigger_id: "PHASE-TRIG-001", command: "/gate-review",
+                tier: 1, action: "suggested", context: "P{N} gate passed",
+                timestamp: now_iso8601() }
         ELSE:
             Log: "[P{N}:FAILED] {gate_name} gate failed -- artifact missing or incomplete"
             Retry once. If still failed, log error and continue to next iteration.
@@ -1110,6 +1124,14 @@ ELSE:
 
     # All planning stages complete
     Log: "[PRE-RESEARCH-GATE] All planning stages complete. Proceeding to execution pipeline."
+    
+    ## Post-Planning Dispatch (TRIG-008 — C1: Phase Command Integration)
+    display "[DISPATCH-SUGGEST] TRIG-008: All planning gates passed (P4 Sprint Readiness)."
+    display "  Consider running /sprint-ceremony to conduct sprint kickoff ceremony."
+    append to checkpoint.dispatch_log:
+      { trigger_id: "TRIG-008", command: "/sprint-ceremony",
+        tier: 1, action: "suggested", timestamp: now_iso8601() }
+    
     Proceed to Step 1.
 ```
 
@@ -1821,6 +1843,60 @@ User-provided `human_gates` always override triage-linked defaults.
 }
 ```
 
+**Phase Command Lifecycle (C1: Phase Command Integration with Big Three)**:
+
+The following diagram shows how phase commands integrate with the auto-orchestrate pipeline. Tier 1 triggers (DISPATCH-SUGGEST) recommend commands at lifecycle boundaries; the user runs them manually.
+
+```
+/new-project (TRIG-004: no handoff receipt)
+    │
+    ├──► handoff-receipt ──► /auto-orchestrate
+    │                             │
+    │                    ┌────────┴────────────────────┐
+    │                    │  PLANNING (P1-P4)           │
+    │                    │    /gate-review at each gate │
+    │                    │    (PHASE-TRIG-001)          │
+    │                    │    /sprint-ceremony after P4 │
+    │                    │    (TRIG-008)                │
+    │                    └────────┬────────────────────┘
+    │                             │
+    │                    ┌────────┴────────────────────┐
+    │                    │  EXECUTION (S0-S6)          │
+    │                    │    /active-dev at Stage 3    │
+    │                    │    (PHASE-TRIG-002, L/XL)   │
+    │                    │    /sprint-ceremony at       │
+    │                    │    sprint boundaries         │
+    │                    │    (PHASE-TRIG-003, L/XL)   │
+    │                    └────────┬────────────────────┘
+    │                             │
+    │                    ┌────────┴────────────────────┐
+    │                    │  RELEASE                    │
+    │                    │    /release-prep (TRIG-005)  │
+    │                    └────────┬────────────────────┘
+    │                             │
+    │                    ┌────────┴────────────────────┐
+    │                    │  OPERATIONS                 │
+    │                    │    /post-launch (TRIG-006)   │
+    │                    └────────────────────────────-─┘
+    │
+    └──► /auto-audit (compliance) ──► /auto-debug (if needed)
+```
+
+**Domain Guide Activation Map (C2: Domain Guide Activation from Autonomous Loops)**:
+
+This table maps domain guides to their trigger conditions and activation stages within the auto-orchestrate pipeline. Tier 2 triggers auto-invoke the domain guide via `Skill()`.
+
+| Domain Guide | Trigger ID | Trigger Condition | Activation Stage | Tier |
+|-------------|-----------|-------------------|-----------------|------|
+| `/security` | TRIG-001 | P-038 flagged HIGH/CRITICAL in stage-receipt | Stage 0 (research), Stage 2 (spec), Stage 3 (impl) | 2 |
+| `/qa` | TRIG-002 | Stage 3 completes (test strategy needed) | Stage 3 (impl) → Stage 4 (test) | 2 |
+| `/infra` | TRIG-003 | Stage 5 fails with deploy/infrastructure keywords | Stage 5 (validation) | 2 |
+| `/risk` | TRIG-007 | CRITICAL RAID items in codebase-analysis or P2 scope | Any stage | 2 |
+| `/data-ml-ops` | TRIG-012 | P-049..P-053 flagged HIGH/CRITICAL | Stage 2 (spec), Stage 3 (impl), Stage 5 (validation) | 2 |
+| `/org-ops` | TRIG-ORG-001 | Tech debt > 30% or duplication > 15% at Stage 4.5 | Stage 4.5 (codebase-stats) | 2 |
+| Any | TRIG-012 | Process in domain range flagged HIGH/CRITICAL | Stage where flagged | 2 |
+| Any | TRIG-013 | Proactive sweep for scope-applicable processes | Stage where applicable | 2 |
+
 **4.8c Dispatch Trigger Evaluation (DISPATCH-001)**:
 
 After evaluating pipeline progress (4.8), process hooks (4.8a), and human gates (4.8b), evaluate command dispatch triggers per `_shared/protocols/command-dispatch.md`:
@@ -1844,6 +1920,7 @@ After evaluating pipeline progress (4.8), process hooks (4.8a), and human gates 
    - TRIG-002: Stage 3 completes → invoke `/qa` for test strategy analysis
    - TRIG-003: Stage 5 fails → check failure for deploy/infrastructure keywords → invoke `/infra`
    - TRIG-007: Any stage → check `.pipeline-state/codebase-analysis.jsonl` and planning artifacts for CRITICAL RAID items → invoke `/risk`
+   - TRIG-ORG-001: Stage 4.5 completes → check codebase-stats report for `tech_debt_score > 30%` OR `duplication_ratio > 0.15` → invoke `/org-ops`
    - TRIG-012: Any stage → check process acknowledgments for HIGH/CRITICAL flags in domain guide ranges → invoke corresponding guide
 
 3. **For Tier 2 triggers that fire**:
@@ -1897,7 +1974,32 @@ After evaluating pipeline progress (4.8), process hooks (4.8a), and human gates 
 
 6. **Log summary**: `[DISPATCH] Evaluated <N> triggers for <M> newly completed stages, <K> fired (reactive), <J> proactive, <R> receipts written`
 
-7. **Dispatch gate enforcement**: Before proceeding, check if any `dispatch_gates` block the next stage:
+7. **Phase command triggers for execution stages (C1: Phase Command Integration)**:
+   ```
+   # PHASE-TRIG-002: Active-dev status sync for multi-sprint projects
+   IF 3 IN completed_stages_this_iteration
+      AND checkpoint.triage.tshirt_size IN ["L", "XL"]
+      AND checkpoint.planning_artifacts.P4_sprint_kickoff_brief is not null:
+       display "[DISPATCH-SUGGEST] PHASE-TRIG-002: Stage 3 complete on multi-sprint project."
+       display "  Consider running /active-dev for status synchronization."
+       append to checkpoint.dispatch_log:
+         { trigger_id: "PHASE-TRIG-002", command: "/active-dev",
+           tier: 1, action: "suggested", timestamp: now_iso8601() }
+
+   # PHASE-TRIG-003: Sprint boundary ceremony during execution
+   # Sprint boundary interval: L = every 5 iterations, XL = every 3 iterations
+   sprint_boundary_interval = 5 IF checkpoint.triage.tshirt_size == "L" ELSE 3
+   IF checkpoint.triage.tshirt_size IN ["L", "XL"]
+      AND checkpoint.iteration > 0
+      AND checkpoint.iteration % sprint_boundary_interval == 0:
+       display "[DISPATCH-SUGGEST] PHASE-TRIG-003: Sprint boundary reached (iteration {iteration})."
+       display "  Consider running /sprint-ceremony for standup/retro."
+       append to checkpoint.dispatch_log:
+         { trigger_id: "PHASE-TRIG-003", command: "/sprint-ceremony",
+           tier: 1, action: "suggested", timestamp: now_iso8601() }
+   ```
+
+8. **Dispatch gate enforcement**: Before proceeding, check if any `dispatch_gates` block the next stage:
    ```
    IF checkpoint.dispatch_gates contains key for next pending stage:
        display "[DISPATCH-GATE] Stage <N> blocked by dispatch gate {dispatch_id}"
@@ -1951,6 +2053,53 @@ After dispatch evaluation, check if the orchestrator reported domain agent activ
 4. **Inject domain review context for next orchestrator spawn**: If domain reviews exist for stages with pending tasks, include review summaries in the next orchestrator spawn prompt via the Domain Review Context section in Appendix C.
 
 > **AGENT-ACTIVATE-001 boundary**: Domain agents are spawned BY the orchestrator during its execution, not by the loop controller. The loop controller only observes and logs the results. This preserves AUTO-001 (loop controller spawns only orchestrators).
+
+**4.8e Workflow State Synchronization (WORKFLOW-SYNC-001)**:
+
+After updating the checkpoint and domain review tracking, synchronize workflow state to `.pipeline-state/workflow/` for consumption by `/workflow-*` commands:
+
+1. **Write task-board.json** (atomic write — write to `.tmp`, rename):
+   ```json
+   {
+     "schema_version": "1.0.0",
+     "source": "auto-orchestrate",
+     "session_id": "<checkpoint.session_id>",
+     "last_updated": "<now_iso8601()>",
+     "iteration": "<checkpoint.iteration>",
+     "pipeline_stage": "<current STAGE_CEILING>",
+     "tasks": [
+       // FOR EACH task IN TaskList():
+       {
+         "id": "<task.id>",
+         "subject": "<task.subject>",
+         "status": "<task.status>",
+         "dispatch_hint": "<task.dispatch_hint>",
+         "blockedBy": ["<task.blockedBy>"],
+         "stage": "<infer_stage(task.dispatch_hint)>",
+         "updated_at": "<task.updated_at>"
+       }
+     ],
+     "stages_completed": "<checkpoint.stages_completed>",
+     "terminal_state": "<checkpoint.terminal_state>"
+   }
+   ```
+
+2. **Write focus-stack.json** (atomic write):
+   ```json
+   {
+     "source": "auto-orchestrate",
+     "session_id": "<checkpoint.session_id>",
+     "focused_task_id": "<current in_progress task id, or null>",
+     "focused_task_subject": "<current in_progress task subject, or null>",
+     "focused_at": "<now_iso8601()>",
+     "stack": ["<task_id for each in_progress task>"],
+     "last_updated": "<now_iso8601()>"
+   }
+   ```
+
+3. **Log**: `[WORKFLOW-SYNC] task-board.json updated (iteration {iteration}, {tasks_count} tasks, stage ceiling {STAGE_CEILING})`
+
+> **WORKFLOW-SYNC-001**: This write is the single source of truth for task state while auto-orchestrate is active. `/workflow-dash` reads this file; `/workflow-focus` reads `focus-stack.json`. Both are read-only per WORKFLOW-SYNC-002.
 
 **4.9 Mandatory stage gates**:
 - **AUTO-004**: If Stage 3 done but 4.5/5/6 missing for 1+ iterations → `mandatory_stage_enforcement: true`, inject missing tasks.

@@ -25,7 +25,8 @@ The three autonomous pipeline commands (`auto-orchestrate`, `auto-audit`, `auto-
 │   └── ...P-093.jsonl
 └── workflow/                   # Workflow state integration
     ├── active-session.json
-    ├── task-focus.json
+    ├── task-board.json          # Single source of truth (WORKFLOW-SYNC-001)
+    ├── focus-stack.json         # Replaces task-focus.json
     └── dashboard-cache.json
 ```
 
@@ -189,8 +190,8 @@ One file per process: `P-001.jsonl`, `P-002.jsonl`, ... `P-093.jsonl`
 
 ### workflow/ (integrated workflow state)
 
-Written by: `workflow-start`, `workflow-end`, `workflow-focus`, `workflow-dash`  
-Read by: Big Three for session context awareness
+Written by: `workflow-start`, `workflow-end`, `workflow-focus`, `workflow-dash`, Big Three (auto-orchestrate writes task-board.json, focus-stack.json, active-session.json)  
+Read by: Big Three for session context awareness; workflow-* commands for display
 
 Directory: `.pipeline-state/workflow/`
 
@@ -198,6 +199,8 @@ Directory: `.pipeline-state/workflow/`
 ```json
 {
   "session_state": "active|ended",
+  "source": "auto-orchestrate|auto-audit|auto-debug|workflow-start",
+  "session_id": "<session-id or null>",
   "started_at": "<ISO-8601>",
   "ended_at": "<ISO-8601 or null>",
   "task_count": 12,
@@ -207,15 +210,45 @@ Directory: `.pipeline-state/workflow/`
 }
 ```
 
-**task-focus.json** (overwritten):
+**task-board.json** (overwritten — WORKFLOW-SYNC-001):
 ```json
 {
+  "schema_version": "1.0.0",
+  "source": "auto-orchestrate|standalone",
+  "session_id": "<session-id or null>",
+  "last_updated": "<ISO-8601>",
+  "iteration": 0,
+  "pipeline_stage": null,
+  "tasks": [
+    {
+      "id": "<task-id>",
+      "subject": "<subject>",
+      "status": "pending|in_progress|completed|failed|blocked",
+      "dispatch_hint": "<stage hint>",
+      "blockedBy": ["<task-id>"],
+      "stage": 0,
+      "updated_at": "<ISO-8601>"
+    }
+  ],
+  "stages_completed": [],
+  "terminal_state": null
+}
+```
+
+**focus-stack.json** (overwritten — replaces task-focus.json):
+```json
+{
+  "source": "auto-orchestrate|workflow-focus",
+  "session_id": "<session-id or null>",
   "focused_task_id": "<task-id or null>",
   "focused_task_subject": "<subject>",
   "focused_at": "<ISO-8601>",
+  "stack": ["<task-id>"],
   "last_updated": "<ISO-8601>"
 }
 ```
+
+**Backward compatibility**: Readers SHOULD check `focus-stack.json` first. If not found, fall back to `task-focus.json`. On next write, always write to `focus-stack.json` only.
 
 **dashboard-cache.json** (overwritten):
 ```json
@@ -231,6 +264,19 @@ Directory: `.pipeline-state/workflow/`
   "blocked_tasks": [{"id": "...", "blocked_by": "..."}]
 }
 ```
+
+### Sync Rules (WORKFLOW-SYNC-001, WORKFLOW-SYNC-002)
+
+| File | Written by | Read by | Big Three running? |
+|------|-----------|---------|-------------------|
+| active-session.json | workflow-start, workflow-end, Big Three (on start/stop) | All | Read/write for Big Three; read-only for workflow-* |
+| task-board.json | auto-orchestrate (at every iteration, Step 4.8e) | workflow-dash, workflow-next | Write by auto-orchestrate only; read-only for all others |
+| focus-stack.json | workflow-focus (standalone), auto-orchestrate (when running) | workflow-focus, workflow-dash | Read-only for workflow-focus when Big Three active |
+| dashboard-cache.json | workflow-dash | workflow-dash (cache) | Read-only always (generated from task-board.json) |
+
+**Lock detection**: To determine if a Big Three session is active, check `pipeline-context.json`:
+- If `active_command` is one of `["auto-orchestrate", "auto-audit", "auto-debug"]` AND `last_updated` is within the last 5 minutes → Big Three is active → enforce WORKFLOW-SYNC-002
+- Otherwise → full read/write access for workflow-* commands
 
 ### pipeline-context.json (overwritten)
 
@@ -257,6 +303,8 @@ Read by: Other pipelines on startup for situational awareness
 | STATE-001 | **Universal receipt writing** — Every command invocation MUST write a receipt to `.pipeline-state/command-receipts/`. Receipt filename: `<command>-<YYYYMMDD>-<HHMMSS>.json`. Receipt schema defined in the command-receipts section above. Commands MUST create `.pipeline-state/command-receipts/` via `mkdir -p` if it does not exist. Receipt writing MUST NOT block command execution — log warnings on failure. |
 | STATE-002 | **Receipt consumption by Big Three** — `auto-orchestrate`, `auto-audit`, and `auto-debug` MUST read relevant receipts from `.pipeline-state/command-receipts/` at boot (during shared state initialization) and at each stage transition (during dispatch evaluation). Receipts older than the current session's `created_at` timestamp are treated as **context** (informational), not **directives** (actionable). Receipts from within the current session are actionable. |
 | STATE-003 | **Process execution logging** — When a command executes a process (P-001 through P-093), it MUST append a log entry to `.pipeline-state/process-log/<process-id>.jsonl`. This enables process coverage tracking across all commands and sessions. |
+| WORKFLOW-SYNC-001 | **Task board single source of truth** — `.pipeline-state/workflow/task-board.json` is the canonical task state when auto-orchestrate is active. auto-orchestrate WRITES this file at every iteration (Step 4.8e). `/workflow-dash`, `/workflow-next`, and `/workflow-focus` READ this file. No other command writes to `task-board.json` while auto-orchestrate is active. When auto-orchestrate is not running, `/workflow-*` commands have full read/write access to `task-board.json`. |
+| WORKFLOW-SYNC-002 | **Read-only workflow mode** — When `pipeline-context.json` shows an active Big Three session (any of auto-orchestrate, auto-audit, auto-debug with `last_updated` < 5 minutes ago), `/workflow-*` commands operate in read-only mode for all `workflow/` files except `dashboard-cache.json` (which they may regenerate from `task-board.json`). Full read/write access resumes when no Big Three session is active. |
 
 ## Integration Points
 

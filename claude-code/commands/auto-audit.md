@@ -578,6 +578,8 @@ After evaluating termination and before routing based on verdict, evaluate comma
                    mark /infra for dispatch
                IF process_id IN P-049..P-053:  # Data/ML range
                    mark /data-ml-ops for dispatch
+               IF process_id IN P-062..P-069:  # Org-ops range (TRIG-ORG-001)
+                   mark /org-ops for dispatch
                IF process_id IN P-074..P-077:  # Risk range (TRIG-007)
                    mark /risk for dispatch
    ```

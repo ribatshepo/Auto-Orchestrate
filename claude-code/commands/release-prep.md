@@ -16,12 +16,15 @@ Guide the user through the release preparation checklist using the right agents 
 
 ### Infrastructure & Platform (Category 7)
 
-**Primary agents**: `platform-engineer`, `cloud-engineer`, `sre`
+**Primary agents**: `infra-engineer`, `sre`
 **Reference**: `processes/07_infrastructure_platform.md`
 
 - **Production Release Management** (P-048) — Release checklist, rollback plan, deployment strategy
-  - Platform engineer verifies CI/CD pipeline readiness
-  - Cloud engineer confirms infrastructure provisioned
+  - Infrastructure engineer verifies CI/CD pipeline readiness and confirms infrastructure provisioned
+  - Infrastructure engineer runs `cost-estimator` skill for release cost impact analysis
+  - SRE runs `observability-setup` skill to configure monitoring, dashboards, and alerting
+  - [ ] Cost estimate reviewed
+  - [ ] Observability configured (dashboards, alerts, tracing)
   - SRE confirms monitoring, alerting, and runbooks in place
 - **Golden Path Adoption** (P-044) — Verify service follows golden path templates
 - **Infrastructure Provisioning** (P-045) — Production infrastructure ready

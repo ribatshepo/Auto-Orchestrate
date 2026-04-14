@@ -166,7 +166,7 @@ P-006, P-007, P-013, P-016, P-047, P-050, P-060, P-067, P-084, P-088
 
 P-008, P-010, P-013, P-047, P-055, P-063, P-067, P-068, P-075, P-076, P-077, P-083, P-088
 
-**Note:** P-039 (SAST/DAST CI Integration) is co-owned with platform-engineer. Security-engineer defines the policies; platform-engineer implements the CI/CD integration.
+**Note:** P-039 (SAST/DAST CI Integration) is co-owned with infra-engineer. Security-engineer defines the policies; infra-engineer implements the CI/CD integration.
 
 ---
 
@@ -190,42 +190,27 @@ P-008, P-024, P-025, P-036, P-048, P-049, P-058
 
 ---
 
-## 8. platform-engineer
+## 8. infra-engineer (consolidated from platform-engineer + cloud-engineer)
 
-**Roles covered:** Platform Engineer; DevOps; Release Engineer; DX Engineer
+**Roles covered:** Platform Engineer; DevOps; Release Engineer; DX Engineer; Cloud Architect; Cloud Engineers (AWS/Azure/GCP); FinOps Engineer
 
-### Owns (4 processes)
+### Owns (7 processes)
 
 | Process ID | Process Name | Category |
 |-----------|-------------|----------|
 | P-039 | SAST/DAST CI Integration Process | 6. Security & Compliance |
 | P-044 | Golden Path Adoption Process | 7. Infrastructure & Platform |
-| P-046 | Environment Self-Service Process | 7. Infrastructure & Platform |
-| P-089 | Developer Experience Survey Process | 16. Technical Excellence & Standards |
-
-### Supports (10 processes)
-
-P-017, P-031, P-033, P-037, P-045, P-048, P-051, P-052, P-081, P-090
-
-**Note:** P-039 (SAST/DAST CI Integration) is co-owned with security-engineer.
-
----
-
-## 9. cloud-engineer
-
-**Roles covered:** Cloud Architect, Cloud Engineers (AWS/Azure/GCP); FinOps Engineer
-
-### Owns (3 processes)
-
-| Process ID | Process Name | Category |
-|-----------|-------------|----------|
 | P-045 | Infrastructure Provisioning Process | 7. Infrastructure & Platform |
+| P-046 | Environment Self-Service Process | 7. Infrastructure & Platform |
 | P-047 | Cloud Architecture Review Board (CARB) Process | 7. Infrastructure & Platform |
 | P-088 | Architecture Pattern Change Process | 16. Technical Excellence & Standards |
+| P-089 | Developer Experience Survey Process | 16. Technical Excellence & Standards |
 
-### Supports (2 processes)
+### Supports (9 processes)
 
-P-017, P-046
+P-017, P-031, P-033, P-037, P-048, P-051, P-052, P-081, P-090
+
+**Note:** P-039 (SAST/DAST CI Integration) is co-owned with security-engineer.
 
 ---
 
@@ -310,14 +295,13 @@ P-044, P-059, P-060, P-080, P-090, P-092, P-093
 | software-engineer | 4 | 38 | 42 |
 | technical-program-manager | 14 | 13 | 27 |
 | security-engineer | 7 | 13 | 20 |
-| platform-engineer | 4 | 10 | 14 |
+| infra-engineer | 7 | 9 | 16 |
 | sre | 5 | 12 | 17 |
 | qa-engineer | 5 | 7 | 12 |
 | staff-principal-engineer | 4 | 10 | 14 |
 | technical-writer | 2 | 7 | 9 |
-| cloud-engineer | 3 | 2 | 5 |
 | data-engineer | 2 | 4 | 6 |
 | ml-engineer | 3 | 0 | 3 |
 | **Total** | **94*** | — | — |
 
-*Total exceeds 93 because P-039 (SAST/DAST CI Integration) is co-owned by security-engineer and platform-engineer.
+*Total exceeds 93 because P-039 (SAST/DAST CI Integration) is co-owned by security-engineer and infra-engineer.

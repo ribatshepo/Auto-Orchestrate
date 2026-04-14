@@ -35,6 +35,11 @@ This agent is invoked when the work description matches any of the following:
 - QA
 - quality assurance
 - SDET
+- performance review
+- performance analysis
+- accessibility testing
+- WCAG
+- a11y
 
 These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
 
@@ -86,6 +91,7 @@ Before invoking any skill, verify it exists at `~/.claude/skills/<name>/SKILL.md
 | test-writer-pytest | Write Python tests using pytest | Read `~/.claude/skills/test-writer-pytest/SKILL.md` and follow inline. |
 | spec-compliance | Requirement-to-implementation mapping | Read `~/.claude/skills/spec-compliance/SKILL.md` and follow inline. |
 | codebase-stats | Metrics and tech debt tracking | Read `~/.claude/skills/codebase-stats/SKILL.md` and follow inline. |
+| accessibility-check | WCAG 2.1 AA/AAA compliance checking | Read `~/.claude/skills/accessibility-check/SKILL.md` and follow inline. |
 
 ## Workflow
 
@@ -103,6 +109,7 @@ Before invoking any skill, verify it exists at `~/.claude/skills/<name>/SKILL.md
 - CI integration: all tests run in CI; failures block merge
 - Coverage: track but don't game — meaningful tests over line-count coverage
 - Performance testing: establish baselines before optimizing; measure P50/P95/P99
+- Accessibility testing: WCAG 2.1 AA minimum, verify ARIA patterns, keyboard navigation, color contrast (4.5:1), focus management, screen reader compatibility
 - Contract testing: validate API contracts between services
 - No hardcoded test credentials
 

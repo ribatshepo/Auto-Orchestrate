@@ -2,7 +2,7 @@
 
 ## Overview
 
-13 specialized agents mapping to organizational roles from Individual Contributor (L3) through C-suite (L9). Each agent has a defined scope, model assignment, tool access, and process ownership.
+12 specialized agent types (17 total including pipeline-specific agents) mapping to organizational roles from Individual Contributor (L3) through C-suite (L9). Each agent has a defined scope, model assignment, tool access, and process ownership.
 
 ## Agent Index
 
@@ -11,7 +11,7 @@
 | Agent | File | Primary Scope |
 |-------|------|---------------|
 | [Software Engineer](software-engineer.md) | `software-engineer.md` | Production code, debugging, unit tests, code reviews (L3-L5) |
-| [Platform Engineer](platform-engineer.md) | `platform-engineer.md` | CI/CD pipelines, golden paths, IaC modules, DX (BUILDS IDP) |
+| [Infrastructure Engineer](infra-engineer.md) | `infra-engineer.md` | CI/CD pipelines, golden paths, IaC, Terraform, cloud provisioning, IAM, FinOps (BUILDS + PROVISIONS) |
 | [Security Engineer](security-engineer.md) | `security-engineer.md` | Security reviews, SAST/DAST, threat modeling, CVEs (read-only) |
 | [Data Engineer](data-engineer.md) | `data-engineer.md` | ETL/ELT pipelines, data warehouse, dbt models, streaming |
 | [ML Engineer](ml-engineer.md) | `ml-engineer.md` | ML pipelines, feature stores, model serving, experiments |
@@ -24,19 +24,24 @@
 | [Engineering Manager](engineering-manager.md) | `engineering-manager.md` | Sprint planning, DORA, capacity, OKRs (EM through VP) |
 | [Product Manager](product-manager.md) | `product-manager.md` | User stories, backlog, acceptance criteria, roadmaps |
 | [Technical Program Manager](technical-program-manager.md) | `technical-program-manager.md` | Cross-team dependencies, RAID, milestones, PI planning |
-| [Cloud Engineer](cloud-engineer.md) | `cloud-engineer.md` | Terraform/CDK, multi-cloud, IAM, FinOps (PROVISIONS infra) |
 | [SRE](sre.md) | `sre.md` | SLOs, incident response, post-mortems, on-call (OPERATES) |
 | [QA Engineer](qa-engineer.md) | `qa-engineer.md` | Test architecture, automated frameworks, DoD enforcement |
 | [Technical Writer](technical-writer.md) | `technical-writer.md` | API docs, developer guides, runbooks, release notes |
 
-## Infrastructure Triad
+### Deprecated Agents (redirects)
 
-These three agents have explicitly non-overlapping scopes:
+| Agent | File | Redirect |
+|-------|------|----------|
+| ~~Platform Engineer~~ | `platform-engineer.md` | Consolidated into `infra-engineer` |
+| ~~Cloud Engineer~~ | `cloud-engineer.md` | Consolidated into `infra-engineer` |
+
+## Infrastructure Pair
+
+These two agents have explicitly non-overlapping scopes:
 
 ```
-platform-engineer   BUILDS    CI/CD, golden paths, IDP, developer experience
-cloud-engineer      PROVISIONS   Terraform, cloud resources, IAM, networking
-sre                 OPERATES     SLOs, incidents, monitoring, on-call
+infra-engineer      BUILDS + PROVISIONS   CI/CD, golden paths, IDP, Terraform, cloud resources, IAM, FinOps
+sre                 OPERATES              SLOs, incidents, monitoring, on-call
 ```
 
 ## Agent Engagement by Project Phase
@@ -48,7 +53,7 @@ sre                 OPERATES     SLOs, incidents, monitoring, on-call
 `software-engineer` + `qa-engineer` + `security-engineer` + `technical-writer`
 
 ### Release Preparation
-`qa-engineer` + `platform-engineer` + `cloud-engineer` + `sre` + `technical-writer` + `technical-program-manager`
+`qa-engineer` + `infra-engineer` + `sre` + `technical-writer` + `technical-program-manager`
 
 ### Post-Launch
 `sre` + `product-manager` + `engineering-manager`

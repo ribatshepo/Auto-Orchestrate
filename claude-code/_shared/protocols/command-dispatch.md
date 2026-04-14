@@ -57,8 +57,12 @@ R-010 states "Display only — NEVER auto-invoke" for cross-command lifecycle tr
 | TRIG-011 | Debugger returns `Category` of "docker", "infrastructure", "deploy", or "platform" | `/infra` | 2 | auto-debug | Step 4.2b |
 | TRIG-012 | Any stage produces a process acknowledgment or finding flagged HIGH or CRITICAL that maps to a domain guide's process range | Corresponding domain guide (see Domain Guide Process Ranges) | 2 | all three | Stage transition |
 | TRIG-013 | Stage N completes AND `process_scope.tier >= medium` AND expanded injection map has processes for Stage N that are (a) not natively handled by the stage agent, (b) not already dispatched by TRIG-001-012, and (c) have a `domain_guide` field pointing to a Tier 2 command | Corresponding domain guide per injection map `domain_guide` field | 2 | auto-orchestrate | Step 4.8c (after TRIG-001-012) |
+| PHASE-TRIG-001 | Planning gate P{N} passes (any of P1-P4) | `/gate-review` | 1 | auto-orchestrate | Step 0h (after each gate pass) |
+| PHASE-TRIG-002 | Stage 3 completes AND `tshirt_size` IN [L, XL] AND P4 Sprint Kickoff Brief artifact exists (multi-sprint project) | `/active-dev` | 1 | auto-orchestrate | Step 4.8c |
+| PHASE-TRIG-003 | Iteration count reaches sprint boundary interval AND `tshirt_size` IN [L, XL]. Interval: L = every 5 iterations, XL = every 3 iterations | `/sprint-ceremony` | 1 | auto-orchestrate | Step 4.8c |
+| TRIG-ORG-001 | Stage 4.5 completes AND codebase-stats report shows `tech_debt_score > 30%` OR `duplication_ratio > 0.15` | `/org-ops` | 2 | auto-orchestrate, auto-audit | Step 4.8c / Step 4.5a |
 
-### Domain Guide Process Ranges (for TRIG-012 and TRIG-013)
+### Domain Guide Process Ranges (for TRIG-012, TRIG-013, and TRIG-ORG-001)
 
 | Domain Guide | Process Range | Skill Name |
 |-------------|---------------|------------|
@@ -383,8 +387,10 @@ Contents:
 | Step | Hook | Triggers Evaluated |
 |------|------|--------------------|
 | Step 0g | Pre-session dispatch check | TRIG-004 (no handoff → suggest /new-project) |
-| Step 0h | Planning loop | TRIG-008 (P4 complete → suggest /sprint-ceremony) |
-| Step 4.8c | Post-stage dispatch evaluation | TRIG-001, TRIG-002, TRIG-003, TRIG-007, TRIG-012, TRIG-013 |
+| Step 0h | Planning loop (per gate) | PHASE-TRIG-001 (gate passes → suggest /gate-review) |
+| Step 0h | Planning loop (all gates) | TRIG-008 (P4 complete → suggest /sprint-ceremony) |
+| Step 4.8c | Post-stage dispatch evaluation | TRIG-001, TRIG-002, TRIG-003, TRIG-007, TRIG-012, TRIG-013, TRIG-ORG-001, PHASE-TRIG-002, PHASE-TRIG-003 |
+| Step 4.8e | Workflow state synchronization | WORKFLOW-SYNC-001 (task-board.json + focus-stack.json write) |
 | Step 5 | Post-termination dispatch | TRIG-005 (release-prep), TRIG-006 (post-launch) |
 | Appendix C | Spawn prompt injection | Include `dispatch_context.<current_stage>` in orchestrator prompt |
 
@@ -392,7 +398,7 @@ Contents:
 
 | Step | Hook | Triggers Evaluated |
 |------|------|--------------------|
-| Step 4.5a | Post-audit dispatch evaluation | TRIG-007, TRIG-009, TRIG-010, TRIG-012 |
+| Step 4.5a | Post-audit dispatch evaluation | TRIG-007, TRIG-009, TRIG-010, TRIG-012, TRIG-ORG-001 |
 
 ### auto-debug Integration Points
 

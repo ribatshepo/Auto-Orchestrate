@@ -5,7 +5,7 @@
   "updated_at": "2026-04-09",
   "stats": {
     "total_skills": 35,
-    "total_agents": 18,
+    "total_agents": 17,
     "total_commands": 19,
     "total_protocols": 6,
     "total_templates": 2,
@@ -196,18 +196,29 @@
       "path": "agents/auditor.md"
     },
     {
-      "name": "cloud-engineer",
-      "description": "Use when provisioning cloud infrastructure, writing Terraform/CDK/Bicep/Pulumi modules, designing multi-cloud architectures, optimizing cloud costs (FinOps), managing IAM policies, or implementing policy-as-code. PROVISIONS the underlying infrastructure — does NOT build the platform (that is platform-engineer) or operate production (that is SRE).",
-      "model": "claude-sonnet-4-5",
+      "name": "infra-engineer",
+      "description": "Use when building CI/CD pipelines, creating golden path templates, implementing IaC modules, configuring container orchestration, provisioning cloud infrastructure, writing Terraform/CDK/Bicep/Pulumi modules, designing multi-cloud architectures, optimizing cloud costs (FinOps), managing IAM policies, or implementing policy-as-code. BUILDS the platform AND PROVISIONS cloud infrastructure — does NOT operate production (that is SRE).",
+      "model": "claude-opus-4-5",
       "tools": [
         "Read",
         "Write",
         "Edit",
         "Bash",
         "Glob",
-        "Grep"
+        "Grep",
+        "Task"
       ],
       "dispatch_triggers": [
+        "CI/CD pipeline",
+        "golden path template",
+        "IaC module",
+        "container orchestration",
+        "developer portal",
+        "release automation",
+        "developer experience",
+        "internal developer platform",
+        "IDP",
+        "platform engineering",
         "provision cloud infrastructure",
         "terraform",
         "CDK",
@@ -218,20 +229,33 @@
         "IAM policy",
         "policy-as-code",
         "cloud cost optimization",
-        "IaC module",
         "cloud resource"
       ],
       "capabilities": {
-        "skills_orchestrated": [],
+        "skills_orchestrated": [
+          "cost-estimator"
+        ],
         "outputs": [
+          "CI/CD pipeline configurations",
+          "Golden path templates",
+          "IaC modules",
+          "Developer portal integrations",
+          "Release automation scripts",
           "Terraform/CDK/Bicep/Pulumi modules",
           "Cloud architecture designs",
           "Cost optimization reports",
           "IAM policy documents"
         ]
       },
-      "path": "agents/cloud-engineer.md",
+      "path": "agents/infra-engineer.md",
       "activation_rules": [
+        {
+          "rule_id": "ACT-003",
+          "trigger_stage": 2,
+          "condition": "spec_contains_infra_deploy",
+          "keywords": ["infrastructure", "deploy", "Docker", "Kubernetes", "k8s", "Terraform", "CI/CD pipeline", "container"],
+          "review_scope": "Review spec for platform feasibility, golden path alignment, environment provisioning, IaC design"
+        },
         {
           "rule_id": "ACT-009",
           "trigger_stage": 5,
@@ -384,52 +408,6 @@
       ]
     },
     {
-      "name": "platform-engineer",
-      "description": "Use when building CI/CD pipelines, creating golden path templates, implementing IaC modules, configuring container orchestration, building developer portal integrations, automating releases, or improving developer experience. BUILDS the platform — does NOT operate production (that is SRE) or provision cloud infrastructure (that is cloud-engineer).",
-      "model": "claude-opus-4-5",
-      "tools": [
-        "Read",
-        "Write",
-        "Edit",
-        "Bash",
-        "Glob",
-        "Grep",
-        "Task"
-      ],
-      "dispatch_triggers": [
-        "CI/CD pipeline",
-        "golden path template",
-        "IaC module",
-        "container orchestration",
-        "developer portal",
-        "release automation",
-        "developer experience",
-        "internal developer platform",
-        "IDP",
-        "platform engineering"
-      ],
-      "capabilities": {
-        "skills_orchestrated": [],
-        "outputs": [
-          "CI/CD pipeline configurations",
-          "Golden path templates",
-          "IaC modules",
-          "Developer portal integrations",
-          "Release automation scripts"
-        ]
-      },
-      "path": "agents/platform-engineer.md",
-      "activation_rules": [
-        {
-          "rule_id": "ACT-003",
-          "trigger_stage": 2,
-          "condition": "spec_contains_infra_deploy",
-          "keywords": ["infrastructure", "deploy", "Docker", "Kubernetes", "k8s", "Terraform", "CI/CD pipeline", "container"],
-          "review_scope": "Review spec for platform feasibility, golden path alignment, environment provisioning"
-        }
-      ]
-    },
-    {
       "name": "product-manager",
       "description": "Use when writing user stories, managing product backlogs, defining acceptance criteria, planning OKR key results, creating roadmaps, facilitating sprint ceremonies, or prioritizing features. Outcomes-over-outputs orientation.",
       "model": "claude-sonnet-4-5",
@@ -494,10 +472,17 @@
         "definition of done",
         "QA",
         "quality assurance",
-        "SDET"
+        "SDET",
+        "performance review",
+        "performance analysis",
+        "accessibility testing",
+        "WCAG",
+        "a11y"
       ],
       "capabilities": {
-        "skills_orchestrated": [],
+        "skills_orchestrated": [
+          "accessibility-check"
+        ],
         "outputs": [
           "Test architecture designs",
           "Automated test suites",
@@ -521,6 +506,13 @@
           "condition": "api_docs_needed",
           "keywords": ["API docs", "P-059", "API documentation", "endpoint documentation"],
           "review_scope": "Review API documentation for completeness, accuracy against implementation, example coverage"
+        },
+        {
+          "rule_id": "ACT-012",
+          "trigger_stage": 5,
+          "condition": "frontend_ui_components",
+          "keywords": ["React", "Vue", "Svelte", "JSX", "TSX", "HTML", "UI component", "frontend", "user interface"],
+          "review_scope": "Accessibility compliance review — WCAG 2.1 AA/AAA, ARIA, keyboard navigation, color contrast, screen reader compatibility"
         }
       ]
     },
@@ -615,7 +607,7 @@
     },
     {
       "name": "sre",
-      "description": "Use when defining SLOs, tracking error budgets, responding to incidents, writing post-mortems, reducing toil, configuring observability (OpenTelemetry, Grafana, Datadog), or setting up alerting. OPERATES production systems — does NOT build the platform (that is platform-engineer) or provision cloud infrastructure (that is cloud-engineer).",
+      "description": "Use when defining SLOs, tracking error budgets, responding to incidents, writing post-mortems, reducing toil, configuring observability (OpenTelemetry, Grafana, Datadog), or setting up alerting. OPERATES production systems — does NOT build the platform or provision cloud infrastructure (that is infra-engineer).",
       "model": "claude-sonnet-4-5",
       "tools": [
         "Read",
@@ -639,7 +631,9 @@
         "reliability"
       ],
       "capabilities": {
-        "skills_orchestrated": [],
+        "skills_orchestrated": [
+          "observability-setup"
+        ],
         "outputs": [
           "SLO definitions",
           "Incident runbooks",

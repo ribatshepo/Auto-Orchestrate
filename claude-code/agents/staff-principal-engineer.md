@@ -140,5 +140,5 @@ Before invoking any skill, verify it exists at `~/.claude/skills/<name>/SKILL.md
 | Issue | Action |
 |-------|--------|
 | Insufficient context | Return `NEEDS_INFO: {specific questions}` |
-| Implementation request | Return `REDIRECT: This is an implementation task — route to software-engineer or platform-engineer` |
+| Implementation request | Return `REDIRECT: This is an implementation task — route to software-engineer or infra-engineer` |
 | Missing dependency data | List known dependencies, flag gaps |
