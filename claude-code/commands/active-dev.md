@@ -51,6 +51,20 @@ Active processes:
 **Primary agents**: `technical-writer`, `software-engineer`
 **Reference**: `processes/10_documentation_knowledge.md`
 
+Documentation processes are invoked at the **skill level**, not the command level. There is no `/docs` command by design — documentation is a continuous practice embedded in all development workflows.
+
+**Relevant skills**:
+- `docs-lookup` — Search existing documentation before creating new content
+- `docs-write` — Create or update documentation following the style guide
+
+**Processes covered by these skills**:
+- P-058: Documentation Planning
+- P-059: Content Creation
+- P-060: Review & Publishing
+- P-061: Knowledge Base Maintenance
+
+**Why no /docs command**: Documentation is not a discrete workflow phase — it runs continuously. The skills are invoked by agents (especially technical-writer) throughout all pipeline stages.
+
 Active processes:
 - **API Documentation** (P-058) — Update per API-changing story
 - **ADR Publication** (P-060) — Write ADR per significant technical decision

@@ -50,6 +50,45 @@ arguments:
 
 # Autonomous Orchestration Loop
 
+## Pre-flight Skill Verification
+
+Before spawning Stage 0 (researcher), verify required skills exist in manifest:
+
+1. Read `~/.claude/manifest.json`
+2. Verify the following skills exist in the `skills` array:
+   - `researcher` — required for Stage 0
+   - `spec-creator` — required for Stage 2
+   - `implementer` or `library-implementer-python` — required for Stage 3
+3. If any required skill is missing:
+   - Log: `[MANIFEST-001] Skill "<name>" not found in manifest — Stage N may fail`
+   - Abort orchestration with error if Stage 0 skill (researcher) is missing
+   - Warn but continue if Stage 2+ skill is missing (orchestrator will fail when it reaches that stage)
+4. Also verify that the orchestrator agent itself exists at `~/.claude/agents/orchestrator.md`
+
+## Session Resume from Handoff
+
+When /auto-orchestrate starts, check for an existing handoff receipt from /new-project:
+
+### Fresh Start
+If no prior session exists, start normally with the provided task_description.
+
+### Handoff Resume
+If starting from a /new-project handoff:
+1. Look for `.orchestrate/{session_id}/handoff-receipt.json`
+2. If found and `status == "pending"`:
+   a. Load all 6 project fields from the receipt
+   b. Use `task_description` from the receipt as the orchestration objective
+   c. Update `status` to `"active"` in the receipt
+   d. Log: `[HANDOFF] Resuming from /new-project handoff (gate: {trigger_gate})`
+3. If found but `status != "pending"`: Treat as normal session (may already be in progress)
+4. If not found: Treat as fresh start
+
+### Handoff Receipt Path
+
+`{working_dir}/.orchestrate/{session_id}/handoff-receipt.json`
+
+The session_id follows the format: `auto-orc-{YYYYMMDD}-{project_slug}`
+
 ## Core Constraints — IMMUTABLE
 
 | ID | Rule |

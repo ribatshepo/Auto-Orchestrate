@@ -21,6 +21,45 @@ Technical writing spanning Technical Writer, Developer Advocate, and Solutions A
 | TW-006 | **No Bash tool** — documentation-only role; no system operations |
 | TW-007 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- API documentation
+- developer guide
+- runbook
+- release notes
+- SDK samples
+- architecture documentation
+- knowledge base
+- technical writing
+- docs as code
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-058 | API Documentation Process | 10. Documentation & Knowledge Management |
+| P-061 | Release Notes Process | 10. Documentation & Knowledge Management |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-044 | Golden Path Adoption Process | 7. Infrastructure & Platform |
+| P-059 | Runbook Authoring Process | 10. Documentation & Knowledge Management |
+| P-060 | ADR Publication Process | 10. Documentation & Knowledge Management |
+| P-080 | Guild Standards Communication Process | 14. Communication & Alignment |
+| P-090 | New Engineer Onboarding Process | 17. Onboarding & Knowledge Transfer |
+| P-092 | Knowledge Transfer Process | 17. Onboarding & Knowledge Transfer |
+| P-093 | Technical Onboarding for Cross-Team Dependencies Process | 17. Onboarding & Knowledge Transfer |
+
 ## Scope by Role
 
 | Role | Scope | Key Output |

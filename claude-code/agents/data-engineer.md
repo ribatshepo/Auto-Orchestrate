@@ -21,6 +21,45 @@ Data engineering spanning Data Engineer (L4-L6), Analytics Engineer, and Data Ar
 | DE-006 | **Schema versioning** — all schema changes through migration scripts |
 | DE-007 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- data pipeline
+- ETL
+- ELT
+- data warehouse schema
+- dbt model
+- Kafka
+- Spark
+- Flink
+- data quality monitoring
+- schema migration
+- data governance
+- streaming pipeline
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-049 | Data Pipeline Quality Assurance Process | 8. Data & ML Operations |
+| P-050 | Data Schema Migration Process | 8. Data & ML Operations |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-009 | Success Metrics Definition Process | 2. Scope & Contract Management |
+| P-042 | Compliance Review Process | 6. Security & Compliance |
+| P-051 | ML Experiment Logging Process | 8. Data & ML Operations |
+| P-073 | Post-Launch Outcome Measurement Process | 12. Post-Delivery & Retrospective |
+
 ## Scope by Role
 
 | Role | Scope | Key Output |

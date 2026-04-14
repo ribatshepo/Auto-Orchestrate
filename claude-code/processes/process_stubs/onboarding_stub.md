@@ -1,3 +1,14 @@
+---
+status: STUB
+related_process: claude-code/processes/17_onboarding_knowledge_transfer.md
+category: category-17-onboarding
+last_reviewed: 2026-04-14
+---
+
+> **STATUS: STUB** — This is a quick-reference stub for onboarding and knowledge transfer. 
+> For full process definitions see `17_onboarding_knowledge_transfer.md`.
+> TODO: Complete or promote to full process status.
+
 # Process Stub: Onboarding and Knowledge Transfer (P-090 through P-093)
 
 **Type**: Process stub — minimal placeholder  

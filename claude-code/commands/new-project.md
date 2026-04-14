@@ -85,28 +85,83 @@ To start a new project, I will:
 
 What is the project you'd like to start? I'll begin with Stage 1 (Intent & Strategic Alignment).
 
-### Phase 5: Pipeline Handoff (Optional — For Autonomous Implementation)
+## Phase 5: Bridge Protocol Handoff (Auto-Orchestrate Launch)
 
-After Gate 4 (Sprint Readiness) passes, the project may be handed off to the auto-orchestrate
-autonomous implementation pipeline.
+After completing the 4-stage project initiation pipeline, you can hand off to /auto-orchestrate for autonomous implementation.
 
-**Trigger condition**: Sprint Kickoff Brief artifact is complete AND team elects autonomous mode.
+### Trigger Conditions
 
-**Gate check** (required before proceeding): Verify `gate-state.json` for the session confirms `gate_2_scope_lock.status == "passed"`. If not: `[GATE-BLOCK] Gate 2 (Scope Lock) has not passed. Bridge protocol requires gate_2_scope_lock.status == "passed". Run /gate-review scope-lock to complete gate review.`
+Phase 5 activates when:
+- **After Gate 2 (Scope Lock) passes**: Early handoff with Scope Contract only
+- **After Gate 4 (Sprint Readiness) passes**: Full handoff with all dependency context (RECOMMENDED)
+- **User explicit trigger**: User can trigger Phase 5 at any point after Gate 2
 
-**Steps**:
-1. Extract `task_description` from Scope Contract per `claude-code/processes/bridge_protocol.md`
-2. Determine scope flag: Frontend → "F", Backend → "B", Full Stack → "S"
-3. Generate `session_id`: `"auto-orc-YYYYMMDD-{project_slug}"` (first 8 chars of project name, lowercased, hyphens for spaces)
-4. Write handoff receipt to `.orchestrate/{session_id}/handoff-receipt.json`
-5. Launch: `/auto-orchestrate "{task_description}" --scope {scope} --session_id {session_id}`
+### handoff-receipt.json Schema
 
-**Reference**: `claude-code/processes/bridge_protocol.md`
+```json
+{
+  "schema_version": "1.0",
+  "session_id": "auto-orc-{YYYYMMDD}-{project_slug}",
+  "created_at": "ISO-8601 timestamp",
+  "source_command": "/new-project",
+  "trigger_gate": "gate2|gate4",
+  "project": {
+    "project_name": "string — from Scope Contract field 1",
+    "problem_statement": "string — from Scope Contract field 2",
+    "deliverables": ["array of strings — from Scope Contract field 3"],
+    "definition_of_done": "string — from Scope Contract field 4",
+    "exclusions": ["array of strings — from Scope Contract field 5"],
+    "constraints": ["array of strings — from Scope Contract field 6"]
+  },
+  "task_description": "string — concatenated summary for /auto-orchestrate input",
+  "scope": "F|B|S|null — full/backend/service scope flag",
+  "status": "pending"
+}
+```
 
-**Return path**: When /auto-orchestrate completes, implementation artifacts are in
-`.orchestrate/{session_id}/stage-6/`. These feed back into Sprint 1 execution via `/sprint-ceremony`.
+### Extraction Mapping
 
-**Gate state check at each stage transition**:
+Map Scope Contract fields to handoff-receipt.json:
+
+| Scope Contract Field | handoff-receipt.json Field | Description |
+|---------------------|--------------------------|-------------|
+| Project Name | project.project_name | Top-level project identifier |
+| Problem Statement | project.problem_statement | What problem this solves |
+| Deliverables (MoSCoW) | project.deliverables | Must-have deliverables only |
+| Definition of Done | project.definition_of_done | Success criteria |
+| Explicit Exclusions | project.exclusions | What is NOT in scope |
+| Constraints | project.constraints | Technical/org constraints |
+
+### task_description Construction
+
+Build the task_description from extracted fields:
+
+```
+"task_description": "Build {project_name}. Problem: {problem_statement}. Deliverables: {deliverables joined with '; '}. DoD: {definition_of_done}. Constraints: {constraints joined with '; '}."
+```
+
+### Phase 5 Steps
+
+1. Confirm Gate 4 (or Gate 2) has passed
+2. Derive session_id: `auto-orc-{YYYYMMDD}-{slugify(project_name)}`
+3. Create `.orchestrate/{session_id}/` directory
+4. Write `handoff-receipt.json` with all 6 extracted fields + task_description
+5. Present task_description to user for review/edit
+6. Ask: "Launch /auto-orchestrate with this task? (yes/no/edit)"
+7. If yes: Output `/auto-orchestrate "{task_description}" --scope {F|B|S}` instruction
+8. If no: Save receipt for future use; inform user they can run /auto-orchestrate manually
+
+### File Path
+
+`{working_dir}/.orchestrate/{session_id}/handoff-receipt.json`
+
+### Interface Contract
+
+- **Input**: Completed Scope Contract artifact (from Phase 2) or Sprint Kickoff Brief (from Phase 4)
+- **Output**: `.orchestrate/{session_id}/handoff-receipt.json` written to disk
+- **Error**: If required Scope Contract fields are missing, ask user to provide them before proceeding
+
+### Gate State Check at Each Stage Transition
 
 Before Stage 2 (Scope Contract) begins:
 - Check: `gate_1_intent_review.status == "passed"`

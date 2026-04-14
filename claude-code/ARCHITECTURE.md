@@ -2,8 +2,8 @@
 
 Comprehensive architecture documentation for the Auto-Orchestrate system.
 
-**Last Updated**: 2026-04-09
-**Components**: 16 agents | 35 skills | 14 commands | 6 protocols | 2 templates | 9 CI engine modules | 4 domain memory modules
+**Last Updated**: 2026-04-14
+**Components**: 17 agents | 35 skills | 19 commands | 26 processes | 6 protocols | 2 templates | 9 CI engine modules | 4 domain memory modules
 
 ---
 
@@ -29,6 +29,10 @@ Auto-Orchestrate is a multi-layer autonomous pipeline system with built-in conti
 │                            AGENTS LAYER                                 │
 │  orchestrator │ epic-architect │ implementer │ researcher                │
 │  documentor   │ session-manager│ debugger    │ auditor                   │
+│  cloud-engineer│ data-engineer │ engineering-manager│ ml-engineer        │
+│  platform-engineer│ product-manager│ qa-engineer│ security-engineer     │
+│  software-engineer│ sre        │ staff-principal-engineer               │
+│  technical-program-manager│ technical-writer                            │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                            SKILLS LAYER                                 │
 │  35 specialized skills (each with SKILL.md + optional Python scripts)   │
@@ -81,7 +85,7 @@ User Input ──→ Command (loop controller) ──→ Orchestrator Agent
 
 ```
 claude-code/
-├── manifest.json                              (539 lines)
+├── manifest.json                              (2000 lines, 61.2 KB)
 ├── ARCHITECTURE.md                            (this file)
 ├── _shared/
 │   ├── protocols/
@@ -107,14 +111,27 @@ claude-code/
 │   │   └── placeholders.json                  (327 lines)
 │   └── schemas/                               (canonical: manifest.schema.json — 2020-12, 352 lines)
 ├── agents/
-│   ├── orchestrator.md                        (277 lines)
+│   ├── orchestrator.md                        (639 lines, 31.7 KB — orchestration core)
+│   ├── session-manager.md                     (149 lines, 7.7 KB — orchestration core)
+│   ├── researcher.md                          (190 lines, 11.5 KB — orchestration core)
 │   ├── documentor.md                          (190 lines)
 │   ├── epic-architect.md                      (283 lines)
 │   ├── implementer.md                         (335 lines)
-│   ├── session-manager.md                     (371 lines)
-│   ├── researcher.md                          (162 lines)
 │   ├── debugger.md
-│   └── auditor.md
+│   ├── auditor.md
+│   ├── cloud-engineer.md                      (team agent)
+│   ├── data-engineer.md                       (team agent)
+│   ├── engineering-manager.md                 (team agent)
+│   ├── ml-engineer.md                         (team agent)
+│   ├── platform-engineer.md                   (team agent)
+│   ├── product-manager.md                     (team agent)
+│   ├── qa-engineer.md                         (team agent)
+│   ├── security-engineer.md                   (team agent)
+│   ├── software-engineer.md                   (team agent)
+│   ├── sre.md                                 (team agent)
+│   ├── staff-principal-engineer.md            (team agent)
+│   ├── technical-program-manager.md           (team agent)
+│   └── technical-writer.md                    (team agent)
 ├── skills/
 │   ├── codebase-stats/SKILL.md                (351 lines)
 │   ├── dependency-analyzer/SKILL.md           (352 lines)
@@ -170,9 +187,25 @@ claude-code/
 │       ├── hooks.py                           (pipeline integration hooks)
 │       └── tests/
 └── commands/
-    ├── auto-orchestrate.md
-    ├── auto-debug.md
-    ├── auto-audit.md
+    ├── auto-orchestrate.md     (autonomous orchestration loop controller)
+    ├── auto-debug.md           (autonomous cyclic error-fix-verify loop)
+    ├── auto-audit.md           (autonomous spec compliance audit-remediate loop)
+    ├── active-dev.md           (active development phase management)
+    ├── agent-capabilities.md   (discover available agent capabilities)
+    ├── assign-agent.md         (route task to appropriate team agent)
+    ├── data-ml-ops.md          (data and ML operations commands)
+    ├── gate-review.md          (run gate checklist, record gate state)
+    ├── infra.md                (infrastructure management commands)
+    ├── new-project.md          (4-stage org pipeline with Phase 5 handoff)
+    ├── org-ops.md              (organizational operations and reporting)
+    ├── post-launch.md          (post-launch operations and monitoring)
+    ├── process-lookup.md       (look up processes by category or ID)
+    ├── qa.md                   (quality assurance commands)
+    ├── release-prep.md         (release preparation checklist)
+    ├── risk.md                 (risk management commands)
+    ├── security.md             (security commands)
+    ├── sprint-ceremony.md      (sprint retrospective and close)
+    ├── workflow.md             (workflow overview and navigation)
     ├── CONVENTIONS.md          (command conventions, PROGRESS-001 format)
     ├── SESSIONS-REGISTRY.md    (cross-command session registry)
     └── TOOL-AVAILABILITY.md    (tool availability per execution context)
@@ -847,7 +880,80 @@ Write YYYY-MM-DD_audit-report.md + gap-report.json to .audit/<session-id>/cycle-
 Return compliance score + gap list to auto-audit
 ```
 
-## 5. Skills Catalog
+### 4.9 Team Agents (13)
+
+The 13 team agents each handle a specialized engineering domain. They are invoked by `/assign-agent`, `/auto-orchestrate`, and domain-specific commands. Each agent has:
+- **Dispatch Triggers**: Keywords causing the orchestrator to route tasks to that agent
+- **Process Ownership**: The subset of the 93 organizational processes that the agent owns
+
+| Agent | Domain | Key Processes Owned |
+|-------|--------|---------------------|
+| `cloud-engineer` | Cloud infrastructure, IaaS/PaaS/SaaS | Infrastructure provisioning, cloud architecture |
+| `data-engineer` | Data pipelines, ETL, warehousing | Data & ML Operations (P-049 to P-053) |
+| `engineering-manager` | Team delivery, sprint management | Sprint Delivery (P-022 to P-031), Org Audit (P-062 to P-069) |
+| `ml-engineer` | ML model development, MLOps | Data & ML Operations (P-049 to P-053) |
+| `platform-engineer` | Developer platform, tooling | Infrastructure & Platform (P-044 to P-048) |
+| `product-manager` | Requirements, roadmap, intent | Intent & Alignment (P-001 to P-006), Scope (P-007 to P-014) |
+| `qa-engineer` | Quality assurance, testing strategy | Quality Assurance & Testing (P-032 to P-037) |
+| `security-engineer` | Security, compliance, vulnerability | Security & Compliance (P-038 to P-043) |
+| `software-engineer` | Feature development, code quality | Technical Excellence (P-085 to P-089) |
+| `sre` | Site reliability, incident response | SRE & Operations (P-054 to P-057) |
+| `staff-principal-engineer` | Technical vision, cross-team standards | Technical Excellence (P-085 to P-089) |
+| `technical-program-manager` | Cross-team coordination, dependencies | Dependency & Coordination (P-015 to P-021) |
+| `technical-writer` | Documentation, knowledge management | Documentation & Knowledge (P-058 to P-061) |
+
+All 13 agents are registered in `manifest.json` under `agents[]` with `dispatch_triggers` and `skills_orchestrated`.
+
+---
+
+## 5. Processes
+
+The `processes/` directory contains the formal process handbook used by agents and commands during orchestration.
+
+### Directory Contents
+
+| Type | Count | Location | Purpose |
+|------|-------|----------|---------|
+| Category files | 18 | `processes/00_*.md` – `processes/18_*.md` | 93 processes across 17 operational categories |
+| Supporting docs | 4 | `processes/AGENT_PROCESS_MAP.md`, `QUICK_START.md`, `README.md`, `UNIFIED_END_TO_END_PROCESS.md` | Navigation, role mapping, end-to-end narrative |
+| Protocol files | 3 | `processes/bridge_protocol.md`, `gate_enforcement_spec.md`, `process_injection_map.md` | Cross-command integration protocols |
+| Schema files | 1 | `processes/gate_state_schema.json` | Gate state persistence schema |
+| Stubs | 1 dir | `processes/process_stubs/` | 3 quick-reference companion documents |
+| **Total** | **26** | | |
+
+### Process Categories
+
+| Category | Processes | Primary Agent |
+|----------|-----------|--------------|
+| 1. Intent & Strategic Alignment | P-001 to P-006 | product-manager |
+| 2. Scope & Contract Management | P-007 to P-014 | product-manager |
+| 3. Dependency & Coordination | P-015 to P-021 | technical-program-manager |
+| 4. Sprint & Delivery Execution | P-022 to P-031 | engineering-manager |
+| 5. Quality Assurance & Testing | P-032 to P-037 | qa-engineer |
+| 6. Security & Compliance | P-038 to P-043 | security-engineer |
+| 7. Infrastructure & Platform | P-044 to P-048 | platform-engineer |
+| 8. Data & ML Operations | P-049 to P-053 | data-engineer / ml-engineer |
+| 9. SRE & Operations | P-054 to P-057 | sre |
+| 10. Documentation & Knowledge | P-058 to P-061 | technical-writer |
+| 11. Organizational Audit | P-062 to P-069 | engineering-manager |
+| 12. Post-Delivery & Retrospective | P-070 to P-073 | product-manager |
+| 13. Risk & Change Management | P-074 to P-077 | technical-program-manager |
+| 14. Communication & Alignment | P-078 to P-081 | engineering-manager |
+| 15. Capacity & Resource Management | P-082 to P-084 | engineering-manager |
+| 16. Technical Excellence & Standards | P-085 to P-089 | staff-principal-engineer |
+| 17. Onboarding & Knowledge Transfer | P-090 to P-093 | engineering-manager |
+
+### Process-Agent Relationship
+
+Process ownership is defined in `processes/AGENT_PROCESS_MAP.md`. Each of the 13 team agents has Dispatch Triggers and Process Ownership sections defined in their `.md` files. Agents own 2-22 processes and support 0-38 additional processes.
+
+### Install Location
+
+Processes are installed to `~/.claude/processes/` by `install.sh`.
+
+---
+
+## 6. Skills Catalog
 
 ### By Category
 
@@ -1942,9 +2048,9 @@ jq '._meta.totalAgents, ._meta.totalSkills, ._meta.totalCommands' claude-code/ma
 ```
 
 **Component Verification**:
-- [ ] All 8 agents documented (orchestrator, implementer, epic-architect, documentor, session-manager, researcher, debugger, auditor)
+- [ ] All 17 agents documented (3 orchestration-core: orchestrator, session-manager, researcher + 5 pipeline: implementer, epic-architect, documentor, debugger, auditor + 13 team agents)
 - [ ] All 35 skills cataloged
-- [ ] All 3 commands referenced (auto-orchestrate, auto-debug, auto-audit)
+- [ ] All 19 commands referenced (auto-orchestrate, auto-debug, auto-audit + 16 workflow/org commands)
 - [ ] All 6 protocols described
 - [ ] All 2 templates explained
 - [ ] Cross-reference counts accurate
@@ -2337,7 +2443,8 @@ As of 2026-04-06: all three are **byte-for-byte identical** (md5 verified).
 │   ├── process_injection_map.md             (AO stage → process IDs, 166 lines)
 │   ├── [01-17]_*.md                         (organizational process handbooks)
 │   └── process_stubs/
-│       ├── sprint_planning_stub.md          (P-022/023/024, 73 lines)
-│       ├── dependency_coordination_stub.md  (P-015 to P-021, 95 lines)
-│       └── onboarding_stub.md               (P-090 to P-093, 87 lines)
+│       ├── README.md                        (status legend + stub index, 20 lines)
+│       ├── sprint_planning_stub.md          (P-022/023/024, 84 lines)
+│       ├── dependency_coordination_stub.md  (P-015 to P-021, 106 lines)
+│       └── onboarding_stub.md               (P-090 to P-093, 98 lines)
 ```

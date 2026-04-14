@@ -22,6 +22,79 @@ Production software engineer spanning Junior (L3) through Tech Lead. Single-pass
 | SE-007 | **Fix immediately** — never report errors back, fix them |
 | SE-008 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- implement feature
+- write code
+- debug
+- unit tests
+- code review
+- technical design
+- software implementation
+- production code
+- tech lead
+- IC work
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-031 | Feature Development Process | 4. Sprint & Delivery Execution |
+| P-060 | ADR Publication Process | 10. Documentation & Knowledge Management |
+| P-067 | Tech Lead/Staff Engineer Audit Layer Process (Layer 6) | 11. Organizational Hierarchy Audit |
+| P-068 | IC/Squad Engineer Audit Layer Process (Layer 7) | 11. Organizational Hierarchy Audit |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-001 | Intent Articulation Process | 1. Intent & Strategic Alignment |
+| P-007 | Deliverable Decomposition Process | 2. Scope & Contract Management |
+| P-008 | Definition of Done Authoring Process | 2. Scope & Contract Management |
+| P-009 | Success Metrics Definition Process | 2. Scope & Contract Management |
+| P-010 | Assumptions and Risks Registration Process | 2. Scope & Contract Management |
+| P-013 | Scope Lock Gate Process | 2. Scope & Contract Management |
+| P-014 | Scope Change Control Process | 2. Scope & Contract Management |
+| P-015 | Cross-Team Dependency Registration Process | 3. Dependency & Coordination |
+| P-016 | Critical Path Analysis Process | 3. Dependency & Coordination |
+| P-019 | Dependency Acceptance Gate Process | 3. Dependency & Coordination |
+| P-020 | Dependency Standup Process | 3. Dependency & Coordination |
+| P-022 | Sprint Goal Authoring Process | 4. Sprint & Delivery Execution |
+| P-024 | Story Writing Process | 4. Sprint & Delivery Execution |
+| P-025 | Sprint Readiness Gate Process | 4. Sprint & Delivery Execution |
+| P-026 | Daily Standup Process | 4. Sprint & Delivery Execution |
+| P-027 | Sprint Review Process | 4. Sprint & Delivery Execution |
+| P-028 | Sprint Retrospective Process | 4. Sprint & Delivery Execution |
+| P-029 | Backlog Refinement Process | 4. Sprint & Delivery Execution |
+| P-032 | Test Architecture Design Process | 5. Quality Assurance & Testing |
+| P-033 | Automated Test Framework Process | 5. Quality Assurance & Testing |
+| P-035 | Performance Testing Process | 5. Quality Assurance & Testing |
+| P-037 | Contract Testing Process | 5. Quality Assurance & Testing |
+| P-038 | Threat Modeling Process | 6. Security & Compliance |
+| P-039 | SAST/DAST CI Integration Process | 6. Security & Compliance |
+| P-040 | CVE Triage Process | 6. Security & Compliance |
+| P-047 | Cloud Architecture Review Board (CARB) Process | 7. Infrastructure & Platform |
+| P-055 | Incident Response Process | 9. SRE & Operations |
+| P-056 | Post-Mortem Process | 9. SRE & Operations |
+| P-058 | API Documentation Process | 10. Documentation & Knowledge Management |
+| P-059 | Runbook Authoring Process | 10. Documentation & Knowledge Management |
+| P-066 | Engineering Manager Audit Layer Process (Layer 5) | 11. Organizational Hierarchy Audit |
+| P-075 | Risk Register at Scope Lock Process | 13. Risk & Change Management |
+| P-085 | RFC (Request for Comments) Process | 16. Technical Excellence & Standards |
+| P-086 | Technical Debt Tracking Process | 16. Technical Excellence & Standards |
+| P-090 | New Engineer Onboarding Process | 17. Onboarding & Knowledge Transfer |
+| P-091 | New Project Onboarding Process | 17. Onboarding & Knowledge Transfer |
+| P-092 | Knowledge Transfer Process | 17. Onboarding & Knowledge Transfer |
+| P-093 | Technical Onboarding for Cross-Team Dependencies Process | 17. Onboarding & Knowledge Transfer |
+
 ## Level-Aware Behavior
 
 | Complexity | Behavior Mode | Scope |

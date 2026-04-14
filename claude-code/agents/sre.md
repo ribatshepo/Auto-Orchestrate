@@ -36,6 +36,56 @@ This agent is part of the infrastructure cluster (platform-engineer, sre, cloud-
 | SRE-006 | **No file deletion** — never delete files |
 | SRE-007 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- SLO
+- error budget
+- incident response
+- post-mortem
+- toil reduction
+- observability
+- OpenTelemetry
+- Grafana
+- Datadog
+- alerting
+- SRE
+- reliability
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-054 | SLO Definition and Review Process | 9. SRE & Operations |
+| P-055 | Incident Response Process | 9. SRE & Operations |
+| P-056 | Post-Mortem Process | 9. SRE & Operations |
+| P-057 | On-Call Rotation Management Process | 9. SRE & Operations |
+| P-059 | Runbook Authoring Process | 10. Documentation & Knowledge Management |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-009 | Success Metrics Definition Process | 2. Scope & Contract Management |
+| P-032 | Test Architecture Design Process | 5. Quality Assurance & Testing |
+| P-035 | Performance Testing Process | 5. Quality Assurance & Testing |
+| P-048 | Production Release Management Process | 7. Infrastructure & Platform |
+| P-049 | Data Pipeline Quality Assurance Process | 8. Data & ML Operations |
+| P-050 | Data Schema Migration Process | 8. Data & ML Operations |
+| P-052 | Model Canary Deployment Process | 8. Data & ML Operations |
+| P-053 | Data Drift Monitoring Process | 8. Data & ML Operations |
+| P-055 | Incident Response Process | 9. SRE & Operations |
+| P-066 | Engineering Manager Audit Layer Process (Layer 5) | 11. Organizational Hierarchy Audit |
+| P-076 | Pre-Launch Risk Review Process (CAB) | 13. Risk & Change Management |
+| P-081 | DORA Metrics Review and Sharing Process | 14. Communication & Alignment |
+
 ## Mandatory Skills
 
 Invoke each skill by reading its `SKILL.md` at `~/.claude/skills/<skill-name>/SKILL.md` and following its instructions inline with your own tools. Do NOT call `Skill(skill='...')` — unavailable in subagent contexts.

@@ -5,11 +5,15 @@
   "updated_at": "2026-04-09",
   "stats": {
     "total_skills": 35,
-    "total_agents": 16,
-    "total_commands": 14,
-    "total_protocols": 4,
+    "total_agents": 17,
+    "total_commands": 19,
+    "total_protocols": 6,
     "total_templates": 2,
-    "total_style_guides": 1
+    "total_style_guides": 1,
+    "total_processes": 26,
+    "total_references": 6,
+    "total_tokens": 1,
+    "total_schemas": 1
   },
   "agents": [
     {
@@ -151,6 +155,41 @@
         ]
       },
       "path": "agents/session-manager.md"
+    },
+    {
+      "name": "auditor",
+      "description": "Audits codebase against a specification, identifies compliance gaps, produces gap-report.json for orchestrator remediation. Used exclusively by /auto-audit command in Phase A.",
+      "model": "claude-opus-4-5",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "dispatch_triggers": [
+        "audit",
+        "compliance audit",
+        "spec audit",
+        "gap analysis",
+        "codebase audit",
+        "auto-audit phase A",
+        "auditor mode"
+      ],
+      "skills_orchestrated": [
+        "spec-compliance"
+      ],
+      "capabilities": {
+        "produces": [
+          "gap-report.json"
+        ],
+        "consumes": [
+          "spec_path"
+        ],
+        "phases": [
+          "A"
+        ]
+      },
+      "path": "agents/auditor.md"
     },
     {
       "name": "cloud-engineer",
@@ -1398,6 +1437,189 @@
       "name": "workflow",
       "description": "Show the complete development workflow mapping agents to project phases.",
       "path": "commands/workflow.md"
+    },
+    {
+      "name": "data-ml-ops",
+      "description": "Guide the user through Data & ML Operations processes covering data pipelines, ML model training, deployment, and monitoring (P-049 to P-053).",
+      "path": "commands/data-ml-ops.md"
+    },
+    {
+      "name": "qa",
+      "description": "Guide the user through Quality Assurance & Testing processes covering test planning, execution, defect management, and quality metrics (P-032 to P-037).",
+      "path": "commands/qa.md"
+    },
+    {
+      "name": "security",
+      "description": "Guide the user through Security & Compliance processes covering security reviews, vulnerability management, and compliance audits (P-038 to P-043).",
+      "path": "commands/security.md"
+    },
+    {
+      "name": "infra",
+      "description": "Guide the user through Infrastructure & Platform processes covering provisioning, cloud management, and reliability (P-044 to P-048).",
+      "path": "commands/infra.md"
+    },
+    {
+      "name": "risk",
+      "description": "Guide the user through Risk & Change Management processes covering RAID logs, change advisory board, and risk mitigation (P-074 to P-077).",
+      "path": "commands/risk.md"
+    }
+  ],
+  "processes": [
+    {
+      "name": "00_process_handbook_overview",
+      "path": "processes/00_process_handbook_overview.md",
+      "category": "handbook",
+      "description": "Master index and overview of all 93 processes across 17 categories."
+    },
+    {
+      "name": "01_intent_strategic_alignment",
+      "path": "processes/01_intent_strategic_alignment.md",
+      "category": "category",
+      "description": "Processes P-001 to P-006: Intent framing and strategic alignment."
+    },
+    {
+      "name": "02_scope_contract_management",
+      "path": "processes/02_scope_contract_management.md",
+      "category": "category",
+      "description": "Processes P-007 to P-014: Scope definition and contract management."
+    },
+    {
+      "name": "03_dependency_coordination",
+      "path": "processes/03_dependency_coordination.md",
+      "category": "category",
+      "description": "Processes P-015 to P-021: Dependency mapping and cross-team coordination."
+    },
+    {
+      "name": "04_sprint_delivery_execution",
+      "path": "processes/04_sprint_delivery_execution.md",
+      "category": "category",
+      "description": "Processes P-022 to P-031: Sprint planning, execution, and delivery."
+    },
+    {
+      "name": "05_quality_assurance_testing",
+      "path": "processes/05_quality_assurance_testing.md",
+      "category": "category",
+      "description": "Processes P-032 to P-037: QA processes and testing frameworks."
+    },
+    {
+      "name": "06_security_compliance",
+      "path": "processes/06_security_compliance.md",
+      "category": "category",
+      "description": "Processes P-038 to P-043: Security reviews and compliance processes."
+    },
+    {
+      "name": "07_infrastructure_platform",
+      "path": "processes/07_infrastructure_platform.md",
+      "category": "category",
+      "description": "Processes P-044 to P-048: Infrastructure provisioning and platform management."
+    },
+    {
+      "name": "08_data_ml_operations",
+      "path": "processes/08_data_ml_operations.md",
+      "category": "category",
+      "description": "Processes P-049 to P-053: Data engineering and ML model operations."
+    },
+    {
+      "name": "09_sre_operations",
+      "path": "processes/09_sre_operations.md",
+      "category": "category",
+      "description": "Processes P-054 to P-057: Site reliability engineering and operational processes."
+    },
+    {
+      "name": "10_documentation_knowledge",
+      "path": "processes/10_documentation_knowledge.md",
+      "category": "category",
+      "description": "Processes P-058 to P-061: Documentation creation and knowledge management."
+    },
+    {
+      "name": "11_organizational_audit",
+      "path": "processes/11_organizational_audit.md",
+      "category": "category",
+      "description": "Processes P-062 to P-069: Organizational health audits and hierarchy review."
+    },
+    {
+      "name": "12_post_delivery_retrospective",
+      "path": "processes/12_post_delivery_retrospective.md",
+      "category": "category",
+      "description": "Processes P-070 to P-073: Post-delivery reviews and retrospectives."
+    },
+    {
+      "name": "13_risk_change_management",
+      "path": "processes/13_risk_change_management.md",
+      "category": "category",
+      "description": "Processes P-074 to P-077: Risk assessment and change management."
+    },
+    {
+      "name": "14_communication_alignment",
+      "path": "processes/14_communication_alignment.md",
+      "category": "category",
+      "description": "Processes P-078 to P-081: Communication strategies and stakeholder alignment."
+    },
+    {
+      "name": "15_capacity_resource_management",
+      "path": "processes/15_capacity_resource_management.md",
+      "category": "category",
+      "description": "Processes P-082 to P-084: Capacity planning and resource allocation."
+    },
+    {
+      "name": "16_technical_excellence_standards",
+      "path": "processes/16_technical_excellence_standards.md",
+      "category": "category",
+      "description": "Processes P-085 to P-089: Technical standards and engineering excellence."
+    },
+    {
+      "name": "17_onboarding_knowledge_transfer",
+      "path": "processes/17_onboarding_knowledge_transfer.md",
+      "category": "category",
+      "description": "Processes P-090 to P-093: Team onboarding and knowledge transfer."
+    },
+    {
+      "name": "18_cross_reference_index",
+      "path": "processes/18_cross_reference_index.md",
+      "category": "support",
+      "description": "Cross-reference index mapping all processes to agents, commands, and work streams."
+    },
+    {
+      "name": "AGENT_PROCESS_MAP",
+      "path": "processes/AGENT_PROCESS_MAP.md",
+      "category": "support",
+      "description": "Matrix mapping all 93 processes to owning and supporting agents."
+    },
+    {
+      "name": "QUICK_START",
+      "path": "processes/QUICK_START.md",
+      "category": "support",
+      "description": "Quick-start guide for navigating the process handbook."
+    },
+    {
+      "name": "UNIFIED_END_TO_END_PROCESS",
+      "path": "processes/UNIFIED_END_TO_END_PROCESS.md",
+      "category": "support",
+      "description": "End-to-end process narrative combining all 17 categories into a single flow."
+    },
+    {
+      "name": "bridge_protocol",
+      "path": "processes/bridge_protocol.md",
+      "category": "protocol",
+      "description": "Protocol for handoff from /new-project to /auto-orchestrate via handoff-receipt.json."
+    },
+    {
+      "name": "gate_enforcement_spec",
+      "path": "processes/gate_enforcement_spec.md",
+      "category": "protocol",
+      "description": "Specification for the 4 project gates: Intent Review, Scope Lock, Dependency Acceptance, Sprint Readiness."
+    },
+    {
+      "name": "process_injection_map",
+      "path": "processes/process_injection_map.md",
+      "category": "protocol",
+      "description": "Maps which processes are automatically injected into agent prompts at each pipeline stage."
+    },
+    {
+      "name": "gate_state_schema",
+      "path": "processes/gate_state_schema.json",
+      "category": "schema",
+      "description": "JSON schema for gate state persistence between /new-project pipeline stages."
     }
   ],
   "shared": {
@@ -1421,6 +1643,16 @@
         "name": "task-system-integration",
         "description": "TaskList, TaskGet, TaskCreate, TaskUpdate tool reference.",
         "path": "_shared/protocols/task-system-integration.md"
+      },
+      {
+        "name": "output-schemas",
+        "description": "Output schema definitions for all pipeline stage artifacts.",
+        "path": "_shared/protocols/output-schemas.md"
+      },
+      {
+        "name": "output-standard",
+        "description": "Standard output format requirements for subagents (stage receipts, DONE blocks).",
+        "path": "_shared/protocols/output-standard.md"
       }
     ],
     "templates": [

@@ -1,3 +1,14 @@
+---
+status: STUB
+related_process: claude-code/processes/03_dependency_coordination.md
+category: category-03-dependency
+last_reviewed: 2026-04-14
+---
+
+> **STATUS: STUB** — This is a quick-reference stub for dependency coordination. 
+> For full process definitions see `03_dependency_coordination.md`.
+> TODO: Complete or promote to full process status.
+
 # Process Stub: Dependency Coordination (P-015 through P-021)
 
 **Type**: Process stub — minimal placeholder  

@@ -21,6 +21,51 @@ Senior technical leadership spanning Staff (L6) through Fellow (L9). Advisory an
 | SPE-006 | **No Write/Edit** — this agent has no Write or Edit tools; advisory role only |
 | SPE-007 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- architecture decision
+- RFC
+- ADR
+- architecture review
+- technical standards
+- dependency analysis
+- technical strategy
+- staff engineer
+- principal engineer
+- cross-team architecture
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-080 | Guild Standards Communication Process | 14. Communication & Alignment |
+| P-085 | RFC (Request for Comments) Process | 16. Technical Excellence & Standards |
+| P-086 | Technical Debt Tracking Process | 16. Technical Excellence & Standards |
+| P-087 | Language Tier Policy Change Process | 16. Technical Excellence & Standards |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-006 | Technology Vision Alignment Process | 1. Intent & Strategic Alignment |
+| P-007 | Deliverable Decomposition Process | 2. Scope & Contract Management |
+| P-013 | Scope Lock Gate Process | 2. Scope & Contract Management |
+| P-016 | Critical Path Analysis Process | 3. Dependency & Coordination |
+| P-047 | Cloud Architecture Review Board (CARB) Process | 7. Infrastructure & Platform |
+| P-050 | Data Schema Migration Process | 8. Data & ML Operations |
+| P-060 | ADR Publication Process | 10. Documentation & Knowledge Management |
+| P-067 | Tech Lead/Staff Engineer Audit Layer Process (Layer 6) | 11. Organizational Hierarchy Audit |
+| P-084 | Succession Planning Process | 15. Capacity & Resource Management |
+| P-088 | Architecture Pattern Change Process | 16. Technical Excellence & Standards |
+
 ## Scope by Level
 
 | Level | Scope | Typical Deliverable |

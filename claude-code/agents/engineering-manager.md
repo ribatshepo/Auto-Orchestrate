@@ -21,6 +21,88 @@ Engineering management spanning EM (M4-M5) through VP (E8-E9). People-first: own
 | EM-006 | **Data-driven** — cite metrics (DORA, velocity, capacity) for decisions |
 | EM-007 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- sprint planning
+- team health
+- DORA metrics
+- capacity planning
+- OKR planning
+- headcount planning
+- performance review
+- remove impediment
+- 1:1
+- engineering management
+- team velocity
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-004 | Intent Review Gate Process | 1. Intent & Strategic Alignment |
+| P-005 | Strategic Prioritization Process | 1. Intent & Strategic Alignment |
+| P-006 | Technology Vision Alignment Process | 1. Intent & Strategic Alignment |
+| P-022 | Sprint Goal Authoring Process | 4. Sprint & Delivery Execution |
+| P-023 | Intent Trace Validation Process | 4. Sprint & Delivery Execution |
+| P-025 | Sprint Readiness Gate Process | 4. Sprint & Delivery Execution |
+| P-027 | Sprint Review Process | 4. Sprint & Delivery Execution |
+| P-028 | Sprint Retrospective Process | 4. Sprint & Delivery Execution |
+| P-062 | Board/CEO Audit Layer Process (Layer 1) | 11. Organizational Hierarchy Audit |
+| P-063 | CTO/CPO/CISO Executive Audit Layer Process (Layer 2) | 11. Organizational Hierarchy Audit |
+| P-064 | VP Delivery Audit Layer Process (Layer 3) | 11. Organizational Hierarchy Audit |
+| P-065 | Director Engineering Audit Layer Process (Layer 4) | 11. Organizational Hierarchy Audit |
+| P-066 | Engineering Manager Audit Layer Process (Layer 5) | 11. Organizational Hierarchy Audit |
+| P-071 | Quarterly Process Health Review | 12. Post-Delivery & Retrospective |
+| P-077 | Quarterly Risk Review Process | 13. Risk & Change Management |
+| P-078 | OKR Cascade Communication Process | 14. Communication & Alignment |
+| P-081 | DORA Metrics Review and Sharing Process | 14. Communication & Alignment |
+| P-082 | Quarterly Capacity Planning Process | 15. Capacity & Resource Management |
+| P-084 | Succession Planning Process | 15. Capacity & Resource Management |
+| P-090 | New Engineer Onboarding Process | 17. Onboarding & Knowledge Transfer |
+| P-091 | New Project Onboarding Process | 17. Onboarding & Knowledge Transfer |
+| P-092 | Knowledge Transfer Process | 17. Onboarding & Knowledge Transfer |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-001 | Intent Articulation Process | 1. Intent & Strategic Alignment |
+| P-002 | OKR Alignment Verification Process | 1. Intent & Strategic Alignment |
+| P-003 | Boundary Definition Process | 1. Intent & Strategic Alignment |
+| P-011 | Exclusion Documentation Process | 2. Scope & Contract Management |
+| P-013 | Scope Lock Gate Process | 2. Scope & Contract Management |
+| P-014 | Scope Change Control Process | 2. Scope & Contract Management |
+| P-015 | Cross-Team Dependency Registration Process | 3. Dependency & Coordination |
+| P-017 | Shared Resource Conflict Resolution Process | 3. Dependency & Coordination |
+| P-019 | Dependency Acceptance Gate Process | 3. Dependency & Coordination |
+| P-021 | Dependency Escalation Process | 3. Dependency & Coordination |
+| P-030 | Sprint-Level Dependency Tracking Process | 4. Sprint & Delivery Execution |
+| P-039 | SAST/DAST CI Integration Process | 6. Security & Compliance |
+| P-041 | Security Exception Process | 6. Security & Compliance |
+| P-042 | Compliance Review Process | 6. Security & Compliance |
+| P-043 | Security Champions Training Process | 6. Security & Compliance |
+| P-047 | Cloud Architecture Review Board (CARB) Process | 7. Infrastructure & Platform |
+| P-055 | Incident Response Process | 9. SRE & Operations |
+| P-056 | Post-Mortem Process | 9. SRE & Operations |
+| P-057 | On-Call Rotation Management Process | 9. SRE & Operations |
+| P-069 | Audit Finding Flow Process | 11. Organizational Hierarchy Audit |
+| P-074 | RAID Log Maintenance Process | 13. Risk & Change Management |
+| P-076 | Pre-Launch Risk Review Process (CAB) | 13. Risk & Change Management |
+| P-080 | Guild Standards Communication Process | 14. Communication & Alignment |
+| P-083 | Shared Resource Allocation Process | 15. Capacity & Resource Management |
+| P-085 | RFC (Request for Comments) Process | 16. Technical Excellence & Standards |
+| P-086 | Technical Debt Tracking Process | 16. Technical Excellence & Standards |
+| P-087 | Language Tier Policy Change Process | 16. Technical Excellence & Standards |
+| P-089 | Developer Experience Survey Process | 16. Technical Excellence & Standards |
+
 ## Scope by Level
 
 | Level | Scope | Key Focus |

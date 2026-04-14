@@ -10,6 +10,8 @@
 **Spec Author**: spec-creator
 **Status**: FINAL
 
+> **Quick Reference**: A lightweight stub version is available at `processes/process_stubs/onboarding_stub.md`
+
 ---
 
 ## Table of Contents

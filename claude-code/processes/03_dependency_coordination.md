@@ -7,6 +7,8 @@
 **Source**: Process Architecture (Stage 1), Clarity of Intent (Stage 3: Dependency Map), Engineering Team Structure Guide
 **Processes Covered**: P-015, P-016, P-017, P-018, P-019, P-020, P-021
 
+> **Quick Reference**: A lightweight stub version is available at `processes/process_stubs/dependency_coordination_stub.md`
+
 ---
 
 ## Category Overview

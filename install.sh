@@ -113,6 +113,37 @@ check_mode() {
     echo -e "${YELLOW}[SKIP]${NC} skills: source directory not found"
   fi
 
+  # --- Orchestrator Integrity ---
+  if [[ -f "$SOURCE_DIR/agents/orchestrator.md" ]] && [[ -f "$CLAUDE_DIR/agents/orchestrator.md" ]]; then
+    src_hash=$(sha256sum "$SOURCE_DIR/agents/orchestrator.md" | awk '{print $1}')
+    dst_hash=$(sha256sum "$CLAUDE_DIR/agents/orchestrator.md" | awk '{print $1}')
+    if [[ "$src_hash" == "$dst_hash" ]]; then
+      echo -e "${GREEN}[OK]${NC} orchestrator.md: integrity verified"
+    else
+      echo -e "${RED}[DRIFT]${NC} orchestrator.md: SHA256 mismatch (source vs runtime)"
+      drift_count=$((drift_count + 1))
+    fi
+  else
+    echo -e "${YELLOW}[SKIP]${NC} orchestrator.md: one or both files missing, skipping integrity check"
+  fi
+
+  # --- File Integrity (SHA256) ---
+  for integrity_file in manifest.json settings.json; do
+    if [[ -f "$SOURCE_DIR/$integrity_file" ]] && [[ -f "$CLAUDE_DIR/$integrity_file" ]]; then
+      src_hash=$(sha256sum "$SOURCE_DIR/$integrity_file" | awk '{print $1}')
+      dst_hash=$(sha256sum "$CLAUDE_DIR/$integrity_file" | awk '{print $1}')
+      if [[ "$src_hash" == "$dst_hash" ]]; then
+        echo -e "${GREEN}[OK]${NC} $integrity_file: integrity verified"
+      else
+        echo -e "${RED}[DRIFT]${NC} $integrity_file: SHA256 mismatch"
+        drift_count=$((drift_count + 1))
+      fi
+    elif [[ ! -f "$CLAUDE_DIR/$integrity_file" ]]; then
+      echo -e "${RED}[DRIFT]${NC} $integrity_file: MISSING"
+      drift_count=$((drift_count + 1))
+    fi
+  done
+
   # --- Processes ---
   missing_list=""
   src_count=0
@@ -136,6 +167,16 @@ check_mode() {
   else
     echo -e "${YELLOW}[SKIP]${NC} processes: source directory not found"
   fi
+
+  # --- Mandatory docs ---
+  for doc_file in ARCHITECTURE.md INTEGRATION.md; do
+    if [[ -f "$CLAUDE_DIR/$doc_file" ]]; then
+      echo -e "${GREEN}[OK]${NC} $doc_file: present"
+    else
+      echo -e "${RED}[DRIFT]${NC} $doc_file: MISSING (mandatory)"
+      drift_count=$((drift_count + 1))
+    fi
+  done
 
   echo ""
   if [[ $drift_count -eq 0 ]]; then
@@ -179,6 +220,38 @@ backup_if_exists() {
   fi
 }
 
+# --- Orchestrator integrity check ---------------------------------------------
+check_orchestrator_integrity() {
+  local src_file="$SOURCE_DIR/agents/orchestrator.md"
+  local dst_file="$CLAUDE_DIR/agents/orchestrator.md"
+
+  if [[ ! -f "$src_file" ]]; then
+    warn "orchestrator.md not found in source — integrity check skipped"
+    return 0
+  fi
+
+  local src_hash dst_hash
+  src_hash=$(sha256sum "$src_file" | awk '{print $1}')
+
+  if [[ ! -f "$dst_file" ]]; then
+    warn "orchestrator.md not installed yet — skipping runtime drift check"
+    return 0
+  fi
+
+  dst_hash=$(sha256sum "$dst_file" | awk '{print $1}')
+
+  if [[ "$src_hash" != "$dst_hash" ]]; then
+    warn "INTEGRITY DRIFT: orchestrator.md runtime copy differs from source"
+    warn "  Source:  $src_hash"
+    warn "  Runtime: $dst_hash"
+    warn "  Run install.sh to restore from source"
+    return 1
+  fi
+
+  log "orchestrator.md integrity verified (SHA256 match)"
+  return 0
+}
+
 # --- Install components -------------------------------------------------------
 
 # Skills (auto-discovered by Claude Code)
@@ -199,6 +272,9 @@ if [[ -d "$SOURCE_DIR/agents" ]]; then
   mkdir -p "$CLAUDE_DIR/agents"
   cp -r "$SOURCE_DIR/agents/"* "$CLAUDE_DIR/agents/" 2>/dev/null || true
   log "Agents installed"
+
+  # Verify orchestrator.md integrity
+  check_orchestrator_integrity
 else
   warn "No agents directory found in $SOURCE_DIR — skipping"
 fi
@@ -265,16 +341,26 @@ else
   warn "No settings.json found in $SOURCE_DIR — skipping"
 fi
 
-# Documentation files (optional — copied if present)
-for doc_file in ARCHITECTURE.md INTEGRATION.md PERMISSION-MODES.md; do
+# Documentation files
+# Mandatory: ARCHITECTURE.md and INTEGRATION.md (orchestrator reference docs)
+for doc_file in ARCHITECTURE.md INTEGRATION.md; do
   if [[ -f "$SOURCE_DIR/$doc_file" ]]; then
     backup_if_exists "$CLAUDE_DIR/$doc_file"
     cp "$SOURCE_DIR/$doc_file" "$CLAUDE_DIR/$doc_file"
     log "$doc_file installed"
   else
-    warn "No $doc_file found in $SOURCE_DIR — skipping"
+    err "MANDATORY: $doc_file not found in $SOURCE_DIR — installation aborted"
   fi
 done
+
+# Optional: PERMISSION-MODES.md
+if [[ -f "$SOURCE_DIR/PERMISSION-MODES.md" ]]; then
+  backup_if_exists "$CLAUDE_DIR/PERMISSION-MODES.md"
+  cp "$SOURCE_DIR/PERMISSION-MODES.md" "$CLAUDE_DIR/PERMISSION-MODES.md"
+  log "PERMISSION-MODES.md installed"
+else
+  warn "No PERMISSION-MODES.md found in $SOURCE_DIR — skipping"
+fi
 
 # --- Post-install verification ------------------------------------------------
 verify_pass=1

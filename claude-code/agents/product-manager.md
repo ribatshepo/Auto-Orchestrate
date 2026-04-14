@@ -21,6 +21,82 @@ Product management spanning APM through CPO, plus Scrum Master and Agile Coach. 
 | PM-006 | **Measurable acceptance criteria** — every user story has binary pass/fail criteria |
 | PM-007 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- user story
+- product backlog
+- acceptance criteria
+- OKR key results
+- product roadmap
+- feature prioritization
+- sprint ceremony
+- product management
+- requirements
+- product vision
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-001 | Intent Articulation Process | 1. Intent & Strategic Alignment |
+| P-002 | OKR Alignment Verification Process | 1. Intent & Strategic Alignment |
+| P-003 | Boundary Definition Process | 1. Intent & Strategic Alignment |
+| P-007 | Deliverable Decomposition Process | 2. Scope & Contract Management |
+| P-008 | Definition of Done Authoring Process | 2. Scope & Contract Management |
+| P-009 | Success Metrics Definition Process | 2. Scope & Contract Management |
+| P-010 | Assumptions and Risks Registration Process | 2. Scope & Contract Management |
+| P-011 | Exclusion Documentation Process | 2. Scope & Contract Management |
+| P-013 | Scope Lock Gate Process | 2. Scope & Contract Management |
+| P-014 | Scope Change Control Process | 2. Scope & Contract Management |
+| P-024 | Story Writing Process | 4. Sprint & Delivery Execution |
+| P-026 | Daily Standup Process | 4. Sprint & Delivery Execution |
+| P-029 | Backlog Refinement Process | 4. Sprint & Delivery Execution |
+| P-036 | Acceptance Criteria Verification Process | 5. Quality Assurance & Testing |
+| P-070 | Project Post-Mortem Process | 12. Post-Delivery & Retrospective |
+| P-072 | OKR Retrospective Process | 12. Post-Delivery & Retrospective |
+| P-073 | Post-Launch Outcome Measurement Process | 12. Post-Delivery & Retrospective |
+| P-075 | Risk Register at Scope Lock Process | 13. Risk & Change Management |
+| P-079 | Stakeholder Update Cadence Process | 14. Communication & Alignment |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-004 | Intent Review Gate Process | 1. Intent & Strategic Alignment |
+| P-005 | Strategic Prioritization Process | 1. Intent & Strategic Alignment |
+| P-012 | AppSec Scope Review Process | 2. Scope & Contract Management |
+| P-017 | Shared Resource Conflict Resolution Process | 3. Dependency & Coordination |
+| P-018 | Communication Protocol Establishment Process | 3. Dependency & Coordination |
+| P-019 | Dependency Acceptance Gate Process | 3. Dependency & Coordination |
+| P-022 | Sprint Goal Authoring Process | 4. Sprint & Delivery Execution |
+| P-023 | Intent Trace Validation Process | 4. Sprint & Delivery Execution |
+| P-025 | Sprint Readiness Gate Process | 4. Sprint & Delivery Execution |
+| P-027 | Sprint Review Process | 4. Sprint & Delivery Execution |
+| P-028 | Sprint Retrospective Process | 4. Sprint & Delivery Execution |
+| P-031 | Feature Development Process | 4. Sprint & Delivery Execution |
+| P-034 | Definition of Done Enforcement Process | 5. Quality Assurance & Testing |
+| P-038 | Threat Modeling Process | 6. Security & Compliance |
+| P-041 | Security Exception Process | 6. Security & Compliance |
+| P-042 | Compliance Review Process | 6. Security & Compliance |
+| P-048 | Production Release Management Process | 7. Infrastructure & Platform |
+| P-054 | SLO Definition and Review Process | 9. SRE & Operations |
+| P-061 | Release Notes Process | 10. Documentation & Knowledge Management |
+| P-065 | Director Engineering Audit Layer Process (Layer 4) | 11. Organizational Hierarchy Audit |
+| P-066 | Engineering Manager Audit Layer Process (Layer 5) | 11. Organizational Hierarchy Audit |
+| P-071 | Quarterly Process Health Review | 12. Post-Delivery & Retrospective |
+| P-076 | Pre-Launch Risk Review Process (CAB) | 13. Risk & Change Management |
+| P-078 | OKR Cascade Communication Process | 14. Communication & Alignment |
+| P-082 | Quarterly Capacity Planning Process | 15. Capacity & Resource Management |
+| P-091 | New Project Onboarding Process | 17. Onboarding & Knowledge Transfer |
+
 ## Scope by Role
 
 | Role | Scope | Primary Artifacts |

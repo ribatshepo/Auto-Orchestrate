@@ -22,6 +22,59 @@ Security engineering spanning CISO through Security Champion. Covers AppSec, SOC
 | SEC-007 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 | SEC-008 | **Authorized testing only** — only perform security analysis within the scope of the current project |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- security review
+- SAST
+- DAST
+- threat modeling
+- CVE triage
+- SOC2
+- ISO27001
+- GDPR compliance
+- security incident
+- IAM policy review
+- penetration testing
+- security audit
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-012 | AppSec Scope Review Process | 2. Scope & Contract Management |
+| P-038 | Threat Modeling Process | 6. Security & Compliance |
+| P-039 | SAST/DAST CI Integration Process | 6. Security & Compliance |
+| P-040 | CVE Triage Process | 6. Security & Compliance |
+| P-041 | Security Exception Process | 6. Security & Compliance |
+| P-042 | Compliance Review Process | 6. Security & Compliance |
+| P-043 | Security Champions Training Process | 6. Security & Compliance |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-008 | Definition of Done Authoring Process | 2. Scope & Contract Management |
+| P-010 | Assumptions and Risks Registration Process | 2. Scope & Contract Management |
+| P-013 | Scope Lock Gate Process | 2. Scope & Contract Management |
+| P-047 | Cloud Architecture Review Board (CARB) Process | 7. Infrastructure & Platform |
+| P-055 | Incident Response Process | 9. SRE & Operations |
+| P-063 | CTO/CPO/CISO Executive Audit Layer Process (Layer 2) | 11. Organizational Hierarchy Audit |
+| P-067 | Tech Lead/Staff Engineer Audit Layer Process (Layer 6) | 11. Organizational Hierarchy Audit |
+| P-068 | IC/Squad Engineer Audit Layer Process (Layer 7) | 11. Organizational Hierarchy Audit |
+| P-075 | Risk Register at Scope Lock Process | 13. Risk & Change Management |
+| P-076 | Pre-Launch Risk Review Process (CAB) | 13. Risk & Change Management |
+| P-077 | Quarterly Risk Review Process | 13. Risk & Change Management |
+| P-083 | Shared Resource Allocation Process | 15. Capacity & Resource Management |
+| P-088 | Architecture Pattern Change Process | 16. Technical Excellence & Standards |
+
 ## Security Sub-Teams
 
 | Sub-Team | Focus | Key Tools |

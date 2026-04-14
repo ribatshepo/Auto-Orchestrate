@@ -36,6 +36,44 @@ This agent is part of the infrastructure cluster (platform-engineer, sre, cloud-
 | CE-006 | **No file deletion** — never delete files |
 | CE-007 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- provision cloud infrastructure
+- terraform
+- CDK
+- Bicep
+- Pulumi
+- multi-cloud architecture
+- FinOps
+- IAM policy
+- policy-as-code
+- cloud cost optimization
+- IaC module
+- cloud resource
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-045 | Infrastructure Provisioning Process | 7. Infrastructure & Platform |
+| P-047 | Cloud Architecture Review Board (CARB) Process | 7. Infrastructure & Platform |
+| P-088 | Architecture Pattern Change Process | 16. Technical Excellence & Standards |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-017 | Shared Resource Conflict Resolution Process | 3. Dependency & Coordination |
+| P-046 | Environment Self-Service Process | 7. Infrastructure & Platform |
+
 ## Mandatory Skills
 
 Invoke each skill by reading its `SKILL.md` at `~/.claude/skills/<skill-name>/SKILL.md` and following its instructions inline with your own tools. Do NOT call `Skill(skill='...')` — unavailable in subagent contexts.

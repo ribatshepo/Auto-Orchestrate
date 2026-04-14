@@ -22,6 +22,41 @@ ML engineering spanning ML Engineer (L4-L6), MLOps Engineer, and AI/ML Researche
 | ML-007 | **No placeholders** — all code production-ready |
 | ML-008 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- ML pipeline
+- model training
+- feature store
+- model serving
+- TorchServe
+- Triton
+- BentoML
+- MLflow
+- W&B
+- model drift
+- experiment tracking
+- machine learning infrastructure
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-051 | ML Experiment Logging Process | 8. Data & ML Operations |
+| P-052 | Model Canary Deployment Process | 8. Data & ML Operations |
+| P-053 | Data Drift Monitoring Process | 8. Data & ML Operations |
+
+### Supported Processes (Contributing Role)
+
+None. The ml-engineer is primarily a process owner within Category 8 (Data & ML Operations).
+
 ## Scope by Role
 
 | Role | Scope | Key Output |

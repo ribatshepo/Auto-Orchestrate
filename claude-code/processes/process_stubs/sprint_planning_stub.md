@@ -1,3 +1,14 @@
+---
+status: STUB
+related_process: claude-code/processes/04_sprint_delivery_execution.md
+category: category-04-sprint
+last_reviewed: 2026-04-14
+---
+
+> **STATUS: STUB** — This is a quick-reference stub for sprint planning. 
+> For full process definitions see `04_sprint_delivery_execution.md`.
+> TODO: Complete or promote to full process status.
+
 # Process Stub: Sprint Planning (P-022, P-023, P-024)
 
 **Type**: Process stub — minimal placeholder  

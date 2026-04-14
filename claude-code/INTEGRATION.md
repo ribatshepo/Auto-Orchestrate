@@ -3,7 +3,7 @@
 Step-by-step guide for integrating the plugins system with Claude Code.
 
 **Version**: 1.2.0
-**Last Updated**: 2026-04-06
+**Last Updated**: 2026-04-14
 
 ---
 
@@ -71,7 +71,7 @@ After installation, components are immediately available:
 
 ### 3.1 Full Installation
 
-Install all 35 skills, 16 agents, and 14 commands:
+Install all 35 skills, 17 agents, and 19 commands:
 
 ```bash
 # Create directories if they don't exist
@@ -169,6 +169,25 @@ ln -sf "$(pwd)/claude-code/commands" ~/.claude/commands
 
 **Note:** Symlinks require absolute paths. The `$(pwd)` ensures full paths are used.
 
+### 3.4 Processes
+
+The `processes/` directory contains 26 process definition files installed to `~/.claude/processes/`.
+
+**Install verification**:
+```bash
+ls ~/.claude/processes/ | wc -l   # should be 26
+ls ~/.claude/processes/process_stubs/  # should show 3 stub files
+```
+
+**Contents after install**:
+- 18 process category files (`00_process_handbook_overview.md` through `18_cross_reference_index.md`)
+- 4 supporting documents (README, AGENT_PROCESS_MAP, QUICK_START, UNIFIED_END_TO_END_PROCESS)
+- 3 protocol files (bridge_protocol, gate_enforcement_spec, process_injection_map)
+- 1 schema file (gate_state_schema.json)
+- 1 subdirectory (process_stubs/) with 3 stub files
+
+**Usage**: Agents reference process files via `~/.claude/processes/` at runtime. The orchestrator reads processes registered in `manifest.json` via MANIFEST-001.
+
 ---
 
 ## 4. Verification
@@ -214,7 +233,7 @@ triggers:
 ### 4.2 Agents Verification
 
 ```bash
-# List installed agents (should be 16)
+# List installed agents (should be 17)
 ls ~/.claude/agents/*.md
 
 # Verify agent frontmatter exists
@@ -239,19 +258,24 @@ Expected structure:
 ```
 commands/
 ├── auto-orchestrate.md
+├── auto-debug.md
+├── auto-audit.md
 ├── active-dev.md
 ├── agent-capabilities.md
 ├── assign-agent.md
+├── data-ml-ops.md
 ├── gate-review.md
+├── infra.md
 ├── new-project.md
 ├── org-ops.md
 ├── post-launch.md
 ├── process-lookup.md
+├── qa.md
 ├── release-prep.md
+├── risk.md
+├── security.md
 ├── sprint-ceremony.md
-├── workflow.md
-├── auto-debug.md
-└── auto-audit.md
+└── workflow.md
 ```
 
 ### 4.4 Quick Test
@@ -269,6 +293,40 @@ If commands aren't recognized, verify the commands directory exists:
 ```bash
 ls -la ~/.claude/commands/
 ```
+
+---
+
+## 4.5 Domain Memory
+
+The `.domain/` directory at the project root provides persistent cross-session knowledge storage for the orchestration pipeline.
+
+#### Overview
+
+Domain memory is initialized automatically on first `/auto-orchestrate` run and persists across all subsequent sessions. It is project-scoped (one `.domain/` per project), not global.
+
+#### Storage Architecture
+
+All stores use JSONL (JSON Lines) format for append-only writes with SQLite indexing for fast queries.
+
+| Store | File | Purpose |
+|-------|------|---------|
+| Research Ledger | `.domain/research_ledger.jsonl` | Prior research findings indexed by topic |
+| Decision Log | `.domain/decision_log.jsonl` | Architecture decisions with rationale and date |
+| Pattern Library | `.domain/pattern_library.jsonl` | Success patterns and anti-patterns by domain |
+| Fix Registry | `.domain/fix_registry.jsonl` | Error fingerprint → fix mapping for fast debugging |
+| Codebase Analysis | `.domain/codebase_analysis.jsonl` | Per-file risk assessments and change history |
+| User Preferences | `.domain/user_preferences.jsonl` | User corrections and workflow preferences |
+
+#### Lifecycle
+
+- **Initialize**: On first `/auto-orchestrate` run (Step -0.25 in orchestrator boot sequence)
+- **Read**: Before each pipeline stage (e.g., research_ledger before Stage 0 to avoid re-research)
+- **Write**: After each stage completes (via stage-receipt.json consumption)
+- **Persist**: Never deleted automatically — manual cleanup only
+
+#### Cross-Reference
+
+See ARCHITECTURE.md for technical implementation details of domain memory.
 
 ---
 
@@ -380,22 +438,27 @@ After installation, your `~/.claude/` should look like:
 ├── settings.json
 ├── manifest.json
 ├── agents/
-│   ├── orchestrator.md          ← orchestration core
-│   ├── researcher.md            ← orchestration core
-│   ├── session-manager.md       ← orchestration core
-│   ├── cloud-engineer.md        ← team agent
-│   ├── data-engineer.md         ← team agent
-│   ├── engineering-manager.md   ← team agent
-│   ├── ml-engineer.md           ← team agent
-│   ├── platform-engineer.md     ← team agent
-│   ├── product-manager.md       ← team agent
-│   ├── qa-engineer.md           ← team agent
-│   ├── security-engineer.md     ← team agent
-│   ├── software-engineer.md     ← team agent
-│   ├── sre.md                   ← team agent
-│   ├── staff-principal-engineer.md ← team agent
-│   ├── technical-program-manager.md ← team agent
-│   └── technical-writer.md      ← team agent
+│   ├── orchestrator.md                 ← orchestration core
+│   ├── researcher.md                   ← orchestration core
+│   ├── session-manager.md              ← orchestration core
+│   ├── documentor.md                   ← pipeline agent
+│   ├── epic-architect.md               ← pipeline agent
+│   ├── implementer.md                  ← pipeline agent
+│   ├── debugger.md                     ← pipeline agent
+│   ├── auditor.md                      ← pipeline agent
+│   ├── cloud-engineer.md               ← team agent
+│   ├── data-engineer.md                ← team agent
+│   ├── engineering-manager.md          ← team agent
+│   ├── ml-engineer.md                  ← team agent
+│   ├── platform-engineer.md            ← team agent
+│   ├── product-manager.md              ← team agent
+│   ├── qa-engineer.md                  ← team agent
+│   ├── security-engineer.md            ← team agent
+│   ├── software-engineer.md            ← team agent
+│   ├── sre.md                          ← team agent
+│   ├── staff-principal-engineer.md     ← team agent
+│   ├── technical-program-manager.md    ← team agent
+│   └── technical-writer.md             ← team agent
 ├── skills/
 │   ├── researcher/
 │   │   └── SKILL.md
@@ -404,19 +467,24 @@ After installation, your `~/.claude/` should look like:
 │   └── ... (35 total)
 └── commands/
     ├── auto-orchestrate.md
+    ├── auto-debug.md
+    ├── auto-audit.md
     ├── active-dev.md
     ├── agent-capabilities.md
     ├── assign-agent.md
+    ├── data-ml-ops.md
     ├── gate-review.md
+    ├── infra.md
     ├── new-project.md
     ├── org-ops.md
     ├── post-launch.md
     ├── process-lookup.md
+    ├── qa.md
     ├── release-prep.md
+    ├── risk.md
+    ├── security.md
     ├── sprint-ceremony.md
-    ├── workflow.md
-    ├── auto-debug.md
-    └── auto-audit.md
+    └── workflow.md
 ```
 
 ---
@@ -547,8 +615,8 @@ Claude: [Summarizes session progress]
 | Category | Count | Location |
 |----------|-------|----------|
 | Skills | 35 | `~/.claude/skills/` |
-| Agents | 16 | `~/.claude/agents/` |
-| Commands | 14 | `~/.claude/commands/` |
+| Agents | 17 | `~/.claude/agents/` |
+| Commands | 19 | `~/.claude/commands/` |
 
 ### Skill Categories
 
@@ -586,6 +654,11 @@ Claude: [Summarizes session progress]
 | `/workflow` | Workflow overview and navigation |
 | `/auto-debug` | Autonomous cyclic error-fix-verify loop |
 | `/auto-audit` | Autonomous spec compliance audit-remediate loop |
+| `/data-ml-ops` | Data and ML operations management |
+| `/infra` | Infrastructure management commands |
+| `/qa` | Quality assurance commands |
+| `/risk` | Risk management commands |
+| `/security` | Security commands |
 
 ---
 
@@ -833,7 +906,7 @@ done
 ### 13.3 Verifying Team Agent Installation
 
 ```bash
-# Total agent count (should be 16)
+# Total agent count (should be 17)
 ls ~/.claude/agents/*.md | wc -l
 
 # List all installed agents
@@ -843,11 +916,10 @@ ls ~/.claude/agents/*.md | xargs -I{} basename {}
 head -10 ~/.claude/agents/software-engineer.md
 ```
 
-Expected: 16 agent files total (3 orchestration-core + 13 team agents).
+Expected: 17 agent files total (3 orchestration-core: orchestrator, session-manager, researcher + 5 pipeline agents: implementer, epic-architect, documentor, debugger, auditor + 13 team agents).
 
-> **Note on legacy agents**: The runtime may also contain `auditor.md`, `debugger.md`, `documentor.md`, `epic-architect.md`, and `implementer.md` from previous installations. These are legacy orchestration-pipeline subagents and remain functional. They are not counted in the 16 team/core agents above since they live in `~/.claude/agents/` but are not currently in `claude-code/agents/`.
 
-> **Manifest completeness**: As of 2026-04-09, `manifest.json` includes all 16 agents and all 14 commands in its `agents[]` and `commands[]` arrays (plus all 35 skills). This ensures full orchestrator routing coverage — every agent can be dispatched by `dispatch_triggers`, and every command is registered for discovery. Verify with: `python3 -c "import json; m=json.load(open('claude-code/manifest.json')); print('agents:', len(m['agents']), '| commands:', len(m['commands']), '| skills:', len(m['skills']))"`
+> **Manifest completeness**: As of 2026-04-14, `manifest.json` includes all 17 agents and all 19 commands in its `agents[]` and `commands[]` arrays (plus all 35 skills). This ensures full orchestrator routing coverage — every agent can be dispatched by `dispatch_triggers`, and every command is registered for discovery. Verify with: `python3 -c "import json; m=json.load(open('claude-code/manifest.json')); print('agents:', len(m['agents']), '| commands:', len(m['commands']), '| skills:', len(m['skills']))"`
 
 ### 13.4 Routing Tasks with /assign-agent
 

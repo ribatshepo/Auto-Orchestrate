@@ -79,6 +79,35 @@ For the selected gate:
 3. For each item, assess current state (pass/fail/unknown)
 4. Provide overall gate verdict: PASS or FAIL with rationale
 
+## Gate State Persistence
+
+Gate state is persisted between /new-project pipeline stages using a structured schema.
+
+**Schema file**: `claude-code/processes/gate_state_schema.json`  
+**State file location**: `.orchestrate/{session_id}/gate-state.json`
+
+### Reading Gate State
+
+Before running a gate review, check if a prior gate state exists:
+1. Look for `.orchestrate/{session_id}/gate-state.json`
+2. If present, load and validate against `gate_state_schema.json`
+3. Display previous gate outcomes (passed/failed/pending) for context
+
+### Writing Gate State
+
+After completing a gate review:
+1. Record outcome: `passed`, `failed`, or `pending`
+2. Record reviewer, timestamp, and any conditions/waivers
+3. Write updated state to `.orchestrate/{session_id}/gate-state.json`
+4. Validate written state against `gate_state_schema.json`
+
+### Gate State Schema Reference
+
+The schema at `claude-code/processes/gate_state_schema.json` defines:
+- Required fields per gate (gate_id, status, reviewed_at, reviewer)
+- Valid status values: `passed`, `failed`, `pending`, `waived`
+- Optional fields: conditions, waiver_reason, next_review_date
+
 ## Gate State Write
 
 After completing gate review, write the result to the session gate state file.

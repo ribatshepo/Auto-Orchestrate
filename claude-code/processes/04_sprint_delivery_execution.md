@@ -7,6 +7,8 @@
 **Source**: Process Architecture (Stage 1), Clarity of Intent (Stage 4: Sprint Bridge), Engineering Team Structure Guide (Section 11: Delivery Methodology)
 **Processes Covered**: P-022, P-023, P-024, P-025, P-026, P-027, P-028, P-029, P-030, P-031
 
+> **Quick Reference**: A lightweight stub version is available at `processes/process_stubs/sprint_planning_stub.md`
+
 ---
 
 ## Category Overview

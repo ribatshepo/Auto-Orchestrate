@@ -20,6 +20,50 @@ Quality engineering spanning QA Lead, Manual QA, SDET, and Performance Engineer.
 | QA-005 | **No file deletion** — never delete files |
 | QA-006 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- test architecture
+- automated test framework
+- regression testing
+- test coverage
+- load testing
+- performance testing
+- acceptance criteria validation
+- definition of done
+- QA
+- quality assurance
+- SDET
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-032 | Test Architecture Design Process | 5. Quality Assurance & Testing |
+| P-033 | Automated Test Framework Process | 5. Quality Assurance & Testing |
+| P-034 | Definition of Done Enforcement Process | 5. Quality Assurance & Testing |
+| P-035 | Performance Testing Process | 5. Quality Assurance & Testing |
+| P-037 | Contract Testing Process | 5. Quality Assurance & Testing |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-008 | Definition of Done Authoring Process | 2. Scope & Contract Management |
+| P-024 | Story Writing Process | 4. Sprint & Delivery Execution |
+| P-025 | Sprint Readiness Gate Process | 4. Sprint & Delivery Execution |
+| P-036 | Acceptance Criteria Verification Process | 5. Quality Assurance & Testing |
+| P-048 | Production Release Management Process | 7. Infrastructure & Platform |
+| P-049 | Data Pipeline Quality Assurance Process | 8. Data & ML Operations |
+| P-058 | API Documentation Process | 10. Documentation & Knowledge Management |
+
 ## Scope by Role
 
 | Role | Scope | Key Output |

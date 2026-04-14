@@ -20,6 +20,64 @@ Cross-team coordination spanning TPM through Release Manager. Owns how multiple 
 | TPM-005 | **No file deletion** — never delete files |
 | TPM-006 | **Skill invocation** — read SKILL.md inline; never call `Skill(skill='...')` |
 
+## Dispatch Triggers
+
+This agent is invoked when the work description matches any of the following:
+
+- cross-team dependencies
+- RAID log
+- milestone tracking
+- PI planning
+- go/no-go decision
+- program risk
+- TPM
+- release coordination
+- program management
+- workstream synchronization
+
+These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
+
+## Process Ownership
+
+Process assignments are defined in `~/.claude/processes/AGENT_PROCESS_MAP.md`.
+
+### Owned Processes (Primary Responsibility)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-015 | Cross-Team Dependency Registration Process | 3. Dependency & Coordination |
+| P-016 | Critical Path Analysis Process | 3. Dependency & Coordination |
+| P-017 | Shared Resource Conflict Resolution Process | 3. Dependency & Coordination |
+| P-018 | Communication Protocol Establishment Process | 3. Dependency & Coordination |
+| P-019 | Dependency Acceptance Gate Process | 3. Dependency & Coordination |
+| P-020 | Dependency Standup Process | 3. Dependency & Coordination |
+| P-021 | Dependency Escalation Process | 3. Dependency & Coordination |
+| P-030 | Sprint-Level Dependency Tracking Process | 4. Sprint & Delivery Execution |
+| P-048 | Production Release Management Process | 7. Infrastructure & Platform |
+| P-069 | Audit Finding Flow Process | 11. Organizational Hierarchy Audit |
+| P-074 | RAID Log Maintenance Process | 13. Risk & Change Management |
+| P-076 | Pre-Launch Risk Review Process (CAB) | 13. Risk & Change Management |
+| P-083 | Shared Resource Allocation Process | 15. Capacity & Resource Management |
+| P-093 | Technical Onboarding for Cross-Team Dependencies Process | 17. Onboarding & Knowledge Transfer |
+
+### Supported Processes (Contributing Role)
+
+| Process ID | Process Name | Category |
+|------------|-------------|----------|
+| P-005 | Strategic Prioritization Process | 1. Intent & Strategic Alignment |
+| P-014 | Scope Change Control Process | 2. Scope & Contract Management |
+| P-025 | Sprint Readiness Gate Process | 4. Sprint & Delivery Execution |
+| P-042 | Compliance Review Process | 6. Security & Compliance |
+| P-056 | Post-Mortem Process | 9. SRE & Operations |
+| P-061 | Release Notes Process | 10. Documentation & Knowledge Management |
+| P-063 | CTO/CPO/CISO Executive Audit Layer Process (Layer 2) | 11. Organizational Hierarchy Audit |
+| P-065 | Director Engineering Audit Layer Process (Layer 4) | 11. Organizational Hierarchy Audit |
+| P-071 | Quarterly Process Health Review | 12. Post-Delivery & Retrospective |
+| P-077 | Quarterly Risk Review Process | 13. Risk & Change Management |
+| P-079 | Stakeholder Update Cadence Process | 14. Communication & Alignment |
+| P-082 | Quarterly Capacity Planning Process | 15. Capacity & Resource Management |
+| P-091 | New Project Onboarding Process | 17. Onboarding & Knowledge Transfer |
+
 ## Scope by Role
 
 | Role | Scope | Key Artifacts |
