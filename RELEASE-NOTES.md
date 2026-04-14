@@ -8,13 +8,32 @@
 ## Unreleased (Post-v1.0.0)
 
 **Changes since**: 2026-02-12 (v1.0.0)
-**Last updated**: 2026-03-25
+**Last updated**: 2026-04-14
 
 This section documents all changes made after v1.0.0 that are not yet tagged in a release. These changes represent significant improvements to pipeline reliability, session management, agent communication, and security posture.
 
 ---
 
 ### New Features
+
+#### Cross-Pipeline Shared State Constraints (SHARED-001–004)
+
+The cross-pipeline state protocol (`_shared/protocols/cross-pipeline-state.md`) now codifies four named constraints for shared knowledge management:
+
+- **SHARED-001**: All pipelines read shared knowledge stores at startup before first action
+- **SHARED-002**: Escalation handoffs written to shared `.pipeline-state/escalation-log.jsonl`
+- **SHARED-003**: Research cache checked before spawning researcher agents (avoids redundant lookups)
+- **SHARED-004**: Fix-registry is append-only and shared — auto-debug checks for existing verified fixes before diagnosing
+
+Cross-references added to `auto-orchestrate.md`, `auto-audit.md`, and `auto-debug.md` at their respective startup and operational sections.
+
+#### Three New Skills (38 total, up from 35)
+
+- **`accessibility-check`** — WCAG 2.1 AA/AAA compliance checking for web interfaces and UI components. Invoked by qa-engineer at Stage 5 (ACT-012) when frontend artifacts are detected. Audits color contrast, keyboard navigation, ARIA patterns, form labels, focus management, and semantic HTML.
+
+- **`cost-estimator`** — Cloud infrastructure cost estimation and FinOps analysis. Invoked by infra-engineer during `/release-prep` (P-048). Scans Terraform, Docker, CDK, Pulumi, and Kubernetes manifests to produce monthly cost projections with optimization recommendations.
+
+- **`observability-setup`** — Monitoring, alerting, dashboard, and distributed tracing configuration. Invoked by sre during `/release-prep` and `/post-launch` (P-054, P-055). Defines SLO-based monitoring, alert severity tiers, USE-method dashboards, and OpenTelemetry instrumentation guidance.
 
 #### Researcher Agent (6th Specialized Agent)
 

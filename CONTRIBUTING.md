@@ -83,7 +83,7 @@ Auto-Orchestrate/
     │       ├── hooks.py         # Pipeline integration hooks
     │       ├── indexer.py       # SQLite index for fast queries
     │       └── tests/
-    ├── skills/                  # Skill definitions (35 skills)
+    ├── skills/                  # Skill definitions (38 skills)
     │   └── _shared/python/      # Shared Python library (layered)
     │       ├── layer0/          # Foundation (colors, constants, exit codes)
     │       ├── layer1/          # Core utilities (config, file ops, logging, spec utils)

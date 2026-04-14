@@ -3,7 +3,7 @@
 Comprehensive architecture documentation for the Auto-Orchestrate system.
 
 **Last Updated**: 2026-04-14
-**Components**: 18 agents | 35 skills | 19 commands | 26 processes | 6 protocols | 2 templates | 9 CI engine modules | 4 domain memory modules
+**Components**: 18 agents | 38 skills | 19 commands | 26 processes | 9 protocols | 2 templates | 9 CI engine modules | 4 domain memory modules
 
 ---
 
@@ -34,7 +34,7 @@ Auto-Orchestrate is a multi-layer autonomous pipeline system with built-in conti
 │  technical-program-manager│ technical-writer  │                          │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                            SKILLS LAYER                                 │
-│  35 specialized skills (each with SKILL.md + optional Python scripts)   │
+│  38 specialized skills (each with SKILL.md + optional Python scripts)   │
 ├────────────────────────────────┬─────────────────────────────────────────┤
 │       CI ENGINE (lib/)         │        DOMAIN MEMORY (lib/)            │
 │  OODA loop (within-run)        │  .domain/ (cross-session)              │
@@ -138,7 +138,9 @@ claude-code/
 │   ├── technical-program-manager.md           (team agent)
 │   └── technical-writer.md                    (team agent)
 ├── skills/
+│   ├── accessibility-check/SKILL.md
 │   ├── codebase-stats/SKILL.md                (351 lines)
+│   ├── cost-estimator/SKILL.md
 │   ├── dependency-analyzer/SKILL.md           (352 lines)
 │   ├── debug-diagnostics/SKILL.md
 │   ├── dev-workflow/SKILL.md                  (486 lines)
@@ -148,6 +150,7 @@ claude-code/
 │   ├── error-standardizer/SKILL.md            (399 lines)
 │   ├── hierarchy-unifier/SKILL.md             (343 lines)
 │   ├── library-implementer-python/SKILL.md    (438 lines)
+│   ├── observability-setup/SKILL.md
 │   ├── refactor-executor/SKILL.md             (271 lines)
 │   ├── researcher/SKILL.md                    (201 lines)
 │   ├── schema-migrator/SKILL.md               (365 lines)
@@ -264,10 +267,10 @@ claude-code/
 
 | Source Type | References `protocols` | References `lib/` |
 |-------------|------------------------|-------------------|
-| Skills (35) | 5 | 0 (use shared Python library) |
+| Skills (38) | 5 | 0 (use shared Python library) |
 | Agents (18) | 7 | 2 (orchestrator, debugger) |
 | Commands (3) | 3 | 3 (CI engine + domain memory) |
-| Protocols (6) | 3 (internal) | 0 |
+| Protocols (9) | 3 (internal) | 0 |
 
 ---
 
@@ -1049,13 +1052,14 @@ Processes are installed to `~/.claude/processes/` by `install.sh`.
 | `docs-write` | Create/edit with style guide | "write docs", "improve doc clarity" |
 | `docs-review` | Style guide compliance | "review documentation", "check docs style" |
 
-#### Testing (3)
+#### Testing & Quality (4)
 
 | Skill | Purpose | Triggers |
 |-------|---------|----------|
 | `test-writer-pytest` | Pytest unit/integration tests | "write tests", "create pytest tests" |
 | `test-gap-analyzer` | Coverage analysis, gap detection | "check test coverage", "find untested code" |
 | `validator` | Compliance validation | "validate", "verify", "check compliance" |
+| `accessibility-check` | WCAG 2.1 AA/AAA compliance | "accessibility audit", "WCAG check", "a11y review" |
 
 #### Research (4)
 
@@ -1084,7 +1088,7 @@ Processes are installed to `~/.claude/processes/` by `install.sh`.
 | `hierarchy-unifier` | Consolidate scattered operations | "unify hierarchy", "consolidate operations" |
 | `error-standardizer` | Convert to emit_error() pattern | "standardize errors", "fix error handling" |
 
-#### DevOps (4)
+#### DevOps & Infrastructure (6)
 
 | Skill | Purpose | Triggers |
 |-------|---------|----------|
@@ -1092,6 +1096,8 @@ Processes are installed to `~/.claude/processes/` by `install.sh`.
 | `docker-workflow` | Docker containerization patterns | "Docker", "Dockerfile", "container" |
 | `spec-analyzer` | Specification analysis and planning | "specification", "validate spec" |
 | `cicd-workflow` | CI/CD pipeline configuration | "CI pipeline", "GitHub Actions" |
+| `cost-estimator` | Cloud infrastructure cost estimation | "cost estimate", "cloud costs", "FinOps" |
+| `observability-setup` | Monitoring, alerting, dashboards, tracing | "observability setup", "SLO monitoring" |
 
 #### Utility (3)
 
@@ -1723,7 +1729,7 @@ Terminal states: completed | max_iterations_reached | stalled | all_blocked | us
 
 ### Skills -> Templates
 
-All 35 skills reference `skill-boilerplate.md` sections:
+All 38 skills reference `skill-boilerplate.md` sections:
 - `#task-integration` (20 skills)
 - `#subagent-protocol` (20 skills)
 - `#manifest-entry` (20 skills)
@@ -2069,7 +2075,7 @@ The `validator` skill serves as the terminal quality gate. Six upstream skills c
 
 The `_shared/` directory contains cross-cutting resources that skills and agents reference via `@` paths.
 
-**Protocols** (4 files):
+**Protocols** (9 files):
 
 | File | Purpose | Primary Consumers |
 |------|---------|-------------------|
@@ -2077,12 +2083,17 @@ The `_shared/` directory contains cross-cutting resources that skills and agents
 | `task-system-integration.md` | Task tool usage patterns | All skills, all agents |
 | `skill-chaining-patterns.md` | Multi-level invocation patterns (CHAIN-001–011) | Orchestrator, chained skills |
 | `skill-chain-contracts.md` | Producer-consumer contracts | Skills with `chaining` metadata |
+| `output-standard.md` | Unified output naming and structure conventions | All commands |
+| `output-schemas.md` | Inter-skill JSON schema definitions | Skills with structured I/O |
+| `agent-activation.md` | Conditional domain agent activation (AGENT-ACTIVATE-001–005, ACT-001–012) | Orchestrator at stage transitions |
+| `command-dispatch.md` | Trigger-based command invocation (DISPATCH-001–003, TRIG-001–013) | Big Three loop controllers |
+| `cross-pipeline-state.md` | Shared state layer at `.pipeline-state/` (SHARED-001–004, STATE-001–003) | All pipelines and commands |
 
 **Templates** (2 files):
 
 | File | Purpose | Reference Count |
 |------|---------|-----------------|
-| `skill-boilerplate.md` | 7-step execution sequence, manifest entry format | 68 references across 35 skills |
+| `skill-boilerplate.md` | 7-step execution sequence, manifest entry format | 68 references across 38 skills |
 | `anti-patterns.md` | Common mistakes to avoid by category | 6 references |
 
 **References** (2 agent-specific directories):
@@ -2135,9 +2146,9 @@ jq '._meta.totalAgents, ._meta.totalSkills, ._meta.totalCommands' claude-code/ma
 
 **Component Verification**:
 - [ ] All 18 agents documented (2 pipeline-core: orchestrator, researcher + 3 pipeline: debugger, auditor, session-manager + 13 team agents)
-- [ ] All 35 skills cataloged
+- [ ] All 38 skills cataloged
 - [ ] All 19 commands referenced (auto-orchestrate, auto-debug, auto-audit + 16 workflow/org commands)
-- [ ] All 6 protocols described
+- [ ] All 9 protocols described
 - [ ] All 2 templates explained
 - [ ] Cross-reference counts accurate
 

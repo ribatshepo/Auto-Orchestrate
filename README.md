@@ -13,7 +13,7 @@ The system enforces strict quality gates, manages context budgets across agent h
 - **11-stage hybrid pipeline** — Four planning stages (P1-P4: Intent, Scope, Dependencies, Sprint) followed by seven technical stages (0-6: research, planning, specification, implementation, testing, validation, documentation) with mandatory completion gates and a PRE-RESEARCH-GATE bridging the two phases
 - **18 specialized agents** — 2 pipeline-core (orchestrator, researcher), 3 pipeline (debugger, auditor, session-manager), and 13 team agents covering the full engineering role hierarchy
 - **2 autonomous subsystems** — `/auto-debug` for cyclic error-fix loops; `/auto-audit` for spec-compliance verification loops
-- **35 task-specific skills** — Testing, security auditing, documentation, DevOps, Docker validation, refactoring, CI/CD, dependency analysis, debugging diagnostics, spec compliance, and more
+- **38 task-specific skills** — Testing, security auditing, accessibility checking, documentation, DevOps, Docker validation, refactoring, CI/CD, dependency analysis, debugging diagnostics, spec compliance, cost estimation, observability setup, and more
 - **Session management with crash recovery** — Checkpoint-based sessions that persist across interruptions and can be resumed
 - **Task decomposition with parallel execution** — Product-manager decomposes work into dependency graphs for optimized scheduling (Program planning)
 - **Zero-error gates and mandatory validation** — Security audits, compliance checks, and technical debt measurement enforced before completion
@@ -40,7 +40,7 @@ chmod +x install.sh
 The install script copies the following into `~/.claude/`:
 
 - `agents/` — Agent definition files
-- `skills/` — All 35 skill directories
+- `skills/` — All 38 skill directories
 - `commands/` — Command definitions (auto-orchestrate, auto-debug, auto-audit)
 - `_shared/` — Protocols, templates, references, and style guides
 - `manifest.json` — Component registry used for agent routing
@@ -316,12 +316,14 @@ Auto-Orchestrate/
     │       ├── hooks.py         # Pipeline integration hooks
     │       └── tests/           # Tests
     │
-    ├── skills/                  # Skill definitions (35 skills)
+    ├── skills/                  # Skill definitions (38 skills)
+    │   ├── accessibility-check/
     │   ├── codebase-stats/
     │   ├── cicd-workflow/
+    │   ├── cost-estimator/
     │   ├── dependency-analyzer/
     │   ├── docker-validator/
-    │   ├── ... (35 skill directories total)
+    │   ├── ... (38 skill directories total)
     │   └── _shared/             # Shared Python libraries (layer0-3)
     │
     └── _shared/                 # Shared resources

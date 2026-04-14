@@ -71,7 +71,7 @@ After installation, components are immediately available:
 
 ### 3.1 Full Installation
 
-Install all 35 skills, 18 agents, and 19 commands:
+Install all 38 skills, 18 agents, and 19 commands:
 
 ```bash
 # Create directories if they don't exist
@@ -611,7 +611,7 @@ Claude: [Summarizes session progress]
 
 | Category | Count | Location |
 |----------|-------|----------|
-| Skills | 35 | `~/.claude/skills/` |
+| Skills | 38 | `~/.claude/skills/` |
 | Agents | 17 | `~/.claude/agents/` |
 | Commands | 19 | `~/.claude/commands/` |
 
@@ -968,7 +968,7 @@ head -10 ~/.claude/agents/software-engineer.md
 Expected: 18 agent files total (2 pipeline-core: orchestrator, researcher + 3 pipeline: debugger, auditor, session-manager + 13 team agents).
 
 
-> **Manifest completeness**: As of 2026-04-14, `manifest.json` includes all 18 agents and all 19 commands in its `agents[]` and `commands[]` arrays (plus all 35 skills). This ensures full orchestrator routing coverage — every agent can be dispatched by `dispatch_triggers`, and every command is registered for discovery. Verify with: `python3 -c "import json; m=json.load(open('claude-code/manifest.json')); print('agents:', len(m['agents']), '| commands:', len(m['commands']), '| skills:', len(m['skills']))"`
+> **Manifest completeness**: As of 2026-04-14, `manifest.json` includes all 18 agents and all 19 commands in its `agents[]` and `commands[]` arrays (plus all 38 skills). This ensures full orchestrator routing coverage — every agent can be dispatched by `dispatch_triggers`, and every command is registered for discovery. Verify with: `python3 -c "import json; m=json.load(open('claude-code/manifest.json')); print('agents:', len(m['agents']), '| commands:', len(m['commands']), '| skills:', len(m['skills']))"`
 
 ### 13.4 Routing Tasks with /assign-agent
 
