@@ -423,21 +423,33 @@ ELSE:
 ```
 User Input (task_description + project context)
   |
-  +-- P1: Intent Brief
-  |     answers "Why?" and "What outcome?"
-  |     consumed by: P2 (Scope Contract)
-  |
-  +-- P2: Scope Contract
-  |     answers "What exactly?" and "What does done look like?"
-  |     consumed by: P3 (Dependency Charter), Stage 0 (researcher)
-  |
-  +-- P3: Dependency Charter
-  |     answers "Who else?" and "What is the critical path?"
-  |     consumed by: P4 (Sprint Kickoff Brief), Stage 1 (product-manager)
-  |
-  +-- P4: Sprint Kickoff Brief
-        answers "What in the first sprint?"
-        consumed by: Stage 1 (product-manager task decomposition)
+  v
+P1-Research (researcher) --> P1 Intent Frame (product-manager) --> Intent Review Gate
+  |                                    |
+  |    answers "Why?" and "What outcome?"
+  |    consumed by: P2 (Scope Contract)
+  |                                    |
+  v                                    v
+P2-Research (researcher) --> P2 Scope Contract (product-manager) --> Scope Lock Gate
+                                       |
+       answers "What exactly?" and "What does done look like?"
+       consumed by: P3 (Dependency Charter), Stage 0 (researcher)
+                                       |
+                                       v
+                            P3 Dependency Map (TPM) --> Dependency Acceptance Gate
+                                       |
+              answers "Who else?" and "What is the critical path?"
+              consumed by: P4 (Sprint Kickoff Brief), Stage 1 (product-manager)
+                                       |
+                                       v
+                            P4 Sprint Bridge (EM) --> Sprint Readiness Gate
+                                       |
+              answers "What in the first sprint?"
+              consumed by: Stage 1 (product-manager task decomposition)
+                                       |
+                                       v PRE-RESEARCH-GATE
+                                       |
+                            Stage 0 Research (researcher) --> ...
 
 Stage 0: researcher reads P2 (Scope Contract) for research focus
 Stage 1: product-manager reads all P1-P4 artifacts for task decomposition
@@ -753,23 +765,69 @@ ELSE:
     Set current_planning_stage = next_planning_stage
     Log: "[PRE-RESEARCH-GATE] Planning incomplete. Next: Stage {next_planning_stage}."
 
-    # Enter planning loop (spawn orchestrator with planning-phase context)
-    # The orchestrator will route to the appropriate agent for the current planning stage.
-    Proceed to Step 3 with STAGE_CEILING locked to planning phase.
+    # Execute planning loop
+    FOR each stage in [P1, P2, P3, P4] where gate_status != "PASSED":
+
+        Log: "[P{N}:START] Executing {stage_name} -- Agent: {agent}"
+
+        ## P1 and P2 Research Sub-Step
+        IF stage is P1 OR stage is P2:
+            Log: "[P{N}:RESEARCH] Spawning researcher for planning research"
+            Spawn researcher agent with prompt:
+              - P1 research: Investigate the project domain, existing codebase structure,
+                stakeholder needs, competitive landscape, and technical constraints.
+                Use WebSearch (3+ queries) for domain best practices, market context,
+                and similar project approaches. Output findings that will inform
+                the Intent Brief.
+              - P2 research: Investigate technical feasibility, effort estimation patterns,
+                dependency risks, and scope precedents. Use WebSearch (3+ queries)
+                for effort estimation baselines, scope management best practices,
+                and risk quantification approaches. Output findings that will inform
+                the Scope Contract.
+            Output: .orchestrate/<session>/planning/P{N}-research.md
+            Log: "[P{N}:RESEARCH-DONE] Research complete -- feeding into {stage_name}"
+
+        ## Agent Spawn
+        Spawn the stage's designated agent (via orchestrator with PHASE: HUMAN_PLANNING):
+          - P1: product-manager -> produces Intent Brief
+                 (receives P1-research.md as additional input)
+          - P2: product-manager -> produces Scope Contract
+                 (receives P1 Intent Brief + P2-research.md as input)
+          - P3: technical-program-manager -> produces Dependency Charter
+                 (receives P2 Scope Contract as input)
+          - P4: engineering-manager -> produces Sprint Kickoff Brief
+                 (receives P3 Dependency Charter + P2 Scope Contract as input)
+
+        ## Gate Validation
+        Verify the stage artifact was produced at the expected path.
+        IF artifact exists AND meets gate criteria:
+            Set planning_gate_statuses.{gate} = "PASSED"
+            Append stage to planning_stages_completed
+            Set planning_artifacts.{artifact_key} = "<path>"
+            Log: "[P{N}:PASSED] {gate_name} gate passed -- artifact: {filename}"
+        ELSE:
+            Log: "[P{N}:FAILED] {gate_name} gate failed -- artifact missing or incomplete"
+            Retry once. If still failed, log error and continue to next iteration.
+
+        ## Progress Display
+        Display planning progress:
+        ```
+        [PLANNING] P1 V -> P2 V -> P3 > -> P4 o
+        ```
+
+        Write checkpoint after each planning stage completion.
+
+    # All planning stages complete
+    Log: "[PRE-RESEARCH-GATE] All planning stages complete. Proceeding to execution pipeline."
+    Proceed to Step 1.
 ```
 
-**Planning loop integration with the main orchestration loop**:
-
-The planning stages reuse the existing Step 3 -> Step 4 orchestration loop. The difference is:
-- `STAGE_CEILING` is set to `"PLANNING"` (not a numeric value) during planning phase
-- The orchestrator spawn prompt includes `PHASE: HUMAN_PLANNING` and `CURRENT_PLANNING_STAGE: <P1|P2|P3|P4>`
-- The orchestrator proposes P-series tasks (not Stage 0-6 tasks)
-- After each iteration, Step 0h is re-evaluated. When all four gates pass, the loop transitions to the execution pipeline (Step 1 onward)
+**Planning loop is SELF-CONTAINED** -- it does NOT reuse Step 3. It runs inline at Step 0h before the main orchestration loop begins. Each planning stage is executed sequentially by spawning the orchestrator with `PHASE: HUMAN_PLANNING` context, which routes to the correct agent per the Planning Phase Routing in orchestrator.md.
 
 **Error Code Reference**:
 
 | Error Code | Stage | Meaning | Recovery Action |
-|------------|-------|---------|-----------------|
+|------------|-------|-------P3--|-----------------|
 | `[PLAN-GATE-001]` | P1 | Intent Brief missing or Intent Review gate failed | Spawn product-manager in HUMAN_PLANNING mode for P1 |
 | `[PLAN-GATE-002]` | P2 | Scope Contract missing or Scope Lock gate failed | Spawn product-manager in HUMAN_PLANNING mode for P2 (requires P1 PASSED) |
 | `[PLAN-GATE-003]` | P3 | Dependency Charter missing or Dependency Acceptance gate failed | Spawn technical-program-manager for P3 (requires P2 PASSED) |

@@ -348,6 +348,28 @@ Do NOT delete any files. Do NOT modify files outside the planning directory.
 Report all errors and warnings.
 ```
 
+### Stage P1-Research: researcher (Planning Research for Intent Frame)
+```
+PHASE: HUMAN_PLANNING
+STAGE: P1-RESEARCH -- Planning Research for Intent Frame
+OUTPUT_PATH: .orchestrate/<SESSION_ID>/planning/P1-research.md
+
+You are the researcher providing research INPUT for the product-manager's Intent Brief (P1).
+
+TASK: Investigate the following to provide evidence for the Intent Brief:
+1. Project domain and context -- what does this project/codebase do? Read project files.
+2. Stakeholder landscape -- who are the users/beneficiaries? What are their needs?
+3. Competitive/similar approaches -- WebSearch for similar projects, best practices
+4. Technical constraints -- what does the current codebase support/limit?
+5. Market/domain context -- WebSearch for domain trends, standards, regulations
+
+MANDATORY: Use WebSearch (minimum 3 queries) for domain research.
+Codebase-only analysis is insufficient for planning research.
+
+Output a structured research document to the OUTPUT_PATH above.
+MAIN-014: Do NOT git commit or push.
+```
+
 ### Stage P1: product-manager (Intent Frame)
 ```
 PHASE: HUMAN_PLANNING
@@ -359,6 +381,11 @@ You are the product-manager operating in HUMAN PLANNING mode (Stage P1).
 Your output is an Intent Brief, NOT a proposed-tasks.json.
 
 INPUT: The user's task description and project context (provided below).
+
+RESEARCH INPUT: Before producing the Intent Brief, a researcher agent has investigated
+the project domain, codebase structure, and stakeholder landscape. Their findings are at:
+.orchestrate/<SESSION_ID>/planning/P1-research.md
+Read this research to inform your Intent Brief with evidence-based specifics.
 
 TASK: Produce an Intent Brief that answers these 5 questions:
 1. What outcome are we trying to achieve? (measurable, with timeline)
@@ -377,6 +404,28 @@ CONSTRAINTS:
 Write the artifact to: .orchestrate/<SESSION_ID>/planning/P1-intent-brief.md
 ```
 
+### Stage P2-Research: researcher (Planning Research for Scope Contract)
+```
+PHASE: HUMAN_PLANNING
+STAGE: P2-RESEARCH -- Planning Research for Scope Contract
+INPUT_ARTIFACT: .orchestrate/<SESSION_ID>/planning/P1-intent-brief.md
+OUTPUT_PATH: .orchestrate/<SESSION_ID>/planning/P2-research.md
+
+You are the researcher providing research INPUT for the product-manager's Scope Contract (P2).
+
+TASK: Based on the Intent Brief, investigate:
+1. Technical feasibility -- can the stated outcomes be achieved with the current tech stack?
+2. Effort estimation -- WebSearch for effort baselines for similar deliverables
+3. Dependency risks -- what external dependencies exist? Are they available/stable?
+4. Scope precedents -- WebSearch for scope management approaches in similar projects
+5. Risk quantification -- what are the top risks and how are they typically mitigated?
+
+MANDATORY: Use WebSearch (minimum 3 queries) for feasibility and estimation research.
+
+Output a structured research document to the OUTPUT_PATH above.
+MAIN-014: Do NOT git commit or push.
+```
+
 ### Stage P2: product-manager (Scope Contract)
 ```
 PHASE: HUMAN_PLANNING
@@ -389,6 +438,11 @@ You are the product-manager operating in HUMAN PLANNING mode (Stage P2).
 Your output is a Scope Contract, NOT a proposed-tasks.json.
 
 INPUT: Read the P1 Intent Brief from the INPUT_ARTIFACT path above.
+
+RESEARCH INPUT: Before producing the Scope Contract, a researcher agent has investigated
+technical feasibility, effort estimation patterns, and scope risks. Their findings are at:
+.orchestrate/<SESSION_ID>/planning/P2-research.md
+Read this research to inform your Scope Contract with evidence-based deliverables and risk assessment.
 
 TASK: Produce a Scope Contract with these 6 sections:
 1. Outcome Restatement (verbatim from Intent Brief)
