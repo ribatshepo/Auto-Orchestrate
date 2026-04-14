@@ -305,7 +305,7 @@ If spec not found, abort: `"Spec file not found at <spec_path>. Please provide a
 ### 2a. Ensure directories
 
 ```bash
-mkdir -p .audit/${SESSION_ID}
+mkdir -p .audit/${SESSION_ID} .audit/${SESSION_ID}/dispatch-receipts
 ```
 
 **Output structure** (per `_shared/protocols/output-standard.md`): Each audit cycle creates a `cycle-<N>/` subdirectory. On Step 3 (before auditor spawn), create the cycle directory:
@@ -483,6 +483,62 @@ When the gap report contains gaps categorized as `implementation_error` or `runt
 3. **NEVER trigger auto-debug automatically** from auto-audit. The hint is displayed once per audit cycle, not per gap.
 4. Log: `[AUD-DEBUG-HINT] Displayed for <N> error-type gaps`
 
+### 4.5a Dispatch Trigger Evaluation (DISPATCH-001)
+
+After evaluating termination and before routing based on verdict, evaluate command dispatch triggers per `_shared/protocols/command-dispatch.md`:
+
+1. **Scan gap report for domain guide process ranges**:
+   ```
+   IF gap_report exists AND verdict == "FAIL":
+       FOR EACH gap IN gap_report.gaps:
+           process_id = gap.process_id  # e.g., "P-038"
+           severity = gap.severity      # e.g., "CRITICAL", "HIGH"
+           
+           IF severity IN ["CRITICAL", "HIGH"]:
+               # Map process ID to domain guide range
+               IF process_id IN P-032..P-037:  # QA range (TRIG-010)
+                   mark /qa for dispatch
+               IF process_id IN P-038..P-043:  # Security range (TRIG-009)
+                   mark /security for dispatch
+               IF process_id IN P-044..P-048:  # Infra range
+                   mark /infra for dispatch
+               IF process_id IN P-049..P-053:  # Data/ML range
+                   mark /data-ml-ops for dispatch
+               IF process_id IN P-074..P-077:  # Risk range (TRIG-007)
+                   mark /risk for dispatch
+   ```
+
+2. **For each marked domain guide, invoke via Skill** (Tier 2):
+   ```
+   FOR EACH domain_guide marked for dispatch:
+       a. Write dispatch context file:
+          .audit/<session>/dispatch-receipts/dispatch-context-<trigger_id>.json
+          Include: trigger_id, source_session, gap details, relevant artifacts
+       b. Invoke: Skill(skill: "<domain_guide_skill_name>")
+       c. Parse structured dispatch findings from output
+       d. Write dispatch receipt:
+          .audit/<session>/dispatch-receipts/dispatch-<YYYYMMDD>-<trigger_id>-<4hex>.json
+       e. Inject receipt findings into remediation context:
+          - Append findings summary to checkpoint.dispatch_context
+          - These findings are included in the orchestrator spawn prompt (Step 5b)
+       f. Log: [DISPATCH-INVOKE] <trigger_id>: Invoked <command> for <N> HIGH/CRITICAL gaps
+   ```
+
+3. **Log summary**: `[DISPATCH] Audit dispatch: <N> domain guides consulted for <M> HIGH/CRITICAL gaps`
+
+> **DISPATCH-GUARD-001**: Skill invocations are NOT Agent spawns. This does NOT violate AUD-LOOP-001 (dual-gateway constraint).
+
+> **DISPATCH-NOCIRCLE-001**: Domain guides invoked here do NOT evaluate dispatch triggers themselves.
+
+**Checkpoint additions** (added to auto-audit checkpoint schema with safe defaults):
+```json
+{
+  "dispatch_log": [],
+  "dispatch_context": {},
+  "dispatch_summary": null
+}
+```
+
 ### 4.6 Route based on verdict
 
 - If Verdict = PASS or ACCEPTABLE → proceed to termination (Step 6)
@@ -511,6 +567,28 @@ Convert gap findings into an orchestrator task description (AUD-LOOP-008 — ver
 If within budget, inject verbatim per AUD-LOOP-008.
 
 See **Appendix B** for the full remediation spawn template.
+
+### 5b.1 Inject dispatch context into remediation prompt
+
+If dispatch receipts were produced in Step 4.5a, append domain guide findings to the remediation prompt:
+
+```
+IF checkpoint.dispatch_context is non-empty:
+    append to remediation prompt:
+    
+    ## Domain Guide Analysis (from Command Dispatcher)
+    
+    The following domain guides were consulted for HIGH/CRITICAL gaps.
+    Their findings MUST be addressed during remediation:
+    
+    FOR EACH dispatch_receipt IN checkpoint.dispatch_context:
+        ### [DISPATCH-{trigger_id}] {command} findings
+        **Severity**: {receipt.result.severity_max}
+        **Summary**: {receipt.result.summary}
+        **Action required**: {receipt.next_action.instruction}
+```
+
+This enriches the orchestrator's remediation context with expert analysis from domain guides (security review, QA strategy, infrastructure recommendations, etc.).
 
 ### 5c. Display remediation banner
 

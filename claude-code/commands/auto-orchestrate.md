@@ -989,6 +989,61 @@ ELSE:
 
 ---
 
+## Step 0g: Pre-Session Dispatch Check
+
+Evaluate pre-session dispatch triggers per `_shared/protocols/command-dispatch.md`:
+
+### 0g.1 Check for handoff receipt (TRIG-004)
+
+```
+IF NOT exists(".orchestrate/<session-id>/handoff-receipt.json"):
+    display "[DISPATCH-SUGGEST] TRIG-004: No handoff receipt found."
+    display "  Consider running /new-project first to create planning artifacts."
+    display "  Proceeding with standalone session."
+    append to checkpoint.dispatch_log:
+      { trigger_id: "TRIG-004", command: "/new-project", tier: 1,
+        action: "suggested", timestamp: now_iso8601() }
+```
+
+Do NOT block the session — this is Tier 1 (suggest only).
+
+### 0g.2 Consume unconsumed dispatch receipts from prior sessions
+
+```
+IF exists(".pipeline-state/"):
+    scan .pipeline-state/ for cross-session dispatch context
+    IF found dispatch receipts with consumed: false:
+        FOR EACH unconsumed receipt:
+            inject receipt.next_action context into enhanced prompt (Step 1)
+            mark receipt consumed: true, consumed_at: now_iso8601()
+            log "[DISPATCH-RESUME] Consumed prior dispatch receipt: {dispatch_id}"
+```
+
+### 0g.3 Detect release flag
+
+```
+IF task_description contains "release", "deploy to production", "ship", "go live"
+   OR user passed --release flag:
+    checkpoint.release_flag = true
+    log "[DISPATCH] Release flag detected — TRIG-005 will evaluate at termination"
+```
+
+### 0g.4 Initialize dispatch checkpoint fields
+
+```json
+{
+  "dispatch_log": [],
+  "dispatch_context": { "0": [], "1": [], "2": [], "3": [], "4": [], "4.5": [], "5": [], "6": [] },
+  "dispatch_gates": {},
+  "dispatch_summary": null,
+  "release_flag": false
+}
+```
+
+These fields have safe defaults for backward compatibility — existing sessions that lack them are treated as having empty dispatch state.
+
+---
+
 ## Step 1: Enhance User Input (Inline)
 
 > **GUARD**: Do NOT delegate to `workflow-plan` or call `EnterPlanMode`.
@@ -1061,7 +1116,7 @@ Also update `.sessions/index.json` at the project root: set the superseded sessi
 Create parent tracking task via `TaskCreate` (if available; if TaskCreate fails, log `[CROSS-001] TaskCreate unavailable — setting parent_task_id: null` and continue with `parent_task_id: null`), then:
 
 ```bash
-mkdir -p .orchestrate/<session-id>/{planning,stage-0,stage-1,stage-2,stage-3,stage-4,stage-4.5,stage-5,stage-6}
+mkdir -p .orchestrate/<session-id>/{planning,stage-0,stage-1,stage-2,stage-3,stage-4,stage-4.5,stage-5,stage-6,dispatch-receipts}
 ```
 
 **Output structure** (per `_shared/protocols/output-standard.md`):
@@ -1177,9 +1232,26 @@ If `.gate-state.json` exists at the project root (written by `/gate-review`):
     "P4": null
   },
   "current_planning_stage": null,
-  "planning_skipped": false
+  "planning_skipped": false,
+  "dispatch_log": [],
+  "dispatch_context": { "0": [], "1": [], "2": [], "3": [], "4": [], "4.5": [], "5": [], "6": [] },
+  "dispatch_gates": {},
+  "dispatch_summary": null,
+  "release_flag": false
 }
 ```
+
+**Dispatch fields migration (1.1.0 → 1.2.0)**: When resuming a session without dispatch fields, add them with defaults:
+```json
+{
+  "dispatch_log": [],
+  "dispatch_context": { "0": [], "1": [], "2": [], "3": [], "4": [], "4.5": [], "5": [], "6": [] },
+  "dispatch_gates": {},
+  "dispatch_summary": null,
+  "release_flag": false
+}
+```
+Log: `[MIGRATE] Added dispatch fields to checkpoint (1.1.0 → 1.2.0)`
 
 ---
 
@@ -1465,6 +1537,67 @@ IF human_gates is set AND human_gates != "":
 }
 ```
 
+**4.8c Dispatch Trigger Evaluation (DISPATCH-001)**:
+
+After evaluating pipeline progress (4.8), process hooks (4.8a), and human gates (4.8b), evaluate command dispatch triggers per `_shared/protocols/command-dispatch.md`:
+
+1. **Build event context** for each newly completed stage this iteration:
+   ```
+   completed_stages_this_iteration = stages_completed - stages_completed_previous_iteration
+
+   FOR EACH newly_completed_stage IN completed_stages_this_iteration:
+       event_context = {
+         event_type: "stage_completed",
+         stage: newly_completed_stage,
+         stage_receipt: read ".orchestrate/<session>/stage-<N>/stage-receipt.json" (if exists),
+         checkpoint: current checkpoint,
+         gap_report: null  # auto-orchestrate does not use gap reports
+       }
+   ```
+
+2. **Evaluate applicable triggers** from the trigger rules table:
+   - TRIG-001: Stage 0 completes → check stage-receipt for P-038 security flags → invoke `/security`
+   - TRIG-002: Stage 3 completes → invoke `/qa` for test strategy analysis
+   - TRIG-003: Stage 5 fails → check failure for deploy/infrastructure keywords → invoke `/infra`
+   - TRIG-007: Any stage → check `.pipeline-state/codebase-analysis.jsonl` and planning artifacts for CRITICAL RAID items → invoke `/risk`
+   - TRIG-012: Any stage → check process acknowledgments for HIGH/CRITICAL flags in domain guide ranges → invoke corresponding guide
+
+3. **For Tier 2 triggers that fire**:
+   ```
+   a. Write dispatch context file:
+      .orchestrate/<session>/dispatch-receipts/dispatch-context-<trigger_id>.json
+   b. Invoke domain guide: Skill(skill: "<skill_name>")
+   c. Parse structured output from domain guide
+   d. Create dispatch receipt:
+      .orchestrate/<session>/dispatch-receipts/dispatch-<YYYYMMDD>-<trigger_id>-<4hex>.json
+   e. Process next_action:
+      - "inject_into_stage": append to checkpoint.dispatch_context.<target_stage>
+      - "create_task": TaskCreate with appropriate dispatch_hint and blockedBy
+      - "gate_block": set checkpoint.dispatch_gates.<stage> = dispatch_id
+      - "informational": log only
+   f. Append to checkpoint.dispatch_log
+   ```
+
+4. **For Tier 1 triggers** (unlikely mid-pipeline, mostly at Step 0g and Step 5):
+   ```
+   display "[DISPATCH-SUGGEST] <trigger_id>: Consider running <command>."
+   append to checkpoint.dispatch_log
+   ```
+
+5. **Log summary**: `[DISPATCH] Evaluated <N> triggers for <M> newly completed stages, <K> fired, <J> receipts written`
+
+6. **Dispatch gate enforcement**: Before proceeding, check if any `dispatch_gates` block the next stage:
+   ```
+   IF checkpoint.dispatch_gates contains key for next pending stage:
+       display "[DISPATCH-GATE] Stage <N> blocked by dispatch gate {dispatch_id}"
+       display "  Findings from {command} must be addressed before proceeding"
+       # Stage remains blocked until gate cleared (finding addressed in a subsequent iteration)
+   ```
+
+> **DISPATCH-GUARD-001**: Skill invocations are NOT Agent spawns. This step does NOT violate AUTO-001 (orchestrator-only gateway). Domain guide Skills are inline tools, not autonomous agents.
+
+> **DISPATCH-NOCIRCLE-001**: Domain guides invoked here do NOT evaluate dispatch triggers themselves. They produce output and return.
+
 **4.9 Mandatory stage gates**:
 - **AUTO-004**: If Stage 3 done but 4.5/5/6 missing for 1+ iterations → `mandatory_stage_enforcement: true`, inject missing tasks.
 - **Proactive injection**: For any mandatory stage at or below `STAGE_CEILING` absent from `stages_completed` with no pending/in-progress task, create it immediately with proper `blockedBy` chain:
@@ -1537,6 +1670,38 @@ Add `thrashing` to the Terminal State Reference table as:
 
 **In-progress ceiling (AO-INEFF-001)**: Track per-task `in_progress_iterations` count. If any task remains `in_progress` for 5 consecutive iterations without completing, treat it as failed: set status to `failed`, log `[AO-INEFF-001] Task #<id> "<subject>" stuck in_progress for 5 iterations — marking failed`, and do NOT let it reset the stall counter.
 
+### Post-Termination Dispatch (TRIG-005, TRIG-006)
+
+After `terminal_state` is determined but before the termination display:
+
+```
+IF terminal_state == "completed":
+    # TRIG-005: Release preparation suggestion
+    IF checkpoint.release_flag == true:
+        display "[DISPATCH-SUGGEST] TRIG-005: Pipeline complete with release flag."
+        display "  Run /release-prep to prepare for release."
+        append to checkpoint.dispatch_log:
+          { trigger_id: "TRIG-005", command: "/release-prep", tier: 1,
+            action: "suggested", timestamp: now_iso8601() }
+
+    # TRIG-006: Post-launch suggestion
+    IF exists(".orchestrate/<session>/dispatch-receipts/") AND
+       any receipt has command == "/release-prep":
+        display "[DISPATCH-SUGGEST] TRIG-006: Release preparation was previously suggested."
+        display "  After release, run /post-launch for operational readiness."
+        append to checkpoint.dispatch_log:
+          { trigger_id: "TRIG-006", command: "/post-launch", tier: 1,
+            action: "suggested", timestamp: now_iso8601() }
+
+# Write dispatch summary
+checkpoint.dispatch_summary = {
+    total_dispatches: count(checkpoint.dispatch_log where action == "invoked"),
+    receipts_consumed: count(receipts where consumed == true),
+    receipts_unconsumed: count(receipts where consumed == false),
+    suggestions_made: count(checkpoint.dispatch_log where action == "suggested")
+}
+```
+
 ### On Termination
 
 Set `terminal_state` and `status`, update parent task, display:
@@ -1584,6 +1749,14 @@ Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
 > Auto-orchestrate NEVER commits automatically. Review and commit manually.
 **Files modified**: [from software-engineer DONE blocks]
 **Suggested commits**: [Git-Commit-Message values]
+
+### Command Dispatch Summary
+| Metric | Count |
+|--------|-------|
+| Domain guides invoked | <dispatch_summary.total_dispatches> |
+| Findings consumed | <dispatch_summary.receipts_consumed> |
+| Findings unresolved | <dispatch_summary.receipts_unconsumed> |
+| Lifecycle suggestions | <dispatch_summary.suggestions_made> |
 
 ### Iteration Timeline
 | # | Completed | Running | Pending | Tasks Worked On |
@@ -1943,6 +2116,24 @@ Only work on layers in SCOPE_LAYERS.
 Follow scope specifications in Enhanced Prompt precisely.
 {{else}}
 No scope restriction — follow the enhanced prompt as written.
+{{/if}}
+
+## Dispatch Context (from Command Dispatcher)
+
+{{#if dispatch_context[STAGE_CEILING] is non-empty}}
+The Command Dispatcher has produced findings relevant to the current stage. Address these in your work:
+
+{{#for each entry in dispatch_context[STAGE_CEILING]}}
+### [DISPATCH-{{entry.trigger_id}}] {{entry.command}} findings
+**Severity**: {{entry.severity_max}}
+**Summary**: {{entry.result_summary}}
+**Action required**: {{entry.next_action_instruction}}
+**Artifacts**: {{entry.artifacts}}
+{{/for each}}
+
+These findings were produced by domain guide analysis and MUST be incorporated into stage work. For Stage 2 (specification), include as requirements. For Stage 3 (implementation), include as constraints. For Stage 5 (validation), include as acceptance criteria.
+{{else}}
+No dispatch context for the current stage.
 {{/if}}
 
 ## Autonomous Mode Permissions (pre-granted)

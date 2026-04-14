@@ -36,6 +36,39 @@ Use /data-ml-ops when:
 2. The command will route to the appropriate agent (data-engineer or ml-engineer)
 3. Follow the process steps defined in `claude-code/processes/08_data_ml_operations.md`
 
+## Dispatch Mode
+
+When invoked via the Command Dispatcher (a dispatch context file exists at the invoking session's `dispatch-receipts/dispatch-context-TRIG-*.json`), operate in dispatch mode:
+
+1. **Skip interactive guidance** — Do not present process menus or ask for user selection
+2. **Read dispatch context** — Parse the dispatch context file for `trigger_id`, `stage`, `condition_summary`, and `relevant_artifacts`
+3. **Focused analysis** — Analyze only the processes relevant to the trigger (typically P-049 Data Pipeline QA or P-050 Schema Migration for TRIG-012 flagged processes)
+4. **Structured output** — Produce findings in this format:
+
+```
+## Dispatch Findings
+
+**Trigger**: <trigger_id> (<process_ids>)
+**Severity**: <max severity across findings>
+**Findings Count**: <N>
+
+### Finding <N>: <title>
+- **Process**: <process_id> (<process_name>)
+- **Severity**: HIGH | CRITICAL
+- **Location**: <pipeline, schema, model, or data source>
+- **Recommendation**: <actionable data/ML fix>
+- **Stage Impact**: Stage <N> (<what must change>)
+
+## Recommended Next Action
+- **Type**: inject_into_stage | create_task
+- **Target Stage**: <N>
+- **Instruction**: <what the target stage must address>
+```
+
+5. **Return immediately** — Do not wait for user input. The loop controller creates the dispatch receipt from this output.
+
+See `_shared/protocols/command-dispatch.md` for the full dispatch protocol.
+
 ## Related Commands
 
 - `/active-dev` — Sprint execution (may invoke data/ML processes)

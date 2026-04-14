@@ -235,6 +235,7 @@ mkdir -p .debug/${SESSION_ID}
 mkdir -p .debug/${SESSION_ID}/reports
 mkdir -p .debug/${SESSION_ID}/diagnostics
 mkdir -p .debug/${SESSION_ID}/logs
+mkdir -p .debug/${SESSION_ID}/dispatch-receipts
 ```
 
 **Output structure** (per `_shared/protocols/output-standard.md`):
@@ -436,6 +437,61 @@ Error identity is determined by fingerprint, NOT by error ID assignment order. T
 **Fingerprint hash**: `SHA-256(exception_type + ":" + normalized_message + ":" + source_file)` truncated to 16 hex chars.
 
 When a new error appears, compute its fingerprint. If the fingerprint matches an existing error in `error_history`, reuse that error's ID and increment its cycle count. If no match, assign a new error ID.
+
+### 4.2b Dispatch Trigger Evaluation (DISPATCH-001)
+
+After updating error tracking and fingerprinting, evaluate command dispatch triggers per `_shared/protocols/command-dispatch.md`:
+
+1. **Check debugger Category for domain guide triggers**:
+   ```
+   category = parsed_done_block.Category  # from Step 4.1
+   root_cause = parsed_done_block.Root-Cause
+
+   # TRIG-011: Infrastructure/deploy issues
+   IF category IN ["docker", "infrastructure", "deploy", "platform", "environment"]:
+       dispatch_target = "/infra"
+       trigger_id = "TRIG-011"
+       condition_summary = "Debugger categorized error as {category}: {root_cause}"
+
+   # TRIG-012: Security-related errors
+   ELSE IF category == "security" OR root_cause matches CVE/injection/auth/XSS patterns:
+       dispatch_target = "/security"
+       trigger_id = "TRIG-012"
+       condition_summary = "Debugger identified security-related root cause: {root_cause}"
+
+   ELSE:
+       # No dispatch needed for this iteration
+       SKIP to Step 4.3
+   ```
+
+2. **Invoke domain guide via Skill** (Tier 2):
+   ```
+   a. Write dispatch context file:
+      .debug/<session>/dispatch-receipts/dispatch-context-<trigger_id>.json
+      Include: trigger_id, error context, category, root_cause, files_investigated
+   b. Invoke: Skill(skill: "<domain_guide_skill_name>")
+   c. Parse structured dispatch findings
+   d. Write dispatch receipt:
+      .debug/<session>/dispatch-receipts/dispatch-<YYYYMMDD>-<trigger_id>-<4hex>.json
+   e. Inject receipt context into next debugger spawn prompt:
+      Append to debugger spawn context: "Domain guide ({command}) analysis: {summary}"
+   f. Log: [DISPATCH-INVOKE] <trigger_id>: Invoked <command> — {findings_count} findings
+   ```
+
+3. **Log summary**: `[DISPATCH] Debug dispatch: <N> domain guides consulted`
+
+> **DISPATCH-GUARD-001**: Skill invocations are NOT Agent spawns. This does NOT violate DBG-LOOP-001 (debugger-only gateway).
+
+> **DISPATCH-NOCIRCLE-001**: Domain guides invoked here do NOT evaluate dispatch triggers themselves.
+
+**Checkpoint additions** (added to auto-debug checkpoint schema with safe defaults):
+```json
+{
+  "dispatch_log": [],
+  "dispatch_context": {},
+  "dispatch_summary": null
+}
+```
 
 ### 4.3 Display updated error board
 

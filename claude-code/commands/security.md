@@ -37,6 +37,39 @@ Use /security when:
 2. The command will route to security-engineer or platform-engineer as appropriate
 3. Follow process steps in `claude-code/processes/06_security_compliance.md`
 
+## Dispatch Mode
+
+When invoked via the Command Dispatcher (a dispatch context file exists at the invoking session's `dispatch-receipts/dispatch-context-TRIG-*.json`), operate in dispatch mode:
+
+1. **Skip interactive guidance** — Do not present process menus or ask for user selection
+2. **Read dispatch context** — Parse the dispatch context file for `trigger_id`, `stage`, `condition_summary`, and `relevant_artifacts`
+3. **Focused analysis** — Analyze only the processes relevant to the trigger (typically P-038 Threat Modeling for TRIG-001/TRIG-009, or the specific flagged process)
+4. **Structured output** — Produce findings in this format:
+
+```
+## Dispatch Findings
+
+**Trigger**: <trigger_id> (<process_ids>)
+**Severity**: <max severity across findings>
+**Findings Count**: <N>
+
+### Finding <N>: <title>
+- **Process**: <process_id> (<process_name>)
+- **Severity**: HIGH | CRITICAL
+- **Location**: <file, endpoint, or component>
+- **Recommendation**: <actionable fix>
+- **Stage Impact**: Stage <N> (<what must change>)
+
+## Recommended Next Action
+- **Type**: inject_into_stage | create_task | gate_block
+- **Target Stage**: <N>
+- **Instruction**: <what the target stage must address>
+```
+
+5. **Return immediately** — Do not wait for user input. The loop controller creates the dispatch receipt from this output.
+
+See `_shared/protocols/command-dispatch.md` for the full dispatch protocol.
+
 ## Related Commands
 
 - `/release-prep` — Pre-release security gate

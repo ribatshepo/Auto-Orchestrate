@@ -30,6 +30,40 @@ Use `/risk` when you need to:
 - Perform quarterly risk review and update risk mitigation plans
 - Assess risk acceptance criteria for gate reviews
 
+## Dispatch Mode
+
+When invoked via the Command Dispatcher (a dispatch context file exists at the invoking session's `dispatch-receipts/dispatch-context-TRIG-*.json`), operate in dispatch mode:
+
+1. **Skip interactive guidance** — Do not present process menus or ask for user selection
+2. **Read dispatch context** — Parse the dispatch context file for `trigger_id`, `stage`, `condition_summary`, and `relevant_artifacts`
+3. **Focused analysis** — Analyze only the processes relevant to the trigger (typically P-074 RAID Log for TRIG-007 CRITICAL items, or specific flagged processes)
+4. **Structured output** — Produce findings in this format:
+
+```
+## Dispatch Findings
+
+**Trigger**: <trigger_id> (<process_ids>)
+**Severity**: <max severity across findings>
+**Findings Count**: <N>
+
+### Finding <N>: <title>
+- **Process**: <process_id> (<process_name>)
+- **Severity**: HIGH | CRITICAL
+- **Category**: Risk | Assumption | Issue | Dependency
+- **Impact**: <what happens if unaddressed>
+- **Mitigation**: <recommended action>
+- **Stage Impact**: Stage <N> (<what must change>)
+
+## Recommended Next Action
+- **Type**: inject_into_stage | gate_block
+- **Target Stage**: <N>
+- **Instruction**: <what the target stage must address>
+```
+
+5. **Return immediately** — Do not wait for user input. The loop controller creates the dispatch receipt from this output.
+
+See `_shared/protocols/command-dispatch.md` for the full dispatch protocol.
+
 ## Related Commands
 
 - `/new-project` — RAID log initialized in Phase 2 (P-074)

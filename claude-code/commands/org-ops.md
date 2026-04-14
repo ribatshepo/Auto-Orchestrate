@@ -70,6 +70,40 @@ Guide the user through continuous organizational processes that run independentl
 | Quarterly | CTO Audit (P-063), VP Audit (P-064), Capacity Planning (P-082), DORA Review (P-081), DX Survey (P-089), Process Health Review (P-071), Risk Review (P-077) |
 | Annual | Board/CEO Audit (P-062) |
 
+## Dispatch Mode
+
+When invoked via the Command Dispatcher (a dispatch context file exists at the invoking session's `dispatch-receipts/dispatch-context-TRIG-*.json`), operate in dispatch mode:
+
+1. **Skip interactive guidance** — Do not present process menus or ask for user selection
+2. **Read dispatch context** — Parse the dispatch context file for `trigger_id`, `stage`, `condition_summary`, and `relevant_artifacts`
+3. **Focused analysis** — Analyze only the processes relevant to the trigger (typically P-062 through P-069 audit processes for TRIG-012 flagged items)
+4. **Structured output** — Produce findings in this format:
+
+```
+## Dispatch Findings
+
+**Trigger**: <trigger_id> (<process_ids>)
+**Severity**: <max severity across findings>
+**Findings Count**: <N>
+
+### Finding <N>: <title>
+- **Process**: <process_id> (<process_name>)
+- **Severity**: HIGH | CRITICAL
+- **Category**: Audit | Communication | Capacity | Standards | Onboarding
+- **Impact**: <what happens if unaddressed>
+- **Recommendation**: <actionable organizational fix>
+- **Stage Impact**: Stage <N> (<what must change>)
+
+## Recommended Next Action
+- **Type**: inject_into_stage | informational
+- **Target Stage**: <N>
+- **Instruction**: <what the target stage must address>
+```
+
+5. **Return immediately** — Do not wait for user input. The loop controller creates the dispatch receipt from this output.
+
+See `_shared/protocols/command-dispatch.md` for the full dispatch protocol.
+
 ## Usage
 
 What organizational operation do you need help with? I can:

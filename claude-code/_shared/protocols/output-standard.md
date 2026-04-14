@@ -48,9 +48,12 @@ ALL output files MUST use: `YYYY-MM-DD_<slug>.<ext>`
 ├── stage-5/                           # Validation outputs
 │   ├── YYYY-MM-DD_<slug>.md           # Validation report
 │   └── stage-receipt.json
-└── stage-6/                           # Documentation tracking
-    ├── stage-receipt.json             # Receipt (docs updated in project)
-    └── changes.md                     # Doc files modified
+├── stage-6/                           # Documentation tracking
+│   ├── stage-receipt.json             # Receipt (docs updated in project)
+│   └── changes.md                     # Doc files modified
+└── dispatch-receipts/                 # Command Dispatcher receipts
+    ├── dispatch-context-TRIG-NNN.json # Context file for Skill invocation
+    └── dispatch-YYYYMMDD-TRIG-NNN-XXXX.json  # Receipt from domain guide
 ```
 
 **Stage-3, stage-4, stage-6** write code/tests/docs to the **project directory** (not `.orchestrate/`). Their `stage-receipt.json` + `changes.md` track what was modified. This is by design — implementation artifacts belong in the project, not the session directory.
@@ -66,8 +69,11 @@ ALL output files MUST use: `YYYY-MM-DD_<slug>.<ext>`
 │   └── YYYY-MM-DD_<slug>.md           # Per-error debug report
 ├── diagnostics/                       # Diagnostic data
 │   └── YYYY-MM-DD_<slug>.md           # Category-specific diagnostics
-└── logs/                              # Supplementary logs (optional)
-    └── YYYY-MM-DD_<slug>.log
+├── logs/                              # Supplementary logs (optional)
+│   └── YYYY-MM-DD_<slug>.log
+└── dispatch-receipts/                 # Command Dispatcher receipts
+    ├── dispatch-context-TRIG-NNN.json # Context file for Skill invocation
+    └── dispatch-YYYYMMDD-TRIG-NNN-XXXX.json  # Receipt from domain guide
 ```
 
 ### 2.3 `.audit/<session-id>/`
@@ -84,8 +90,11 @@ ALL output files MUST use: `YYYY-MM-DD_<slug>.<ext>`
 │   ├── YYYY-MM-DD_audit-report.md
 │   ├── gap-report.json
 │   └── stage-receipt.json
-└── cycle-N/
-    └── ...
+├── cycle-N/
+│   └── ...
+└── dispatch-receipts/                 # Command Dispatcher receipts
+    ├── dispatch-context-TRIG-NNN.json # Context file for Skill invocation
+    └── dispatch-YYYYMMDD-TRIG-NNN-XXXX.json  # Receipt from domain guide
 ```
 
 ## 3. MANIFEST.jsonl

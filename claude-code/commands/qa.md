@@ -37,6 +37,39 @@ Use /qa when:
 2. The command will route to qa-engineer or software-engineer as appropriate
 3. Follow process steps in `claude-code/processes/05_quality_assurance_testing.md`
 
+## Dispatch Mode
+
+When invoked via the Command Dispatcher (a dispatch context file exists at the invoking session's `dispatch-receipts/dispatch-context-TRIG-*.json`), operate in dispatch mode:
+
+1. **Skip interactive guidance** — Do not present process menus or ask for user selection
+2. **Read dispatch context** — Parse the dispatch context file for `trigger_id`, `stage`, `condition_summary`, and `relevant_artifacts`
+3. **Focused analysis** — Analyze only the processes relevant to the trigger (typically P-032 Test Architecture for TRIG-002, or specific flagged processes for TRIG-010)
+4. **Structured output** — Produce findings in this format:
+
+```
+## Dispatch Findings
+
+**Trigger**: <trigger_id> (<process_ids>)
+**Severity**: <max severity across findings>
+**Findings Count**: <N>
+
+### Finding <N>: <title>
+- **Process**: <process_id> (<process_name>)
+- **Severity**: HIGH | CRITICAL
+- **Location**: <file, module, or test area>
+- **Recommendation**: <actionable test strategy or fix>
+- **Stage Impact**: Stage <N> (<what must change>)
+
+## Recommended Next Action
+- **Type**: inject_into_stage | create_task
+- **Target Stage**: <N>
+- **Instruction**: <what the target stage must address>
+```
+
+5. **Return immediately** — Do not wait for user input. The loop controller creates the dispatch receipt from this output.
+
+See `_shared/protocols/command-dispatch.md` for the full dispatch protocol.
+
 ## Related Commands
 
 - `/active-dev` — Continuous quality during sprint
