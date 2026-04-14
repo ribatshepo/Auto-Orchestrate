@@ -46,6 +46,11 @@ arguments:
     required: false
     default: false
     description: Explicitly resume the latest in-progress session, ignoring task_description.
+  - name: skip_planning
+    type: boolean
+    required: false
+    default: false
+    description: Skip P-series planning stages (P1-P4). Use when planning artifacts already exist or for tasks that do not require formal planning.
 ---
 
 # Autonomous Orchestration Loop
@@ -58,6 +63,9 @@ Before spawning Stage 0 (researcher), verify ALL 9 pipeline-critical components 
 
 | Stage | Component Name | Type | Mandatory | Manifest Location |
 |-------|---------------|------|-----------|-------------------|
+| P1-P2 | product-manager | agent | YES | `agents[]` where `name == "product-manager"` |
+| P3 | technical-program-manager | agent | YES | `agents[]` where `name == "technical-program-manager"` |
+| P4 | engineering-manager | agent | YES | `agents[]` where `name == "engineering-manager"` |
 | 0 | researcher | agent | YES | `agents[]` where `name == "researcher"` |
 | 1 | product-manager | agent | YES | `agents[]` where `name == "product-manager"` |
 | 2 | spec-creator | skill | YES | `skills[]` where `name == "spec-creator"` |
@@ -78,7 +86,7 @@ Before spawning Stage 0 (researcher), verify ALL 9 pipeline-critical components 
    c. Record result in `manifest_validation` object
 
 4. Classify results:
-   - **MANDATORY MISSING**: researcher, product-manager, spec-creator, software-engineer, codebase-stats, validator, technical-writer
+   - **MANDATORY MISSING**: researcher, product-manager, technical-program-manager, engineering-manager, spec-creator, software-engineer, codebase-stats, validator, technical-writer
      - Abort with: `[MANIFEST-001] Mandatory {type} "{name}" not found in manifest. Stage {N} will fail. Aborting.`
    - **OPTIONAL MISSING**: library-implementer-python, test-writer-pytest
      - Warn: `[MANIFEST-WARN] Optional {type} "{name}" not found. Stage {N} may use alternatives.`
@@ -87,8 +95,10 @@ Before spawning Stage 0 (researcher), verify ALL 9 pipeline-critical components 
 5. Display pre-flight verification summary:
 ```
 Pre-flight Manifest Check:
+  ✓ product-manager (Stage P1-P2 + Stage 1, agent)
+  ✓ technical-program-manager (Stage P3, agent)
+  ✓ engineering-manager (Stage P4, agent)
   ✓ researcher (Stage 0, agent)
-  ✓ product-manager (Stage 1, agent)
   ✓ spec-creator (Stage 2, skill)
   ✓ software-engineer (Stage 3, agent)
   ? library-implementer-python (Stage 3, optional skill)
@@ -96,7 +106,7 @@ Pre-flight Manifest Check:
   ✓ codebase-stats (Stage 4.5, skill)
   ✓ validator (Stage 5, skill)
   ✓ technical-writer (Stage 6, agent)
-  Result: 7/7 mandatory present, 2 optional (0 missing)
+  Result: 10/10 mandatory present, 2 optional (0 missing)
 ```
 
 6. Log: `[MANIFEST] Verified {checked_count}/{total_count} pipeline components. Missing: {missing_list or "none"}`
@@ -108,13 +118,16 @@ Record verification result in checkpoint:
 {
   "manifest_validation": {
     "checked_at": "<ISO-8601>",
-    "total_checked": 9,
-    "mandatory_present": 7,
+    "total_checked": 12,
+    "mandatory_present": 10,
     "mandatory_missing": [],
     "optional_present": ["library-implementer-python", "test-writer-pytest"],
     "optional_missing": [],
     "warnings": [],
     "components": [
+      { "name": "product-manager", "type": "agent", "stage": "P1-P2", "mandatory": true, "found": true },
+      { "name": "technical-program-manager", "type": "agent", "stage": "P3", "mandatory": true, "found": true },
+      { "name": "engineering-manager", "type": "agent", "stage": "P4", "mandatory": true, "found": true },
       { "name": "researcher", "type": "agent", "stage": 0, "mandatory": true, "found": true },
       { "name": "product-manager", "type": "agent", "stage": 1, "mandatory": true, "found": true },
       { "name": "spec-creator", "type": "skill", "stage": 2, "mandatory": true, "found": true },
@@ -187,6 +200,7 @@ The session_id follows the format: `auto-orc-{YYYYMMDD}-{project_slug}`
 | SCOPE-001 | **Scope specification passthrough** — When scope is not `custom`, pass FULL scope spec (Appendix A/B) VERBATIM through every layer. Never summarize. |
 | SCOPE-002 | **Scope template integrity** — A narrow user objective does not reduce the spec — all design principles, steps, and constraints still apply in full. |
 | MANIFEST-001 | **Manifest-driven pipeline** — The orchestrator MUST read `~/.claude/manifest.json` at boot and use it as the authoritative registry for agent routing, skill discovery, and capability validation. Auto-orchestrate passes the manifest path in every orchestrator spawn. Agents MUST verify their mandatory skills exist in the manifest before invoking them. |
+| PRE-RESEARCH-GATE | **Planning phase prerequisite** — Stage 0 (researcher) MUST NOT begin unless `planning_stages_completed` contains all four values `["P1", "P2", "P3", "P4"]` AND all four entries in `planning_gate_statuses` have value `"PASSED"`. Skip conditions: (1) `--skip-planning` flag is passed, or (2) checkpoint field `planning_skipped` is `true` (set when resuming a session that already has planning artifacts from a prior session). Error codes: `[PLAN-GATE-001]` through `[PLAN-GATE-004]` for each incomplete stage. |
 
 ## Execution Guard — AUTO-ORCHESTRATE IS A LOOP CONTROLLER, NOT A WORKER
 
@@ -215,18 +229,237 @@ The session_id follows the format: `auto-orc-{YYYYMMDD}-{project_slug}`
 ║  — STOP. You are violating this guard.                                  ║
 ╚══════════════════════════════════════════════════════════════════════════╝
 
+## Planning Phase Stages (P-Series)
+
+The P-series stages implement the Clarity of Intent methodology (see `clarity_of_intent.md`). They execute sequentially before Stage 0 (Research) and produce planning artifacts that inform the AI execution pipeline. All four stages are MANDATORY for new projects. Each stage has one owner agent, one output artifact, one gate, and one or more triggered processes.
+
+### P1: Intent Frame
+
+| Field | Value |
+|-------|-------|
+| **Stage ID** | P1 |
+| **Name** | Intent Frame |
+| **Owner Agent** | `product-manager` |
+| **Phase Mode** | `HUMAN_PLANNING` |
+| **Input** | User's raw task description + project context |
+| **Output Artifact** | Intent Brief (`.orchestrate/<session>/planning/P1-intent-brief.md`) |
+| **Gate** | Intent Review |
+| **Gate Pass Criteria** | Clear objective stated; stakeholders identified; measurable success criteria defined; explicit boundaries (what this is NOT); strategic context references a real OKR or priority |
+| **Processes Triggered** | P-001 (Intent Articulation) |
+| **max_turns** | 20 |
+
+**Intent Brief Template** (agent MUST produce all 5 sections):
+
+1. **Outcome** -- measurable end-state, not a feature description
+2. **Beneficiaries** -- named user segment with before/after description
+3. **Strategic Context** -- OKR or quarterly theme connection
+4. **Boundaries** -- explicit exclusions (what this project is NOT)
+5. **Cost of Inaction** -- what happens if we do not do this
+
+**Intent Review Gate Logic**:
+
+```
+GATE_PASS = (
+    artifact_exists(".orchestrate/<session>/planning/P1-intent-brief.md")
+    AND section_count >= 5
+    AND each_section_has_content(min_chars=50)
+    AND outcome_is_measurable(section_1)  # contains a metric, percentage, or timeline
+    AND boundaries_stated(section_4)       # at least one "NOT" exclusion
+)
+
+IF GATE_PASS:
+    planning_gate_statuses.P1 = "PASSED"
+    planning_stages_completed.append("P1")
+    emit "[GATE] Intent Review: PASSED -- Intent Brief produced"
+ELSE:
+    planning_gate_statuses.P1 = "FAILED"
+    emit "[GATE] Intent Review: FAILED -- <missing_sections>"
+    # Retry: re-spawn product-manager with failure feedback
+```
+
+**Output format**: `[P1:PLANNING] Intent Frame -- product-manager -- P-001`
+
+### P2: Scope Contract
+
+| Field | Value |
+|-------|-------|
+| **Stage ID** | P2 |
+| **Name** | Scope Contract |
+| **Owner Agent** | `product-manager` |
+| **Phase Mode** | `HUMAN_PLANNING` |
+| **Input** | P1 Intent Brief (`.orchestrate/<session>/planning/P1-intent-brief.md`) |
+| **Output Artifact** | Scope Contract (`.orchestrate/<session>/planning/P2-scope-contract.md`) |
+| **Gate** | Scope Lock |
+| **Gate Pass Criteria** | Every deliverable has named owner + Definition of Done; exclusions explicit; success metrics trace to Intent Brief outcome; assumptions with HIGH severity have validation plan |
+| **Processes Triggered** | P-007 (Deliverable Decomposition), P-013 (Scope Lock Gate) |
+| **max_turns** | 20 |
+
+**Scope Contract Template** (agent MUST produce all 6 sections):
+
+1. **Outcome Restatement** -- verbatim copy from Intent Brief Section 1
+2. **Deliverables** -- table with columns: #, Deliverable, Description, Owner
+3. **Definition of Done** -- table with columns: Deliverable, Done When (testable criteria)
+4. **Explicit Exclusions** -- table with columns: Exclusion, Reason, Future Home
+5. **Success Metrics** -- table with columns: Metric, Baseline, Target, Measurement Method, Timeline
+6. **Assumptions and Risks** -- table with columns: Item, Type, Severity, Mitigation, Owner
+
+**Scope Lock Gate Logic**:
+
+```
+GATE_PASS = (
+    artifact_exists(".orchestrate/<session>/planning/P2-scope-contract.md")
+    AND section_count >= 6
+    AND deliverables_have_owners(section_2)      # every row has non-empty Owner
+    AND deliverables_have_dod(section_3)          # every deliverable in section_2 has a DoD in section_3
+    AND exclusions_present(section_4)             # at least one exclusion row
+    AND metrics_trace_to_intent(section_5)        # at least one metric references Intent Brief outcome
+    AND high_severity_items_have_plan(section_6)  # HIGH items have non-empty Mitigation
+)
+
+IF GATE_PASS:
+    planning_gate_statuses.P2 = "PASSED"
+    planning_stages_completed.append("P2")
+    emit "[GATE] Scope Lock: PASSED -- Scope Contract produced"
+ELSE:
+    planning_gate_statuses.P2 = "FAILED"
+    emit "[GATE] Scope Lock: FAILED -- <validation_failures>"
+```
+
+**Output format**: `[P2:PLANNING] Scope Contract -- product-manager -- P-007, P-013`
+
+### P3: Dependency Map
+
+| Field | Value |
+|-------|-------|
+| **Stage ID** | P3 |
+| **Name** | Dependency Map |
+| **Owner Agent** | `technical-program-manager` |
+| **Phase Mode** | `HUMAN_PLANNING` |
+| **Input** | P2 Scope Contract (`.orchestrate/<session>/planning/P2-scope-contract.md`) |
+| **Output Artifact** | Dependency Charter (`.orchestrate/<session>/planning/P3-dependency-charter.md`) |
+| **Gate** | Dependency Acceptance |
+| **Gate Pass Criteria** | Every dependency has named owner + "needed by" date; critical path documented; escalation paths defined for all blocked dependencies |
+| **Processes Triggered** | P-015 (Cross-Team Dependency Registration), P-016 (Critical Path Analysis) |
+| **max_turns** | 20 |
+
+**Dependency Charter Template** (agent MUST produce all 4 sections):
+
+1. **Dependency Register** -- table with columns: ID, Dependent Team, Depends On, What Is Needed, By When, Status, Owner, Escalation Path
+2. **Shared Resource Conflicts** -- table with columns: Resource, Competing Demands, Resolution
+3. **Critical Path** -- sequential dependency chain showing minimum timeline
+4. **Communication Protocol** -- table with columns: Mechanism, Cadence, Participants, Purpose
+
+**Dependency Acceptance Gate Logic**:
+
+```
+GATE_PASS = (
+    artifact_exists(".orchestrate/<session>/planning/P3-dependency-charter.md")
+    AND section_count >= 4
+    AND dependencies_have_owners(section_1)        # every row has non-empty Owner
+    AND dependencies_have_dates(section_1)          # every row has non-empty By When
+    AND critical_path_present(section_3)            # section_3 has at least one dependency chain
+    AND escalation_paths_defined(section_1)         # blocked items have Escalation Path
+)
+
+IF GATE_PASS:
+    planning_gate_statuses.P3 = "PASSED"
+    planning_stages_completed.append("P3")
+    emit "[GATE] Dependency Acceptance: PASSED -- Dependency Charter produced"
+ELSE:
+    planning_gate_statuses.P3 = "FAILED"
+    emit "[GATE] Dependency Acceptance: FAILED -- <validation_failures>"
+```
+
+**Output format**: `[P3:PLANNING] Dependency Map -- technical-program-manager -- P-015, P-016`
+
+### P4: Sprint Bridge
+
+| Field | Value |
+|-------|-------|
+| **Stage ID** | P4 |
+| **Name** | Sprint Bridge |
+| **Owner Agent** | `engineering-manager` |
+| **Phase Mode** | `HUMAN_PLANNING` |
+| **Input** | P3 Dependency Charter + P2 Scope Contract |
+| **Output Artifact** | Sprint Kickoff Brief (`.orchestrate/<session>/planning/P4-sprint-kickoff-brief.md`) |
+| **Gate** | Sprint Readiness |
+| **Gate Pass Criteria** | Sprint goal stated and connects to Scope Contract deliverable; intent trace visible (project intent -> deliverable -> sprint goal); all stories have acceptance criteria; dependencies due this sprint have status + contingency |
+| **Processes Triggered** | P-022 (Sprint Goal Authoring), P-023 (Intent Trace Validation) |
+| **max_turns** | 20 |
+
+**Sprint Kickoff Brief Template** (agent MUST produce all 5 sections):
+
+1. **Sprint Goal** -- one sentence stating what will be true at sprint end
+2. **Intent Trace** -- three-line trace: Project Intent -> Scope Deliverable -> Sprint Goal
+3. **Stories and Acceptance Criteria** -- table with columns: Story, Acceptance Criteria, Points, Assignee
+4. **Dependencies Due This Sprint** -- table with columns: Dependency, Needed By, Current Status, Contingency if Late
+5. **Definition of Done (Sprint Level)** -- bulleted checklist of completion criteria
+
+**Sprint Readiness Gate Logic**:
+
+```
+GATE_PASS = (
+    artifact_exists(".orchestrate/<session>/planning/P4-sprint-kickoff-brief.md")
+    AND section_count >= 5
+    AND sprint_goal_present(section_1)               # non-empty, one sentence
+    AND intent_trace_complete(section_2)              # all three lines present
+    AND stories_have_ac(section_3)                    # every story row has Acceptance Criteria
+    AND dependencies_have_contingency(section_4)      # every dependency has Contingency if Late
+)
+
+IF GATE_PASS:
+    planning_gate_statuses.P4 = "PASSED"
+    planning_stages_completed.append("P4")
+    emit "[GATE] Sprint Readiness: PASSED -- Sprint Kickoff Brief produced"
+ELSE:
+    planning_gate_statuses.P4 = "FAILED"
+    emit "[GATE] Sprint Readiness: FAILED -- <validation_failures>"
+```
+
+**Output format**: `[P4:PLANNING] Sprint Bridge -- engineering-manager -- P-022, P-023`
+
+### Planning Artifact Flow
+
+```
+User Input (task_description + project context)
+  |
+  +-- P1: Intent Brief
+  |     answers "Why?" and "What outcome?"
+  |     consumed by: P2 (Scope Contract)
+  |
+  +-- P2: Scope Contract
+  |     answers "What exactly?" and "What does done look like?"
+  |     consumed by: P3 (Dependency Charter), Stage 0 (researcher)
+  |
+  +-- P3: Dependency Charter
+  |     answers "Who else?" and "What is the critical path?"
+  |     consumed by: P4 (Sprint Kickoff Brief), Stage 1 (product-manager)
+  |
+  +-- P4: Sprint Kickoff Brief
+        answers "What in the first sprint?"
+        consumed by: Stage 1 (product-manager task decomposition)
+
+Stage 0: researcher reads P2 (Scope Contract) for research focus
+Stage 1: product-manager reads all P1-P4 artifacts for task decomposition
+Stages 2-6: unchanged (consume Stage 0/1 outputs as before)
+```
+
 ## Pipeline Stage Reference
 
-| Stage | Agent (`dispatch_hint`) | Mandatory | Complete when |
-|-------|------------------------|-----------|---------------|
-| 0 | `researcher` | **YES** | researcher task completed |
-| 1 | `product-manager` | **YES** | product-manager task completed |
-| 2 | `spec-creator` | **YES** | spec-creator task completed |
-| 3 | `software-engineer` / `library-implementer-python` | Per task | software-engineer task completed |
-| 4 | `test-writer-pytest` | Per task | test-writer-pytest task completed |
-| 4.5 | `codebase-stats` | **YES** (post-impl) | codebase-stats task completed |
-| 5 | `validator` | **YES** | validator task completed |
-| 6 | `technical-writer` | **YES** | technical-writer task completed |
+| Stage | Name | Agent (`dispatch_hint`) | Mandatory | Artifact | Gate | Complete when |
+|-------|------|------------------------|-----------|----------|------|---------------|
+| P1 | Intent Frame | `product-manager` | **YES** | Intent Brief | Intent Review | Intent Brief produced; Intent Review gate PASSED |
+| P2 | Scope Contract | `product-manager` | **YES** | Scope Contract | Scope Lock | Scope Contract produced; Scope Lock gate PASSED |
+| P3 | Dependency Map | `technical-program-manager` | **YES** | Dependency Charter | Dependency Acceptance | Dependency Charter produced; Dependency Acceptance gate PASSED |
+| P4 | Sprint Bridge | `engineering-manager` | **YES** | Sprint Kickoff Brief | Sprint Readiness | Sprint Kickoff Brief produced; Sprint Readiness gate PASSED |
+| 0 | Research | `researcher` | **YES** | Research Document | -- | researcher task completed |
+| 1 | Task Decomposition | `product-manager` | **YES** | Epic Decomposition | -- | product-manager task completed |
+| 2 | Specification | `spec-creator` | **YES** | Technical Spec | -- | spec-creator task completed |
+| 3 | Implementation | `software-engineer` / `library-implementer-python` | Per task | Production Code | -- | software-engineer task completed |
+| 4 | Tests | `test-writer-pytest` | Per task | Test Suite | -- | test-writer-pytest task completed |
+| 4.5 | Code Stats | `codebase-stats` | **YES** (post-impl) | Metrics Report | -- | codebase-stats task completed |
+| 5 | Validation | `validator` | **YES** | Validation Report | -- | validator task completed |
+| 6 | Documentation | `technical-writer` | **YES** | Documentation | -- | technical-writer task completed |
 
 Unknown/no dispatch_hint → "Uncategorized".
 
@@ -239,6 +472,89 @@ Unknown/no dispatch_hint → "Uncategorized".
 | `CHECKPOINT_DIR` | `.orchestrate/<session-id>/` | Primary checkpoint directory (project-local) |
 | `SESSION_DIR` | `~/.claude/sessions` | Legacy fallback (read-only) |
 | `SCOPE` | `custom` | Stack scope: `frontend`, `backend`, `fullstack`, or `custom` |
+
+## Cross-Platform Output Format
+
+All pipeline output (progress lines, task boards, gate statuses, stage summaries) MUST adhere to these format rules to ensure consistent rendering across Terminal, Claude Desktop, and VS Code extension.
+
+### OUTPUT-001: Primary Format
+
+Plain Markdown tables are the PRIMARY format for task boards, stage progress, and gate status displays. Markdown renders correctly in all three platforms.
+
+### OUTPUT-002: Banner Format
+
+ASCII bracket-prefix format for banners and progress lines. Use these prefixes:
+- `[PLANNING]` -- P-series stage progress
+- `[GATE]` -- Gate check results
+- `[STAGE P1]` through `[STAGE P4]` -- Planning stage identification
+- `[STAGE 0]` through `[STAGE 6]` -- Execution stage identification (existing)
+- `[PRE-RESEARCH-GATE]` -- Planning-to-execution transition
+- `[PLAN-GATE-NNN]` -- Planning gate error codes
+- `[PLAN-SKIP]` -- Planning phase skipped
+- `[PLAN-REUSE]` -- Planning artifacts reused from prior session
+
+### OUTPUT-003: No ANSI in Artifacts
+
+ANSI escape codes MUST NOT appear in stored artifacts (any file under `.orchestrate/` or `.domain/`). ANSI coloring is permitted ONLY for live TTY output. Always provide a plain-text fallback. Rationale: Claude Desktop and VS Code extension render Markdown but not ANSI escape codes.
+
+### OUTPUT-004: Unicode Policy
+
+Unicode box-drawing characters (e.g., the task board in Step 3c) are acceptable in live terminal output and documentation. They MUST NOT appear in structured output fields (JSON values in checkpoint, stage-receipt, or proposed-tasks files).
+
+### OUTPUT-005: Progress Line Format
+
+P-series progress lines follow this exact format:
+
+**Stage start**:
+```
+[P1:PLANNING] Intent Frame -- product-manager -- P-001
+```
+Format: `[<stage>:PLANNING] <name> -- <agent> -- <process_ids>`
+
+**Stage completion**:
+```
+[P1:PASSED] Intent Review gate passed -- Intent Brief produced
+```
+Format: `[<stage>:PASSED] <gate_name> gate passed -- <artifact_name> produced`
+
+**Stage failure**:
+```
+[P1:FAILED] Intent Review gate failed -- missing: Boundaries, Cost of Inaction
+```
+Format: `[<stage>:FAILED] <gate_name> gate failed -- missing: <sections>`
+
+### Planning Phase Task Board
+
+During the planning phase, the task board (DISPLAY-001) shows planning stages instead of execution stages:
+
+```
+ PLANNING PHASE TASK BOARD:
+ +----- P1 (Intent Frame) ---------------------------------
+ |  [done] Intent Brief produced -- product-manager
+ |  [done] Intent Review: PASSED
+ +----- P2 (Scope Contract) --------------------------------
+ |  >> Scope Contract in progress -- product-manager
+ |  .. Scope Lock: PENDING
+ +----- P3 (Dependency Map) --------------------------------
+ |  [blocked] Dependency Charter -- technical-program-manager  [blocked by P2]
+ |  .. Dependency Acceptance: PENDING
+ +----- P4 (Sprint Bridge) ---------------------------------
+ |  [blocked] Sprint Kickoff Brief -- engineering-manager      [blocked by P3]
+ |  .. Sprint Readiness: PENDING
+ +----------------------------------------------------------
+ Legend: [done] passed  >> in progress  [blocked] blocked  .. pending
+```
+
+### Markdown Table Format for Gate Status
+
+At each iteration, the planning phase status is shown as a Markdown table when relevant:
+
+| Stage | Gate | Status | Artifact |
+|-------|------|--------|----------|
+| P1: Intent Frame | Intent Review | PASSED | P1-intent-brief.md |
+| P2: Scope Contract | Scope Lock | PASSED | P2-scope-contract.md |
+| P3: Dependency Map | Dependency Acceptance | PASSED | P3-dependency-charter.md |
+| P4: Sprint Bridge | Sprint Readiness | PASSED | P4-sprint-kickoff-brief.md |
 
 ---
 
@@ -375,6 +691,90 @@ ELSE:
 
 Log: `[DETECT] Project type: <classification> (commits: <N>, source files: <N>, prior sessions: <N>)`
 
+### 0h. Planning Phase Gate (PRE-RESEARCH-GATE)
+
+Before proceeding to Step 1 (Enhance User Input) and the execution pipeline, verify that all four planning stages have been completed.
+
+**Skip conditions** (check FIRST):
+
+1. `--skip-planning` flag was passed as a command argument
+   - Set `planning_skipped: true` in checkpoint
+   - Log: `[PLAN-SKIP] --skip-planning flag set. Bypassing planning phase.`
+   - Proceed directly to Step 1
+
+2. Planning artifacts already exist from a prior session or manual creation:
+   - Check for existence of ALL four files:
+     - `.orchestrate/<session>/planning/P1-intent-brief.md`
+     - `.orchestrate/<session>/planning/P2-scope-contract.md`
+     - `.orchestrate/<session>/planning/P3-dependency-charter.md`
+     - `.orchestrate/<session>/planning/P4-sprint-kickoff-brief.md`
+   - If ALL four exist:
+     - Set `planning_skipped: true` and `planning_stages_completed: ["P1","P2","P3","P4"]`
+     - Set all `planning_gate_statuses` to `"PASSED"`
+     - Log: `[PLAN-REUSE] Planning artifacts found from prior session. Skipping planning phase.`
+     - Proceed directly to Step 1
+
+3. Handoff receipt from `/new-project` has `planning_complete: true`:
+   - Set checkpoint fields as in condition 2
+   - Log: `[PLAN-HANDOFF] Planning completed in /new-project handoff. Skipping planning phase.`
+   - Proceed directly to Step 1
+
+**Gate enforcement** (if no skip condition met):
+
+```
+planning_complete = (
+    "P1" in planning_stages_completed
+    AND "P2" in planning_stages_completed
+    AND "P3" in planning_stages_completed
+    AND "P4" in planning_stages_completed
+    AND planning_gate_statuses.P1 == "PASSED"
+    AND planning_gate_statuses.P2 == "PASSED"
+    AND planning_gate_statuses.P3 == "PASSED"
+    AND planning_gate_statuses.P4 == "PASSED"
+)
+
+IF planning_complete:
+    Log: "[PRE-RESEARCH-GATE] All planning stages complete. Proceeding to execution pipeline."
+    Proceed to Step 1.
+
+ELSE:
+    # Determine which stages are incomplete and report error codes
+    IF "P1" not in planning_stages_completed OR planning_gate_statuses.P1 != "PASSED":
+        emit "[PLAN-GATE-001] P1 Intent Frame incomplete. Intent Brief missing or Intent Review gate not passed."
+    IF "P2" not in planning_stages_completed OR planning_gate_statuses.P2 != "PASSED":
+        emit "[PLAN-GATE-002] P2 Scope Contract incomplete. Scope Contract missing or Scope Lock gate not passed."
+    IF "P3" not in planning_stages_completed OR planning_gate_statuses.P3 != "PASSED":
+        emit "[PLAN-GATE-003] P3 Dependency Map incomplete. Dependency Charter missing or Dependency Acceptance gate not passed."
+    IF "P4" not in planning_stages_completed OR planning_gate_statuses.P4 != "PASSED":
+        emit "[PLAN-GATE-004] P4 Sprint Bridge incomplete. Sprint Kickoff Brief missing or Sprint Readiness gate not passed."
+
+    # Determine next planning stage to execute
+    next_planning_stage = first stage in [P1, P2, P3, P4] where status != "PASSED"
+    Set current_planning_stage = next_planning_stage
+    Log: "[PRE-RESEARCH-GATE] Planning incomplete. Next: Stage {next_planning_stage}."
+
+    # Enter planning loop (spawn orchestrator with planning-phase context)
+    # The orchestrator will route to the appropriate agent for the current planning stage.
+    Proceed to Step 3 with STAGE_CEILING locked to planning phase.
+```
+
+**Planning loop integration with the main orchestration loop**:
+
+The planning stages reuse the existing Step 3 -> Step 4 orchestration loop. The difference is:
+- `STAGE_CEILING` is set to `"PLANNING"` (not a numeric value) during planning phase
+- The orchestrator spawn prompt includes `PHASE: HUMAN_PLANNING` and `CURRENT_PLANNING_STAGE: <P1|P2|P3|P4>`
+- The orchestrator proposes P-series tasks (not Stage 0-6 tasks)
+- After each iteration, Step 0h is re-evaluated. When all four gates pass, the loop transitions to the execution pipeline (Step 1 onward)
+
+**Error Code Reference**:
+
+| Error Code | Stage | Meaning | Recovery Action |
+|------------|-------|---------|-----------------|
+| `[PLAN-GATE-001]` | P1 | Intent Brief missing or Intent Review gate failed | Spawn product-manager in HUMAN_PLANNING mode for P1 |
+| `[PLAN-GATE-002]` | P2 | Scope Contract missing or Scope Lock gate failed | Spawn product-manager in HUMAN_PLANNING mode for P2 (requires P1 PASSED) |
+| `[PLAN-GATE-003]` | P3 | Dependency Charter missing or Dependency Acceptance gate failed | Spawn technical-program-manager for P3 (requires P2 PASSED) |
+| `[PLAN-GATE-004]` | P4 | Sprint Kickoff Brief missing or Sprint Readiness gate failed | Spawn engineering-manager for P4 (requires P3 PASSED) |
+
 ---
 
 ## Step 1: Enhance User Input (Inline)
@@ -449,7 +849,7 @@ Also update `.sessions/index.json` at the project root: set the superseded sessi
 Create parent tracking task via `TaskCreate` (if available; if TaskCreate fails, log `[CROSS-001] TaskCreate unavailable — setting parent_task_id: null` and continue with `parent_task_id: null`), then:
 
 ```bash
-mkdir -p .orchestrate/<session-id>/{stage-0,stage-1,stage-2,stage-3,stage-4,stage-4.5,stage-5,stage-6}
+mkdir -p .orchestrate/<session-id>/{planning,stage-0,stage-1,stage-2,stage-3,stage-4,stage-4.5,stage-5,stage-6}
 ```
 
 **Output structure** (per `_shared/protocols/output-standard.md`):
@@ -462,7 +862,33 @@ mkdir -p .orchestrate/<session-id>/{stage-0,stage-1,stage-2,stage-3,stage-4,stag
 
 Write checkpoint **atomically** (write to `checkpoint.tmp.json`, then rename to `checkpoint.json`) to `.orchestrate/<session-id>/checkpoint.json` (primary) and `~/.claude/sessions/<session-id>.json` (legacy):
 
-**Checkpoint schema migration**: On resume (Step 2b), check the `schema_version` field of the loaded checkpoint. If the version is older than the current format (e.g., "0.9.0" vs "1.0.0"), attempt graceful migration: add any missing fields with defaults, log `[MIGRATE] Checkpoint migrated from <old> to <new>`. If migration fails, abort with `[MIGRATE-FAIL] Cannot migrate checkpoint from schema_version <version>. Start a new session.`
+**Checkpoint schema migration**: On resume (Step 2b), check the `schema_version` field of the loaded checkpoint. If the version is older than the current format (e.g., "1.0.0" vs "1.1.0"), attempt graceful migration: add any missing fields with defaults, log `[MIGRATE] Checkpoint migrated from <old> to <new>`. If migration fails, abort with `[MIGRATE-FAIL] Cannot migrate checkpoint from schema_version <version>. Start a new session.`
+
+**Planning fields migration (1.0.0 → 1.1.0)**: When resuming a session with `schema_version: "1.0.0"` (pre-planning), add planning fields with default values:
+
+```json
+{
+  "planning_stages_completed": [],
+  "planning_artifacts": {
+    "P1_intent_brief": null,
+    "P2_scope_contract": null,
+    "P3_dependency_charter": null,
+    "P4_sprint_kickoff_brief": null
+  },
+  "planning_gate_statuses": {
+    "P1": null,
+    "P2": null,
+    "P3": null,
+    "P4": null
+  },
+  "current_planning_stage": null,
+  "planning_skipped": false
+}
+```
+
+Log: `[MIGRATE] Added planning fields to checkpoint (1.0.0 → 1.1.0)`
+
+Update `schema_version` to `"1.1.0"` after migration.
 
 ### 2d. Gate State Check
 
@@ -489,7 +915,7 @@ If `.gate-state.json` exists at the project root (written by `/gate-review`):
 
 ```json
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "session_id": "<session-id>",
   "created_at": "<ISO-8601>",
   "updated_at": "<ISO-8601>",
@@ -517,7 +943,22 @@ If `.gate-state.json` exists at the project root (written by `/gate-review`):
   "task_snapshot": { "written_at": null, "iteration": null, "tasks": [] },
   "gate_state": null,
   "gate_override": false,
-  "project_type": null
+  "project_type": null,
+  "planning_stages_completed": [],
+  "planning_artifacts": {
+    "P1_intent_brief": null,
+    "P2_scope_contract": null,
+    "P3_dependency_charter": null,
+    "P4_sprint_kickoff_brief": null
+  },
+  "planning_gate_statuses": {
+    "P1": null,
+    "P2": null,
+    "P3": null,
+    "P4": null
+  },
+  "current_planning_stage": null,
+  "planning_skipped": false
 }
 ```
 
@@ -530,6 +971,25 @@ If `.gate-state.json` exists at the project root (written by `/gate-review`):
 **Before spawning** (AUTO-005): Increment `iteration`, update `updated_at`, write checkpoint.
 
 ### 3a. Calculate STAGE_CEILING
+
+#### Planning Gate Check (PRE-RESEARCH-GATE)
+
+Before calculating the numeric STAGE_CEILING, check planning completion:
+
+```
+IF planning_skipped == false AND planning_stages_completed != ["P1","P2","P3","P4"]:
+    STAGE_CEILING = "PLANNING"  # Cannot proceed to numeric stages
+    # The orchestrator operates in HUMAN_PLANNING mode
+    # See Step 0h for planning loop details
+ELSE:
+    # Proceed to numeric STAGE_CEILING calculation below
+```
+
+When `STAGE_CEILING = "PLANNING"`, the orchestrator receives:
+- `PHASE: HUMAN_PLANNING` in spawn prompt
+- `CURRENT_PLANNING_STAGE: <P1|P2|P3|P4>` indicating the next incomplete stage
+
+#### Numeric STAGE_CEILING Calculation
 
 STAGE_CEILING = the maximum pipeline stage the orchestrator may work on. Calculated from `stages_completed`:
 
@@ -596,10 +1056,15 @@ STAGE_CEILING = min(STAGE_CEILING_from_stages, gate_ceiling)
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  ITERATION <N> of <max> | Session: <session_id>
- STAGE_CEILING: <ceiling> | Pipeline: Stage 0 <✓/✗> → ... → Stage 6 <✓/✗>
- Tasks: <completed> done, <in_progress> running, <pending> pending, <blocked> blocked
+ PLANNING: P1 <✓/✗> P2 <✓/✗> P3 <✓/✗> P4 <✓/✗> | EXECUTION: Stage 0 <✓/✗> → ... → Stage 6 <✓/✗>
+ STAGE_CEILING: <ceiling> | Tasks: <completed> done, <in_progress> running, <pending> pending, <blocked> blocked
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+**Planning status indicators**:
+- `✓` — Planning stage gate PASSED
+- `✗` — Planning stage gate not passed or FAILED
+- If `planning_skipped: true`, display: `PLANNING: [SKIPPED]`
 
 > **IMPORTANT**: If `in_progress > 0`, append to the banner: `⚠ <N> task(s) still running — pipeline NOT complete`
 
@@ -763,11 +1228,26 @@ Acknowledgment detection patterns (grep stage output or stage-receipt.json):
 
 **Pre-check — in_progress tasks block termination**: If ANY tasks have status `in_progress`, skip ALL termination checks and return to Step 3 (next iteration). Background agents are still working — the pipeline is neither complete, stalled, nor blocked. Display: `⚠ <N> task(s) still in_progress — skipping termination check, continuing loop`.
 
-Evaluate in order (ONLY when zero tasks are `in_progress`):
+**Planning completion pre-condition**: Before evaluating execution pipeline termination, verify planning is complete:
+
+```
+planning_complete = (
+    planning_skipped == true
+    OR planning_stages_completed == ["P1", "P2", "P3", "P4"]
+)
+
+IF NOT planning_complete:
+    # Cannot terminate — planning phase still active
+    # Return to Step 3 to continue planning loop
+    Display: "[PRE-RESEARCH-GATE] Planning incomplete — cannot evaluate termination"
+    Return to Step 3
+```
+
+Evaluate in order (ONLY when zero tasks are `in_progress` AND planning is complete):
 
 | # | Condition | Status |
 |---|-----------|--------|
-| 1 | All tasks completed AND `stages_completed` includes 0,1,2,4.5,5,6 (Stage 4 optional — see AUTO-002) | `completed` |
+| 1 | All tasks completed AND `stages_completed` includes 0,1,2,4.5,5,6 (Stage 4 optional — see AUTO-002) AND (planning_stages_completed includes P1,P2,P3,P4 OR planning_skipped == true) | `completed` |
 | 1a | All tasks completed BUT mandatory stages missing | Inject tasks, retry once. If still missing: `completed_stages_incomplete` |
 | 2 | `iteration >= MAX_ITERATIONS` | `max_iterations_reached` |
 | 3 | No progress for `STALL_THRESHOLD` consecutive iterations | `stalled` |
@@ -785,7 +1265,10 @@ Set `terminal_state` and `status`, update parent task, display:
 ## Auto-Orchestration Complete
 **Session**: <session_id> | **Scope**: <resolved> | **Status**: <terminal_state> | **Iterations**: N/max
 
-### Pipeline
+### Planning Phase
+P1 <✓/✗> → P2 <✓/✗> → P3 <✓/✗> → P4 <✓/✗> (or [SKIPPED] if planning_skipped)
+
+### Execution Pipeline
 Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
 
 ### Completed Tasks
@@ -919,7 +1402,13 @@ Subagents lack TaskCreate/TaskList/TaskUpdate/TaskGet. **Workaround**: Auto-orch
 
 ```
 .orchestrate/<session-id>/
-├── stage-{0,1,2,3,4,4.5,5,6}/   # Per-stage output
+├── planning/                      # P-series planning artifacts
+│   ├── P1-intent-brief.md
+│   ├── P2-scope-contract.md
+│   ├── P3-dependency-charter.md
+│   ├── P4-sprint-kickoff-brief.md
+│   └── planning-receipt.json      # Combined receipt for all planning stages
+├── stage-{0,1,2,3,4,4.5,5,6}/     # Per-stage output
 └── proposed-tasks.json            # Task proposals (written by orchestrator FIRST)
 ```
 

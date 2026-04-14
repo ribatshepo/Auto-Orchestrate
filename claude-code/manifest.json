@@ -41,6 +41,10 @@
       ],
       "capabilities": {
         "pipeline_stages": [
+          "P1",
+          "P2",
+          "P3",
+          "P4",
           0,
           1,
           2,
@@ -288,7 +292,11 @@
         "remove impediment",
         "1:1",
         "engineering management",
-        "team velocity"
+        "team velocity",
+        "sprint bridge",
+        "sprint kickoff brief",
+        "sprint readiness",
+        "planning stage P4"
       ],
       "capabilities": {
         "skills_orchestrated": [],
@@ -399,7 +407,14 @@
         "sprint ceremony",
         "product management",
         "requirements",
-        "product vision"
+        "product vision",
+        "intent frame",
+        "intent brief",
+        "intent articulation",
+        "scope contract",
+        "scope lock",
+        "planning stage P1",
+        "planning stage P2"
       ],
       "capabilities": {
         "skills_orchestrated": [],
@@ -617,7 +632,11 @@
         "TPM",
         "release coordination",
         "program management",
-        "workstream synchronization"
+        "workstream synchronization",
+        "dependency charter",
+        "dependency map",
+        "dependency acceptance",
+        "planning stage P3"
       ],
       "capabilities": {
         "skills_orchestrated": [],

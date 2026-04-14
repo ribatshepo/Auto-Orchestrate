@@ -10,7 +10,7 @@ The system enforces strict quality gates, manages context budgets across agent h
 
 ## Features
 
-- **7-stage autonomous pipeline** — Research, planning, specification, implementation, testing, validation, and documentation stages with mandatory completion gates
+- **11-stage hybrid pipeline** — Four planning stages (P1-P4: Intent, Scope, Dependencies, Sprint) followed by seven technical stages (0-6: research, planning, specification, implementation, testing, validation, documentation) with mandatory completion gates and a PRE-RESEARCH-GATE bridging the two phases
 - **18 specialized agents** — 2 pipeline-core (orchestrator, researcher), 3 pipeline (debugger, auditor, session-manager), and 13 team agents covering the full engineering role hierarchy
 - **2 autonomous subsystems** — `/auto-debug` for cyclic error-fix loops; `/auto-audit` for spec-compliance verification loops
 - **35 task-specific skills** — Testing, security auditing, documentation, DevOps, Docker validation, refactoring, CI/CD, dependency analysis, debugging diagnostics, spec compliance, and more
@@ -74,6 +74,14 @@ Launch a fully autonomous pipeline with a single command:
 | *(omitted)* | Custom | No scope injection — follows user input as-is |
 
 The system will:
+
+**Planning phase (P1-P4):**
+- P1. Frame product intent (Intent Brief)
+- P2. Define scope and acceptance criteria (Scope Contract)
+- P3. Map dependencies (Dependency Charter)
+- P4. Bridge to sprint execution (Sprint Kickoff Brief)
+
+**Technical phase (0-6):**
 0. Detect project type (greenfield, existing, or continuation) and verify 9 pipeline components
 1. Research requirements and unknowns
 2. Decompose the task into an execution plan
@@ -133,6 +141,12 @@ User Input
     v
 orchestrator  (agent) ──> session-manager
     |                          |
+    |── product-manager ───> P1 Intent Brief, P2 Scope Contract
+    |── tech-program-mgr ──> P3 Dependency Charter
+    |── engineering-mgr ───> P4 Sprint Kickoff Brief
+    |       |
+    |   [PRE-RESEARCH-GATE]
+    |       |
     |── researcher ──────────> Research (Stage 0, mandatory)
     |── product-manager ───> Task decomposition
     |── software-engineer ─> Code + self-review + security gate
@@ -161,6 +175,21 @@ Compliance report ──> Gap found? ──> orchestrator (remediation) ──> 
 
 ### Pipeline Stages
 
+The pipeline is an 11-stage hybrid: P1 -> P2 -> P3 -> P4 -> 0 -> 1 -> 2 -> 3 -> 4.5 -> 5 -> 6.
+
+**Planning stages (P-series):**
+
+| Stage | Component | Purpose | Required |
+|-------|-----------|---------|----------|
+| P1 | product-manager | Frame product intent (Intent Brief) | **Yes** |
+| P2 | product-manager | Define scope contract (Scope Contract) | **Yes** |
+| P3 | technical-program-manager | Map dependencies (Dependency Charter) | **Yes** |
+| P4 | engineering-manager | Bridge to sprint execution (Sprint Kickoff Brief) | **Yes** |
+
+The PRE-RESEARCH-GATE blocks Stage 0 until all P-series stages are complete.
+
+**Technical stages (0-6):**
+
 | Stage | Component | Purpose | Required |
 |-------|-----------|---------|----------|
 | 0 | researcher | Gather unknowns and context | **Yes** |
@@ -173,7 +202,7 @@ Compliance report ──> Gap found? ──> orchestrator (remediation) ──> 
 | 5a | docker-validator | Docker environment validation, UX testing, state checkpointing | **Yes** (sub-step of 5) |
 | 6 | technical-writer | Write/update documentation | **Yes** |
 
-Stages 0, 1, 2, 4.5, 5, and 6 are mandatory — the pipeline will not terminate until they complete successfully (AUTO-002).
+All P-series stages and Stages 0, 1, 2, 4.5, 5, and 6 are mandatory — the pipeline will not terminate until they complete successfully (AUTO-002).
 
 ### Constraint System
 
@@ -315,9 +344,14 @@ Three runtime directories are created automatically by the autonomous commands. 
 
 ```
 .orchestrate/<session-id>/       # Created by /auto-orchestrate
-├── checkpoint.json              # Session state (atomic write)
+├── checkpoint.json              # Session state (atomic write, schema 1.1.0)
 ├── MANIFEST.jsonl               # Session-level manifest
 ├── proposed-tasks.json          # Task proposals from orchestrator
+├── planning/                    # Planning phase artifacts (P1-P4)
+│   ├── p1-intent-brief.md
+│   ├── p2-scope-contract.md
+│   ├── p3-dependency-charter.md
+│   └── p4-sprint-kickoff.md
 ├── stage-0/                     # Research (YYYY-MM-DD_<slug>.md + stage-receipt.json)
 ├── stage-1/                     # Architecture (proposed-tasks.json + stage-receipt.json)
 ├── stage-2/                     # Specs (YYYY-MM-DD_<slug>.md + stage-receipt.json)

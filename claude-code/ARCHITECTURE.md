@@ -9,7 +9,7 @@ Comprehensive architecture documentation for the Auto-Orchestrate system.
 
 ## 1. System Overview
 
-Auto-Orchestrate is a multi-layer autonomous pipeline system with built-in continuous improvement. It follows a layered architecture:
+Auto-Orchestrate is a multi-layer autonomous pipeline system with built-in continuous improvement. The pipeline is an **11-stage hybrid**: four planning stages (P1-P4) followed by seven technical stages (0-6), connected by the PRE-RESEARCH-GATE. It follows a layered architecture:
 
 - **Commands** provide autonomous loop controllers (`/auto-orchestrate`, `/auto-debug`, `/auto-audit`) and interactive workflow commands
 - **Agents** orchestrate complex multi-step workflows via subagent delegation
@@ -64,18 +64,27 @@ User Input ──→ Command (loop controller) ──→ Orchestrator Agent
                  ┌──────────────────────────────────┤
                  │                                  │
                  v                                  v
-          Stage Agents                      CI Engine (optional)
-    (researcher, software-engineer,    (OODA: observe→orient→
-     validator, technical-writer...)    decide→act per stage)
+      Planning Stages (P1-P4)               CI Engine (optional)
+    (product-manager, TPM,             (OODA: observe→orient→
+     engineering-manager)               decide→act per stage)
                  │                                  │
                  v                                  v
-          Stage Outputs                    Telemetry + Baselines
-    (.orchestrate/stage-N/)            (.orchestrate/knowledge_store/)
-                 │                                  │
-                 v                                  v
-         Stage Receipts ──────────→ Domain Memory (.domain/)
-    (stage-receipt.json)           (research, fixes, patterns persist
-                                    across ALL future sessions)
+       PRE-RESEARCH-GATE                   Telemetry + Baselines
+    (blocks Stage 0 until               (.orchestrate/knowledge_store/)
+     planning completes)                            │
+                 │                                  v
+                 v                          Domain Memory (.domain/)
+       Technical Stages (0-6)             (research, fixes, patterns persist
+    (researcher, software-engineer,        across ALL future sessions)
+     validator, technical-writer...)
+                 │
+                 v
+          Stage Outputs
+    (.orchestrate/planning/ + stage-N/)
+                 │
+                 v
+         Stage Receipts
+    (stage-receipt.json)
 ```
 
 ---
@@ -288,7 +297,7 @@ claude-code/
 **Additional Rules**:
 - **VERBOSE-001**: Every `[STAGE N] completed` line MUST include a `Key findings:` suffix with a one-sentence summary. Never omit this suffix. Progress lines must include quantitative data (task counts, file names, error counts) where available.
 - **PRE-BOOT (Step -1)**: The orchestrator's MANDATORY FIRST ACTION each iteration is to write `.orchestrate/<SESSION_ID>/proposed-tasks.json` before any other work. If no new tasks are proposed, write an empty proposals object.
-- **SEQUENTIAL-STAGE-GATE**: Do NOT spawn Stage N+1 while any Stage N task is still pending or in-progress. See section 4.3.2.
+- **SEQUENTIAL-STAGE-GATE**: Do NOT spawn Stage N+1 while any Stage N task is still pending or in-progress. See section 4.3.3.
 
 **Decision Flow**:
 ```
@@ -304,6 +313,16 @@ PIPELINE LOOP (respects STAGE_CEILING)
   │
   ├─ Step -1: Write proposed-tasks.json (MANDATORY first action)
   │
+  │  ── PLANNING PHASE (P-series) ──
+  ├─ P1 (product-manager) ──→ Intent Brief
+  ├─ P2 (product-manager) ──→ Scope Contract
+  ├─ P3 (technical-program-manager) ──→ Dependency Charter
+  ├─ P4 (engineering-manager) ──→ Sprint Kickoff Brief
+  │
+  │  ── PRE-RESEARCH-GATE ──
+  │  (blocks Stage 0 until P1-P4 complete)
+  │
+  │  ── TECHNICAL PHASE (0-6) ──
   ├─ Stage 0 (researcher) ──→ Domain memory: query research_ledger
   │   └─ If HAS_RECOMMENDER: inject improvement_targets.json
   ├─ Stage 1 (product-manager) ──→ Task decomposition
@@ -527,6 +546,11 @@ Each auto-orchestrate session creates a per-session output directory in the proj
 ```
 .orchestrate/
 └── <session-id>/
+    ├── planning/              # Planning phase outputs (P1-P4)
+    │   ├── p1-intent-brief.md         # P1: Intent Brief (product-manager)
+    │   ├── p2-scope-contract.md       # P2: Scope Contract (product-manager)
+    │   ├── p3-dependency-charter.md   # P3: Dependency Charter (technical-program-manager)
+    │   └── p4-sprint-kickoff.md       # P4: Sprint Kickoff Brief (engineering-manager)
     ├── stage-0/               # Researcher output (Stage 0)
     ├── stage-1/               # Product-manager plans (Stage 1)
     ├── stage-2/               # Spec-creator output (Stage 2)
@@ -550,7 +574,67 @@ This directory is project-local. `~/.claude/sessions/` is retained as a read-onl
 
 ---
 
-### 4.3.2 Mandatory Stage Enforcement Guards
+### 4.3.2 Planning Phase Architecture (P1-P4)
+
+**Added**: 2026-04-14
+
+The pipeline begins with four planning stages (P1-P4) that produce structured artifacts before any technical work starts. These stages are gated by the PRE-RESEARCH-GATE, which blocks Stage 0 (research) until all planning artifacts are present.
+
+#### 11-Stage Hybrid Pipeline
+
+```
+P1 → P2 → P3 → P4 → [PRE-RESEARCH-GATE] → 0 → 1 → 2 → 3 → 4.5 → 5 → 6
+```
+
+#### Planning Stage Table
+
+| Stage | Agent | Artifact | Purpose |
+|-------|-------|----------|---------|
+| P1 (Intent Frame) | product-manager | Intent Brief | Frame the product intent and user value proposition |
+| P2 (Scope Contract) | product-manager | Scope Contract | Define boundaries, acceptance criteria, and deliverables |
+| P3 (Dependency Map) | technical-program-manager | Dependency Charter | Map cross-team and technical dependencies |
+| P4 (Sprint Bridge) | engineering-manager | Sprint Kickoff Brief | Bridge planning output into a sprint-ready execution plan |
+
+#### PRE-RESEARCH-GATE
+
+Blocks Stage 0 (researcher) until all four planning artifacts exist in `.orchestrate/<session-id>/planning/`. When the gate fires, the orchestrator routes to the first missing planning stage instead of proceeding to research.
+
+```
+# PRE-RESEARCH-GATE: Block research if planning is incomplete
+missing_planning = [p for p in ["P1", "P2", "P3", "P4"] if not planning_artifact_exists(p)]
+if missing_planning and next_stage == 0:
+    log("[PRE-RESEARCH-GATE] BLOCKED: Cannot start research -- planning stages missing.")
+    # Re-route to first missing planning stage
+```
+
+#### Planning Output Directory
+
+All planning artifacts are written to `.orchestrate/<session-id>/planning/` using plain Markdown (no ANSI escape sequences) for cross-platform compatibility.
+
+#### Agent Triggers for Planning Stages
+
+| Stage | Agent | Trigger Condition |
+|-------|-------|-------------------|
+| P1 | product-manager | Pipeline start; no Intent Brief exists |
+| P2 | product-manager | P1 complete; no Scope Contract exists |
+| P3 | technical-program-manager | P2 complete; no Dependency Charter exists |
+| P4 | engineering-manager | P3 complete; no Sprint Kickoff Brief exists |
+
+#### Cross-Platform Output Format
+
+All planning stage output uses plain Markdown without ANSI escape sequences or terminal-specific formatting. This ensures artifacts are readable in any environment (terminal, web UI, IDE, CI logs). The same cross-platform output standard applies to all stage receipts and checkpoint data.
+
+#### Checkpoint Schema 1.1.0
+
+The checkpoint schema was updated to version 1.1.0 to include planning-phase fields:
+
+- `planning_stages_completed`: array of completed planning stage IDs (e.g., `["P1", "P2", "P3", "P4"]`)
+- `planning_artifacts`: object mapping stage IDs to artifact file paths
+- `pre_research_gate_passed`: boolean indicating whether the PRE-RESEARCH-GATE has been satisfied
+
+---
+
+### 4.3.3 Mandatory Stage Enforcement Guards
 
 **Updated**: 2026-03-03
 
@@ -2382,7 +2466,7 @@ Phase 5: Pipeline Handoff
     └─ Launch: /auto-orchestrate "{task_description}" --scope {F|B|S} --session_id {session_id}
                     │
                     v
-        /auto-orchestrate (7-stage technical pipeline)
+        /auto-orchestrate (11-stage hybrid pipeline: P1-P4 + 0-6)
                     │
                     Stage 0-6 complete
                     │

@@ -202,18 +202,63 @@ else:
 
 ## Pipeline Stages & Turn Limits
 
-| Stage | Agent | Purpose | Mandatory | max_turns |
-|-------|-------|---------|-----------|-----------|
-| 0 | `researcher` | Research, CVEs, codebase context | **YES** | 20 |
-| 1 | `product-manager` | Task decomposition, deps, risk | **YES** | 20 |
-| 2 | `spec-creator` | Technical specifications | **YES** | 20 |
-| 3 | `software-engineer` / `library-implementer-python` | Production code | Per task | 30 |
-| 4 | `test-writer-pytest` | Tests | Per task | 30 |
-| 4.5 | `codebase-stats` | Technical debt measurement | **YES** (post-impl) | 15 |
-| 5 | `validator` (+ `docker-validator`) | Compliance/correctness | **YES** | 15 |
-| 6 | `technical-writer` | Documentation updates | **YES** | 15 |
+| Stage | Agent | Purpose | Mandatory | max_turns | Phase |
+|-------|-------|---------|-----------|-----------|-------|
+| P1 | `product-manager` | Intent Frame: capture project intent, outcomes, boundaries | **YES** | 20 | Human Planning |
+| P2 | `product-manager` | Scope Contract: define deliverables, DoD, exclusions, metrics | **YES** | 20 | Human Planning |
+| P3 | `technical-program-manager` | Dependency Map: identify cross-team dependencies, critical path | **YES** | 20 | Human Planning |
+| P4 | `engineering-manager` | Sprint Bridge: translate scope into sprint-ready work items | **YES** | 20 | Human Planning |
+| 0 | `researcher` | Research, CVEs, codebase context | **YES** | 20 | AI Execution |
+| 1 | `product-manager` | Task decomposition, deps, risk | **YES** | 20 | AI Execution |
+| 2 | `spec-creator` | Technical specifications | **YES** | 20 | AI Execution |
+| 3 | `software-engineer` / `library-implementer-python` | Production code | Per task | 30 | AI Execution |
+| 4 | `test-writer-pytest` | Tests | Per task | 30 | AI Execution |
+| 4.5 | `codebase-stats` | Technical debt measurement | **YES** (post-impl) | 15 | AI Execution |
+| 5 | `validator` (+ `docker-validator`) | Compliance/correctness | **YES** | 15 | AI Execution |
+| 6 | `technical-writer` | Documentation updates | **YES** | 15 | AI Execution |
 
 Other: `session-manager` (boot): 10, `task-executor` (ad-hoc): 15.
+
+## Planning Phase Routing
+
+When the orchestrator receives a spawn prompt with `PHASE: HUMAN_PLANNING`, it operates in planning mode:
+
+### Planning Mode Constraints
+
+1. **PLAN-ROUTE-001**: Route ONLY to the agent specified for the current planning stage. Do not route to other agents.
+2. **PLAN-ROUTE-002**: Planning stages are strictly sequential. P2 cannot begin until P1 gate is PASSED. P3 cannot begin until P2 gate is PASSED. P4 cannot begin until P3 gate is PASSED.
+3. **PLAN-ROUTE-003**: The orchestrator MUST include the phase mode and artifact type in the spawn prompt to prevent confusion with AI execution mode (especially for `product-manager` which appears in both P1/P2 and Stage 1).
+
+### Planning-to-Execution Transition
+
+When all four planning gates are PASSED:
+1. The orchestrator receives a spawn prompt with `PHASE: AI_EXECUTION` (normal mode)
+2. The orchestrator reads all planning artifacts from `.orchestrate/<session>/planning/` and includes key context in Stage 0 and Stage 1 spawn prompts
+3. The researcher (Stage 0) receives the P2 Scope Contract as input context
+4. The product-manager (Stage 1) receives all P1-P4 artifacts as input context
+
+### Planning Stage PROPOSED_ACTIONS Format
+
+During planning phase, the orchestrator returns PROPOSED_ACTIONS with planning-specific fields:
+
+```json
+PROPOSED_ACTIONS:
+{
+  "phase": "HUMAN_PLANNING",
+  "planning_tasks": [
+    {
+      "stage": "P1",
+      "subject": "Produce Intent Brief",
+      "description": "Capture project intent, outcomes, boundaries, and cost of inaction. Output: P1-intent-brief.md",
+      "dispatch_hint": "product-manager",
+      "planning_input": "<user task_description>",
+      "expected_artifact": ".orchestrate/<session>/planning/P1-intent-brief.md",
+      "gate": "Intent Review"
+    }
+  ],
+  "planning_stages_covered": ["P1"]
+}
+```
 
 ## Progress Output (MAIN-015)
 
@@ -287,6 +332,141 @@ If subagent returns `"status": "partial"`: propose continuation task (depth <= 3
 MAIN-014: Do NOT run git commit/push or any git write operation.
 Do NOT delete any files. Do NOT modify files outside task scope.
 Report all errors and warnings. For files >500 lines, use chunked reading.
+```
+
+### Planning Phase Spawn Templates
+
+**Common planning block** (include in ALL P-series spawns):
+```
+PHASE: HUMAN_PLANNING
+You are operating in HUMAN PLANNING mode.
+Your output is a planning artifact (NOT a proposed-tasks.json or production code).
+Write the artifact to .orchestrate/<SESSION_ID>/planning/<artifact_filename>.
+
+MAIN-014: Do NOT run git commit/push or any git write operation.
+Do NOT delete any files. Do NOT modify files outside the planning directory.
+Report all errors and warnings.
+```
+
+### Stage P1: product-manager (Intent Frame)
+```
+PHASE: HUMAN_PLANNING
+STAGE: P1 -- Intent Frame
+ARTIFACT_TYPE: Intent Brief
+OUTPUT_PATH: .orchestrate/<SESSION_ID>/planning/P1-intent-brief.md
+
+You are the product-manager operating in HUMAN PLANNING mode (Stage P1).
+Your output is an Intent Brief, NOT a proposed-tasks.json.
+
+INPUT: The user's task description and project context (provided below).
+
+TASK: Produce an Intent Brief that answers these 5 questions:
+1. What outcome are we trying to achieve? (measurable, with timeline)
+2. Who specifically benefits and how? (named segment, before/after)
+3. What is the strategic context? (OKR or priority connection)
+4. What are the boundaries? (explicit exclusions -- what this is NOT)
+5. What happens if we don't do this? (cost of inaction)
+
+CONSTRAINTS:
+- The Intent Brief MUST be 1-2 pages maximum
+- Every answer must use specifics, not vague language
+- The outcome must be measurable (metric, percentage, or timeline)
+- At least one explicit boundary must be stated
+- Reference P-001 (Intent Articulation Process)
+
+Write the artifact to: .orchestrate/<SESSION_ID>/planning/P1-intent-brief.md
+```
+
+### Stage P2: product-manager (Scope Contract)
+```
+PHASE: HUMAN_PLANNING
+STAGE: P2 -- Scope Contract
+ARTIFACT_TYPE: Scope Contract
+OUTPUT_PATH: .orchestrate/<SESSION_ID>/planning/P2-scope-contract.md
+INPUT_ARTIFACT: .orchestrate/<SESSION_ID>/planning/P1-intent-brief.md
+
+You are the product-manager operating in HUMAN PLANNING mode (Stage P2).
+Your output is a Scope Contract, NOT a proposed-tasks.json.
+
+INPUT: Read the P1 Intent Brief from the INPUT_ARTIFACT path above.
+
+TASK: Produce a Scope Contract with these 6 sections:
+1. Outcome Restatement (verbatim from Intent Brief)
+2. Deliverables (table: #, Deliverable, Description, Owner)
+3. Definition of Done (table: Deliverable, Done When)
+4. Explicit Exclusions (table: Exclusion, Reason, Future Home)
+5. Success Metrics (table: Metric, Baseline, Target, Method, Timeline)
+6. Assumptions and Risks (table: Item, Type, Severity, Mitigation, Owner)
+
+CONSTRAINTS:
+- The Scope Contract MUST be 3-5 pages
+- Every deliverable MUST have a named owner
+- Every deliverable MUST have a Definition of Done with testable criteria
+- Success metrics MUST trace to the Intent Brief outcome
+- HIGH-severity assumptions MUST have a validation plan
+- Reference P-007 (Deliverable Decomposition) and P-013 (Scope Lock Gate)
+
+Write the artifact to: .orchestrate/<SESSION_ID>/planning/P2-scope-contract.md
+```
+
+### Stage P3: technical-program-manager (Dependency Map)
+```
+PHASE: HUMAN_PLANNING
+STAGE: P3 -- Dependency Map
+ARTIFACT_TYPE: Dependency Charter
+OUTPUT_PATH: .orchestrate/<SESSION_ID>/planning/P3-dependency-charter.md
+INPUT_ARTIFACT: .orchestrate/<SESSION_ID>/planning/P2-scope-contract.md
+
+You are the technical-program-manager operating in HUMAN PLANNING mode (Stage P3).
+Your output is a Dependency Charter.
+
+INPUT: Read the P2 Scope Contract from the INPUT_ARTIFACT path above.
+
+TASK: Produce a Dependency Charter with these 4 sections:
+1. Dependency Register (table: ID, Dependent Team, Depends On, What Is Needed, By When, Status, Owner, Escalation Path)
+2. Shared Resource Conflicts (table: Resource, Competing Demands, Resolution)
+3. Critical Path (sequential dependency chain showing minimum timeline)
+4. Communication Protocol (table: Mechanism, Cadence, Participants, Purpose)
+
+CONSTRAINTS:
+- Every dependency MUST have a named owner and a "needed by" date
+- Blocked dependencies MUST have an escalation path
+- The critical path MUST show the sequence that determines minimum timeline
+- Reference P-015 (Cross-Team Dependency Registration) and P-016 (Critical Path Analysis)
+
+Write the artifact to: .orchestrate/<SESSION_ID>/planning/P3-dependency-charter.md
+```
+
+### Stage P4: engineering-manager (Sprint Bridge)
+```
+PHASE: HUMAN_PLANNING
+STAGE: P4 -- Sprint Bridge
+ARTIFACT_TYPE: Sprint Kickoff Brief
+OUTPUT_PATH: .orchestrate/<SESSION_ID>/planning/P4-sprint-kickoff-brief.md
+INPUT_ARTIFACTS:
+  - .orchestrate/<SESSION_ID>/planning/P3-dependency-charter.md
+  - .orchestrate/<SESSION_ID>/planning/P2-scope-contract.md
+
+You are the engineering-manager operating in HUMAN PLANNING mode (Stage P4).
+Your output is a Sprint Kickoff Brief.
+
+INPUT: Read BOTH the P3 Dependency Charter AND P2 Scope Contract from the paths above.
+
+TASK: Produce a Sprint Kickoff Brief with these 5 sections:
+1. Sprint Goal (one sentence: what will be true at sprint end that is not true today)
+2. Intent Trace (three lines: Project Intent -> Scope Deliverable -> Sprint Goal)
+3. Stories and Acceptance Criteria (table: Story, Acceptance Criteria, Points, Assignee)
+4. Dependencies Due This Sprint (table: Dependency, Needed By, Current Status, Contingency if Late)
+5. Definition of Done -- Sprint Level (bulleted checklist)
+
+CONSTRAINTS:
+- The Sprint Goal MUST connect to a Scope Contract deliverable
+- The Intent Trace MUST show all three levels (intent -> deliverable -> sprint goal)
+- Every story MUST have written acceptance criteria
+- Every dependency MUST have a contingency plan
+- Reference P-022 (Sprint Goal Authoring) and P-023 (Intent Trace Validation)
+
+Write the artifact to: .orchestrate/<SESSION_ID>/planning/P4-sprint-kickoff-brief.md
 ```
 
 ### Stage 0: researcher
@@ -612,15 +792,20 @@ If ANY is false, go back and fix NOW:
 - [ ] If `HAS_CI_ENGINE`: PDCA Check + Act phases triggered after run completion
 - [ ] If `HAS_CI_ENGINE`: OODA controller invoked after every stage completion
 - [ ] If `HAS_CI_ENGINE`: `research_completeness_score` gate enforced for Stage 0 -> Stage 1
+- [ ] If PHASE is HUMAN_PLANNING: planning tasks proposed for correct stage
+- [ ] If PHASE is HUMAN_PLANNING: product-manager spawn includes explicit HUMAN_PLANNING mode distinction
+- [ ] If PHASE is AI_EXECUTION: PRE-RESEARCH-GATE confirmed (planning complete or skipped)
+- [ ] Planning artifacts referenced in Stage 0/1 spawn prompts (if planning was completed)
 
 ```
 ═══════════════════════════════════════════════════════════
  ORCHESTRATION SUMMARY
 ═══════════════════════════════════════════════════════════
+ Planning: P1 ✓ | P2 ✓ | P3 ✓ | P4 ✓ (or SKIPPED)
  Pipeline: Stage 0 ✓ → Stage 1 ✓ → ... → Stage 6 ✓
  AGENTS SPAWNED: {agent} xN — {purpose}
  TOTAL SPAWNS: N of 5 budget
- MANDATORY STAGES: 0 ✓ | 1 ✓ | 2 ✓ | 4.5 ✓ | 5 ✓ | 6 ✓
+ MANDATORY STAGES: P1-P4 ✓ | 0 ✓ | 1 ✓ | 2 ✓ | 4.5 ✓ | 5 ✓ | 6 ✓
 ═══════════════════════════════════════════════════════════
 ```
 

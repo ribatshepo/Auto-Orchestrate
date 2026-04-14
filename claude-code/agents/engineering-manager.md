@@ -36,6 +36,10 @@ This agent is invoked when the work description matches any of the following:
 - 1:1
 - engineering management
 - team velocity
+- sprint bridge
+- sprint kickoff brief
+- sprint readiness
+- planning stage P4
 
 These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
 

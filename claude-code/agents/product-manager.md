@@ -35,6 +35,13 @@ This agent is invoked when the work description matches any of the following:
 - product management
 - requirements
 - product vision
+- intent frame
+- intent brief
+- intent articulation
+- scope contract
+- scope lock
+- planning stage P1
+- planning stage P2
 
 These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
 

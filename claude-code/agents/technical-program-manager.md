@@ -34,6 +34,10 @@ This agent is invoked when the work description matches any of the following:
 - release coordination
 - program management
 - workstream synchronization
+- dependency charter
+- dependency map
+- dependency acceptance
+- planning stage P3
 
 These triggers are authoritative in `~/.claude/manifest.json` under `agents[name].dispatch_triggers`.
 

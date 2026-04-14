@@ -774,7 +774,7 @@ The auto-orchestrate system integrates with a human-facing organizational workfl
 |---------|---------|-------------------|
 | `/new-project` | Guide 4-stage org pipeline (Intent → Scope → Dependencies → Sprint) | Phase 5: hands off to /auto-orchestrate |
 | `/gate-review` | Run gate checklist, write gate state | Writes `.orchestrate/{session_id}/gate-state.json` |
-| `/auto-orchestrate` | 7-stage autonomous implementation pipeline | Reads handoff receipt, produces Stage 6 artifacts |
+| `/auto-orchestrate` | 11-stage hybrid pipeline (P1-P4 planning + 0-6 technical) | Reads handoff receipt, produces Stage 6 artifacts |
 | `/auto-debug` | Autonomous error diagnosis and fix loop | Escalation target from auto-orchestrate Stage 5 |
 | `/auto-audit` | Autonomous spec compliance audit-remediate loop | Advisory debug hints; produces audit receipt |
 | `/sprint-ceremony` | Sprint retrospective and close | Reads Stage 6 artifacts; requires Gate 4 passed |
@@ -847,7 +847,44 @@ Hook log format: `[PROCESS-INJECT] Stage {N} ({event}): {process_ids} — {actio
 
 For processes with no pipeline home (sprint planning, dependency coordination, onboarding), process stubs in `claude-code/processes/process_stubs/` provide minimal documentation and manual engagement guidance.
 
-### 12.7 install.sh Safety Note
+### 12.7 Planning Stage Integration (P1-P4)
+
+**Added**: 2026-04-14
+
+The auto-orchestrate pipeline now includes four planning stages (P1-P4) that execute before the technical stages (0-6), forming an 11-stage hybrid pipeline: P1 -> P2 -> P3 -> P4 -> 0 -> 1 -> 2 -> 3 -> 4.5 -> 5 -> 6.
+
+#### Planning Stage Integration Points
+
+| Stage | Agent | Artifact | Integration Point |
+|-------|-------|----------|-------------------|
+| P1 (Intent Frame) | product-manager | Intent Brief | Feeds P2 scope definition |
+| P2 (Scope Contract) | product-manager | Scope Contract | Feeds P3 dependency analysis; bridges to /new-project Scope Contract |
+| P3 (Dependency Map) | technical-program-manager | Dependency Charter | Feeds P4 sprint planning; aligns with /new-project Stage 3 |
+| P4 (Sprint Bridge) | engineering-manager | Sprint Kickoff Brief | Feeds Stage 0 research; aligns with /new-project Stage 4 |
+
+#### PRE-RESEARCH-GATE Integration
+
+The PRE-RESEARCH-GATE sits between P4 and Stage 0. It checks for the presence of all four planning artifacts in `.orchestrate/{session_id}/planning/` before allowing Stage 0 (researcher) to begin. If any planning artifact is missing, the gate blocks and the orchestrator routes to the first incomplete planning stage.
+
+Gate output when blocking: `[PRE-RESEARCH-GATE] BLOCKED: Cannot start research -- planning stages missing.`
+
+#### Planning Artifact Paths
+
+All planning artifacts are written to the `planning/` subdirectory within the session:
+
+```
+.orchestrate/{session_id}/planning/
+    p1-intent-brief.md
+    p2-scope-contract.md
+    p3-dependency-charter.md
+    p4-sprint-kickoff.md
+```
+
+#### Bridge Protocol Compatibility
+
+When `/new-project` hands off to `/auto-orchestrate` via the bridge protocol, the handoff receipt may include planning context from the organizational pipeline. If the handoff receipt includes completed organizational planning artifacts (Intent, Scope Contract, Dependencies, Sprint), the corresponding P-series stages may be satisfied by the existing artifacts, allowing the PRE-RESEARCH-GATE to pass without re-executing planning.
+
+### 12.8 install.sh Safety Note
 
 Three agents are dual-defined (runtime `~/.claude/agents/` + source `claude-code/agents/`): researcher, session-manager, orchestrator. Before any `install.sh` run that touches agent files, verify checksums:
 
