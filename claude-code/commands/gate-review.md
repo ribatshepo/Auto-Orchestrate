@@ -189,3 +189,44 @@ For the reviewed gate:
 ```
 
 **Override authorization**: If the user provides an explicit override with reason and authorized-by, write the `override` object to the relevant gate. See `claude-code/processes/gate_enforcement_spec.md` — Override Mechanism.
+
+## Receipt Writing (STATE-001)
+
+In addition to updating `.orchestrate/{session_id}/gate-state.json`, write a cross-pipeline receipt:
+
+1. `mkdir -p .pipeline-state/command-receipts .pipeline-state/process-log`
+2. Write `.pipeline-state/command-receipts/gate-review-<YYYYMMDD>-<HHMMSS>.json`:
+
+```json
+{
+  "command": "gate-review",
+  "receipt_id": "gate-review-<YYYYMMDD>-<HHMMSS>",
+  "timestamp": "<ISO-8601>",
+  "session_context": {
+    "session_id": "<session_id>",
+    "pipeline": "<auto-orchestrate|standalone>"
+  },
+  "inputs": {
+    "gate_id": "gate_1_intent_review|gate_2_scope_lock|gate_3_dependency_acceptance|gate_4_sprint_readiness",
+    "session_id": "<session_id>"
+  },
+  "outputs": {
+    "verdict": "PASS|FAIL",
+    "checklist_passed": 7,
+    "checklist_total": 7
+  },
+  "artifacts": [".orchestrate/<session>/gate-state.json"],
+  "processes_executed": ["P-004"],
+  "next_recommended_action": "<next gate or next phase command>",
+  "dispatch_context": {
+    "trigger_id": null,
+    "invoked_by": null
+  }
+}
+```
+
+3. For each process executed, append to `.pipeline-state/process-log/<process-id>.jsonl` (STATE-003).
+
+Note: The existing `gate-state.json` continues to be the authoritative gate state. The command receipt provides cross-pipeline visibility.
+
+If write fails, log warning and continue. See `_shared/protocols/cross-pipeline-state.md` for the full receipt schema.

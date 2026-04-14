@@ -92,6 +92,43 @@ For specialized process guidance beyond sprint delivery:
 | Sprint ceremony | `engineering-manager` | `product-manager` |
 | Dependency blocked | `technical-program-manager` | `engineering-manager` |
 
+## Receipt Writing (STATE-001)
+
+After completing an active development guidance session, write a receipt:
+
+1. `mkdir -p .pipeline-state/command-receipts .pipeline-state/process-log`
+2. Write `.pipeline-state/command-receipts/active-dev-<YYYYMMDD>-<HHMMSS>.json`:
+
+```json
+{
+  "command": "active-dev",
+  "receipt_id": "active-dev-<YYYYMMDD>-<HHMMSS>",
+  "timestamp": "<ISO-8601>",
+  "session_context": {
+    "session_id": "<orchestrate session_id if available, else null>",
+    "pipeline": "<auto-orchestrate|standalone>"
+  },
+  "inputs": {
+    "activity_type": "<sprint-execution|quality|security|documentation>"
+  },
+  "outputs": {
+    "processes_reviewed": ["P-030", "P-034"],
+    "guidance_given": "<summary of guidance provided>"
+  },
+  "artifacts": [],
+  "processes_executed": ["P-030", "P-034"],
+  "next_recommended_action": null,
+  "dispatch_context": {
+    "trigger_id": null,
+    "invoked_by": null
+  }
+}
+```
+
+3. For each process executed, append to `.pipeline-state/process-log/<process-id>.jsonl` (STATE-003).
+
+If write fails, log warning and continue. See `_shared/protocols/cross-pipeline-state.md` for the full receipt schema.
+
 ## Usage
 
 What sprint activity do you need help with? I can:

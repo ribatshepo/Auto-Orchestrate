@@ -70,6 +70,50 @@ When invoked via the Command Dispatcher (a dispatch context file exists at the i
 
 See `_shared/protocols/command-dispatch.md` for the full dispatch protocol.
 
+## Receipt Writing (STATE-001)
+
+After completing analysis (standalone or dispatch mode), write a receipt:
+
+1. `mkdir -p .pipeline-state/command-receipts .pipeline-state/process-log`
+2. Generate receipt ID: `security-<YYYYMMDD>-<HHMMSS>`
+3. Write `.pipeline-state/command-receipts/security-<YYYYMMDD>-<HHMMSS>.json`:
+
+```json
+{
+  "command": "security",
+  "receipt_id": "security-<YYYYMMDD>-<HHMMSS>",
+  "timestamp": "<ISO-8601>",
+  "session_context": {
+    "session_id": "<dispatch session_id or null>",
+    "pipeline": "<auto-orchestrate|auto-audit|auto-debug|standalone>"
+  },
+  "inputs": {
+    "mode": "<standalone|dispatch>",
+    "process_ids": ["P-038", "P-039"]
+  },
+  "outputs": {
+    "findings": [{"process": "P-038", "severity": "HIGH", "title": "..."}],
+    "severity_max": "HIGH"
+  },
+  "artifacts": [],
+  "processes_executed": ["P-038", "P-039"],
+  "next_recommended_action": null,
+  "dispatch_context": {
+    "trigger_id": "<TRIG-XXX or null>",
+    "invoked_by": "<session_id or null>"
+  }
+}
+```
+
+4. For each process executed, append to `.pipeline-state/process-log/<process-id>.jsonl` (STATE-003):
+```json
+{"process_id":"P-038","command_source":"security","session_id":"...","timestamp":"...","result":"completed","artifacts_produced":[],"receipt_id":"security-<YYYYMMDD>-<HHMMSS>"}
+```
+
+If `.pipeline-state/` does not exist, create via `mkdir -p`. If write fails, log warning and continue — receipt writing MUST NOT block command execution.
+
+See `_shared/protocols/cross-pipeline-state.md` for the full receipt schema.
+
 ## Related Commands
 
 - `/release-prep` — Pre-release security gate

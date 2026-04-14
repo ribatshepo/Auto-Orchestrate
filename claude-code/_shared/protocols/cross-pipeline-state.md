@@ -1,12 +1,12 @@
 # Cross-Pipeline Shared State Protocol
 
-**Version**: 1.0.0  
+**Version**: 2.0.0  
 **Status**: Active  
 **RFC 2119 Keywords**: MUST, SHOULD, MAY
 
 ## Overview
 
-The three autonomous pipeline commands (`auto-orchestrate`, `auto-audit`, `auto-debug`) operate with isolated session directories (`.orchestrate/`, `.audit/`, `.debug/`). This protocol defines a shared state layer at `.pipeline-state/` that enables cross-pipeline knowledge transfer without violating session isolation.
+The three autonomous pipeline commands (`auto-orchestrate`, `auto-audit`, `auto-debug`) operate with isolated session directories (`.orchestrate/`, `.audit/`, `.debug/`). This protocol defines a shared state layer at `.pipeline-state/` that enables cross-pipeline knowledge transfer without violating session isolation. As of v2.0.0, all 20 commands participate in the shared state layer via command receipts and process logging.
 
 ## Directory Structure
 
@@ -16,7 +16,17 @@ The three autonomous pipeline commands (`auto-orchestrate`, `auto-audit`, `auto-
 ├── fix-registry.jsonl         # Error → fix mappings from auto-debug
 ├── codebase-analysis.jsonl    # Codebase insights from any pipeline
 ├── escalation-log.jsonl       # Cross-pipeline escalation history
-└── pipeline-context.json      # Current pipeline state summary (overwritten)
+├── pipeline-context.json      # Current pipeline state summary (overwritten)
+├── command-receipts/           # Standardized output from every command (STATE-001)
+│   ├── <command>-<YYYYMMDD>-<HHMMSS>.json
+│   └── ...
+├── process-log/                # Per-process execution history (STATE-003)
+│   ├── P-001.jsonl
+│   └── ...P-093.jsonl
+└── workflow/                   # Workflow state integration
+    ├── active-session.json
+    ├── task-focus.json
+    └── dashboard-cache.json
 ```
 
 ## Stores
@@ -99,6 +109,129 @@ Read by: Target pipeline on startup
 }
 ```
 
+### command-receipts/ (one file per invocation)
+
+Written by: All commands (STATE-001)  
+Read by: Big Three at boot and stage transitions (STATE-002)
+
+Directory: `.pipeline-state/command-receipts/`  
+Filename pattern: `<command>-<YYYYMMDD>-<HHMMSS>.json`
+
+**Receipt Schema** (all fields required unless marked optional):
+
+```json
+{
+  "command": "<command-name>",
+  "receipt_id": "<command>-<YYYYMMDD>-<HHMMSS>",
+  "timestamp": "<ISO-8601>",
+  "session_context": {
+    "session_id": "<if applicable, else null>",
+    "pipeline": "<auto-orchestrate|auto-audit|auto-debug|standalone>"
+  },
+  "inputs": {},
+  "outputs": {},
+  "artifacts": [],
+  "processes_executed": ["P-XXX"],
+  "next_recommended_action": "<command or null>",
+  "dispatch_context": {
+    "trigger_id": "<if invoked via dispatch, else null>",
+    "invoked_by": "<pipeline session that dispatched, else null>"
+  }
+}
+```
+
+**Command-specific `inputs` and `outputs`**:
+
+| Command | `inputs` | `outputs` |
+|---------|----------|-----------|
+| new-project | `{ "project_name", "trigger_gate" }` | `{ "handoff_receipt_path", "session_id" }` |
+| gate-review | `{ "gate_id", "session_id" }` | `{ "verdict": "PASS\|FAIL", "checklist_passed", "checklist_total" }` |
+| sprint-ceremony | `{ "ceremony_type" }` | `{ "action_items": [], "sprint_goal" }` |
+| active-dev | `{ "activity_type" }` | `{ "processes_reviewed": [], "guidance_given" }` |
+| release-prep | `{ "release_name" }` | `{ "checklist_status": {}, "blocking_items": [] }` |
+| post-launch | `{ "activity_type" }` | `{ "metrics_reviewed": [], "action_items": [] }` |
+| security | `{ "mode", "process_ids": [] }` | `{ "findings": [], "severity_max" }` |
+| qa | `{ "mode", "process_ids": [] }` | `{ "findings": [], "severity_max" }` |
+| infra | `{ "mode", "process_ids": [] }` | `{ "findings": [], "severity_max" }` |
+| risk | `{ "mode", "process_ids": [] }` | `{ "findings": [], "risk_items": [] }` |
+| data-ml-ops | `{ "mode", "process_ids": [] }` | `{ "findings": [], "severity_max" }` |
+| org-ops | `{ "mode", "process_ids": [] }` | `{ "findings": [], "category" }` |
+| process-lookup | `{ "query" }` | `{ "matched_processes": [] }` |
+| assign-agent | `{ "task_description" }` | `{ "assigned_agent", "rationale" }` |
+| workflow | `{ "view_type" }` | `{ "gate_statuses": {} }` |
+| auto-orchestrate | `{ "task_description", "scope" }` | `{ "terminal_state", "stages_completed": [], "tasks_total", "tasks_completed" }` |
+| auto-audit | `{ "spec_path" }` | `{ "verdict", "compliance_score", "cycles_run" }` |
+| auto-debug | `{ "error_description" }` | `{ "errors_resolved", "errors_remaining", "escalations" }` |
+
+**Backward compatibility**: If `.pipeline-state/command-receipts/` does not exist, commands MUST create it via `mkdir -p`. If receipt writing fails (permissions, disk full), the command MUST log a warning and proceed — receipt writing is never a blocking operation.
+
+### process-log/ (append-only, per-process)
+
+Written by: Any command that executes a process (STATE-003)  
+Read by: `/process-lookup` for coverage stats, Big Three for gap analysis
+
+Directory: `.pipeline-state/process-log/`  
+One file per process: `P-001.jsonl`, `P-002.jsonl`, ... `P-093.jsonl`
+
+```json
+{
+  "process_id": "P-038",
+  "command_source": "security",
+  "session_id": "auto-orc-20260414-myapp",
+  "timestamp": "2026-04-14T10:30:00Z",
+  "result": "completed|skipped|blocked|deferred",
+  "artifacts_produced": ["threat-model.md"],
+  "receipt_id": "security-20260414-103000"
+}
+```
+
+**Write protocol**: Open file in append mode. Write one complete JSON line. Flush and close. Create file if it does not exist.
+
+### workflow/ (integrated workflow state)
+
+Written by: `workflow-start`, `workflow-end`, `workflow-focus`, `workflow-dash`  
+Read by: Big Three for session context awareness
+
+Directory: `.pipeline-state/workflow/`
+
+**active-session.json** (overwritten):
+```json
+{
+  "session_state": "active|ended",
+  "started_at": "<ISO-8601>",
+  "ended_at": "<ISO-8601 or null>",
+  "task_count": 12,
+  "tasks_completed": 5,
+  "tasks_in_progress": 1,
+  "last_updated": "<ISO-8601>"
+}
+```
+
+**task-focus.json** (overwritten):
+```json
+{
+  "focused_task_id": "<task-id or null>",
+  "focused_task_subject": "<subject>",
+  "focused_at": "<ISO-8601>",
+  "last_updated": "<ISO-8601>"
+}
+```
+
+**dashboard-cache.json** (overwritten):
+```json
+{
+  "generated_at": "<ISO-8601>",
+  "summary": {
+    "total": 12,
+    "completed": 5,
+    "in_progress": 1,
+    "blocked": 2,
+    "pending": 4
+  },
+  "blocked_tasks": [{"id": "...", "blocked_by": "..."}]
+}
+```
+
 ### pipeline-context.json (overwritten)
 
 Written by: Whichever pipeline is currently active  
@@ -117,42 +250,82 @@ Read by: Other pipelines on startup for situational awareness
 }
 ```
 
+## Constraints
+
+| ID | Rule |
+|----|------|
+| STATE-001 | **Universal receipt writing** — Every command invocation MUST write a receipt to `.pipeline-state/command-receipts/`. Receipt filename: `<command>-<YYYYMMDD>-<HHMMSS>.json`. Receipt schema defined in the command-receipts section above. Commands MUST create `.pipeline-state/command-receipts/` via `mkdir -p` if it does not exist. Receipt writing MUST NOT block command execution — log warnings on failure. |
+| STATE-002 | **Receipt consumption by Big Three** — `auto-orchestrate`, `auto-audit`, and `auto-debug` MUST read relevant receipts from `.pipeline-state/command-receipts/` at boot (during shared state initialization) and at each stage transition (during dispatch evaluation). Receipts older than the current session's `created_at` timestamp are treated as **context** (informational), not **directives** (actionable). Receipts from within the current session are actionable. |
+| STATE-003 | **Process execution logging** — When a command executes a process (P-001 through P-093), it MUST append a log entry to `.pipeline-state/process-log/<process-id>.jsonl`. This enables process coverage tracking across all commands and sessions. |
+
 ## Integration Points
 
 ### auto-orchestrate
 
 **On startup (Step 0f)**:
-1. `mkdir -p .pipeline-state`
+1. `mkdir -p .pipeline-state .pipeline-state/command-receipts .pipeline-state/process-log .pipeline-state/workflow`
 2. Read `pipeline-context.json` — if another pipeline was recently active, log context
 3. Read `escalation-log.jsonl` — consume unconsumed escalations targeted at auto-orchestrate
 4. Read `codebase-analysis.jsonl` — pass high-severity insights to researcher (Stage 0)
+5. Read `command-receipts/` (STATE-002) — scan for receipts from `/new-project`, `/gate-review`, `/security`, `/qa`, `/infra`, `/risk`, `/data-ml-ops`, `/org-ops`, `/sprint-ceremony`, `/release-prep`. Receipts predating this session are context; same-session receipts are actionable.
+6. Read `workflow/active-session.json` — if a workflow session is active, log task state for awareness
+7. Store `last_receipt_scan` timestamp for incremental scanning at stage transitions
+
+**At each stage transition (Step 4.8c)**: Re-scan `command-receipts/` for receipts written since `last_receipt_scan` (STATE-002). New actionable receipts with HIGH/CRITICAL findings are treated as equivalent to TRIG-012 dispatch conditions.
 
 **On Stage 0 completion**: Write research findings to `research-cache.jsonl`
 
-**On termination**: Update `pipeline-context.json` with final state
+**On termination**: Update `pipeline-context.json` with final state. Write receipt to `command-receipts/auto-orchestrate-<YYYYMMDD>-<HHMMSS>.json` (STATE-001). Write process log entries for all processes executed across stages (STATE-003).
 
 ### auto-audit
 
 **On startup (Step 0f)**:
-1. `mkdir -p .pipeline-state`
+1. `mkdir -p .pipeline-state .pipeline-state/command-receipts .pipeline-state/process-log`
 2. Read `fix-registry.jsonl` — known fixes may inform audit expectations
 3. Read `codebase-analysis.jsonl` — previous risk findings inform audit priorities
 4. Read `research-cache.jsonl` — avoid re-researching known packages
+5. Read `command-receipts/` (STATE-002) — scan for `/security` and `/qa` receipts. Recent security or QA reviews inform audit expectations — known issues can be matched against gap findings to avoid redundant reporting.
 
 **On audit completion**: Write file-level findings to `codebase-analysis.jsonl`
 
 **On remediation completion**: Write successful fixes to `fix-registry.jsonl`
 
+**On termination**: Write receipt to `command-receipts/auto-audit-<YYYYMMDD>-<HHMMSS>.json` (STATE-001). Write process log entries for all processes assessed (STATE-003).
+
 ### auto-debug
 
 **On startup (Step 0e)**:
-1. `mkdir -p .pipeline-state`
+1. `mkdir -p .pipeline-state .pipeline-state/command-receipts .pipeline-state/process-log`
 2. Read `fix-registry.jsonl` — check for known fixes matching current error fingerprint
 3. Read `codebase-analysis.jsonl` — known risks may inform diagnosis
+4. Read `command-receipts/` (STATE-002) — scan for `/infra` receipts. Infrastructure reviews may explain environment-related errors.
 
 **On fix verified**: Write error→fix mapping to `fix-registry.jsonl`
 
 **On escalation**: Write to `escalation-log.jsonl`
+
+**On termination**: Write receipt to `command-receipts/auto-debug-<YYYYMMDD>-<HHMMSS>.json` (STATE-001).
+
+### All other commands
+
+**Phase commands** (`sprint-ceremony`, `release-prep`, `post-launch`, `active-dev`):
+- On completion: Write receipt to `command-receipts/<command>-<YYYYMMDD>-<HHMMSS>.json` (STATE-001)
+- For each process executed: Append to `process-log/<process-id>.jsonl` (STATE-003)
+
+**Domain guides** (`security`, `qa`, `infra`, `risk`, `data-ml-ops`, `org-ops`):
+- On completion (standalone or dispatch mode): Write receipt to `command-receipts/<command>-<YYYYMMDD>-<HHMMSS>.json` (STATE-001)
+- For each process executed: Append to `process-log/<process-id>.jsonl` (STATE-003)
+- In dispatch mode: `dispatch_context` fields populated from the trigger context
+
+**State commands** (`new-project`, `gate-review`):
+- On completion: Write receipt to `command-receipts/<command>-<YYYYMMDD>-<HHMMSS>.json` (STATE-001) **in addition to** their existing state artifacts (`handoff-receipt.json`, `gate-state.json`)
+- For each process executed: Append to `process-log/<process-id>.jsonl` (STATE-003)
+
+**Utility commands** (`process-lookup`, `assign-agent`, `workflow`):
+- On completion: Write receipt to `command-receipts/<command>-<YYYYMMDD>-<HHMMSS>.json` (STATE-001)
+
+**Workflow skills** (`workflow-start`, `workflow-end`, `workflow-focus`, `workflow-dash`):
+- Write to `workflow/` directory as defined in the workflow/ store section above
 
 ## Concurrency Safety
 
@@ -165,7 +338,7 @@ All `.jsonl` stores are append-only. Writers MUST:
 
 ## Backward Compatibility
 
-`.pipeline-state/` is optional. If the directory doesn't exist, pipelines proceed without shared state. The first pipeline to run creates it. No pipeline should fail if `.pipeline-state/` is missing or if any store file is empty/missing.
+`.pipeline-state/` is optional. If the directory doesn't exist, commands proceed without shared state. The first command to run creates it via `mkdir -p`. No command should fail if `.pipeline-state/` is missing or if any store file is empty/missing. Subdirectories (`command-receipts/`, `process-log/`, `workflow/`) are also optional — commands create them via `mkdir -p` on first write. If reading and the directory is missing, treat as empty (no receipts exist yet).
 
 ## Privacy
 

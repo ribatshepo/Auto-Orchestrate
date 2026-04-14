@@ -69,6 +69,44 @@ When invoked via the Command Dispatcher (a dispatch context file exists at the i
 
 See `_shared/protocols/command-dispatch.md` for the full dispatch protocol.
 
+## Receipt Writing (STATE-001)
+
+After completing analysis (standalone or dispatch mode), write a receipt:
+
+1. `mkdir -p .pipeline-state/command-receipts .pipeline-state/process-log`
+2. Write `.pipeline-state/command-receipts/data-ml-ops-<YYYYMMDD>-<HHMMSS>.json`:
+
+```json
+{
+  "command": "data-ml-ops",
+  "receipt_id": "data-ml-ops-<YYYYMMDD>-<HHMMSS>",
+  "timestamp": "<ISO-8601>",
+  "session_context": {
+    "session_id": "<dispatch session_id or null>",
+    "pipeline": "<auto-orchestrate|auto-audit|auto-debug|standalone>"
+  },
+  "inputs": {
+    "mode": "<standalone|dispatch>",
+    "process_ids": ["P-049", "P-050"]
+  },
+  "outputs": {
+    "findings": [{"process": "P-049", "severity": "HIGH", "title": "..."}],
+    "severity_max": "HIGH"
+  },
+  "artifacts": [],
+  "processes_executed": ["P-049", "P-050"],
+  "next_recommended_action": null,
+  "dispatch_context": {
+    "trigger_id": "<TRIG-XXX or null>",
+    "invoked_by": "<session_id or null>"
+  }
+}
+```
+
+3. For each process executed, append to `.pipeline-state/process-log/<process-id>.jsonl` (STATE-003).
+
+If write fails, log warning and continue — receipt writing MUST NOT block command execution. See `_shared/protocols/cross-pipeline-state.md` for the full receipt schema.
+
 ## Related Commands
 
 - `/active-dev` — Sprint execution (may invoke data/ML processes)

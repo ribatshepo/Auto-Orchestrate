@@ -85,6 +85,46 @@ To start a new project, I will:
 
 What is the project you'd like to start? I'll begin with Stage 1 (Intent & Strategic Alignment).
 
+## Receipt Writing (STATE-001)
+
+After completing any stage of project initiation, write a receipt:
+
+1. `mkdir -p .pipeline-state/command-receipts .pipeline-state/process-log`
+2. Write `.pipeline-state/command-receipts/new-project-<YYYYMMDD>-<HHMMSS>.json`:
+
+```json
+{
+  "command": "new-project",
+  "receipt_id": "new-project-<YYYYMMDD>-<HHMMSS>",
+  "timestamp": "<ISO-8601>",
+  "session_context": {
+    "session_id": "<generated session_id>",
+    "pipeline": "standalone"
+  },
+  "inputs": {
+    "project_name": "<from user>",
+    "trigger_gate": "gate2|gate4"
+  },
+  "outputs": {
+    "handoff_receipt_path": ".orchestrate/<session>/handoff-receipt.json",
+    "session_id": "<generated>"
+  },
+  "artifacts": [".orchestrate/<session>/handoff-receipt.json"],
+  "processes_executed": ["P-001", "P-002", "P-003", "P-004", "P-007"],
+  "next_recommended_action": "auto-orchestrate",
+  "dispatch_context": {
+    "trigger_id": null,
+    "invoked_by": null
+  }
+}
+```
+
+3. For each process executed, append to `.pipeline-state/process-log/<process-id>.jsonl` (STATE-003).
+
+Note: The existing `handoff-receipt.json` is NOT replaced. It continues to serve as the direct auto-orchestrate handoff artifact. The command receipt is the cross-pipeline visibility layer.
+
+If write fails, log warning and continue. See `_shared/protocols/cross-pipeline-state.md` for the full receipt schema.
+
 ## Phase 5: Bridge Protocol Handoff (Auto-Orchestrate Launch)
 
 After completing the 4-stage project initiation pipeline, you can hand off to /auto-orchestrate for autonomous implementation.

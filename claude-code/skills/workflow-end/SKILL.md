@@ -115,6 +115,29 @@ Session successfully ended when:
 - Completed tasks remain in the list for reference
 - Use `/workflow-dash` anytime to check project state
 
+## Shared State Integration
+
+After ending the session, update workflow state:
+
+```bash
+mkdir -p .pipeline-state/workflow
+```
+
+Write `.pipeline-state/workflow/active-session.json` (atomic write via `.tmp` + rename):
+```json
+{
+  "session_state": "ended",
+  "started_at": "<from previous active-session.json>",
+  "ended_at": "<ISO-8601>",
+  "task_count": 12,
+  "tasks_completed": 10,
+  "tasks_in_progress": 0,
+  "last_updated": "<ISO-8601>"
+}
+```
+
+If `.pipeline-state/` does not exist or write fails, log warning and continue — this is non-blocking.
+
 ## Inputs
 
 - `SESSION_ID` (optional) — If provided, scopes all checkpoint reads/writes to `~/.claude/sessions/<SESSION_ID>-tasks.json`. Without it, falls back to `~/.claude/sessions/workflow-tasks.json`. Passed automatically by auto-orchestrate and session-manager.

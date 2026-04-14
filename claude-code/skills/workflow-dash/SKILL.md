@@ -114,6 +114,31 @@ Dashboard is complete when user understands:
 - **Planning**: Identify what needs attention
 - **Handoff**: Share project state with team/agents
 
+## Shared State Integration
+
+After generating the dashboard, cache it for cross-pipeline visibility:
+
+```bash
+mkdir -p .pipeline-state/workflow
+```
+
+Write `.pipeline-state/workflow/dashboard-cache.json` (atomic write via `.tmp` + rename):
+```json
+{
+  "generated_at": "<ISO-8601>",
+  "summary": {
+    "total": 12,
+    "completed": 5,
+    "in_progress": 1,
+    "blocked": 2,
+    "pending": 4
+  },
+  "blocked_tasks": [{"id": "...", "blocked_by": "..."}]
+}
+```
+
+If `.pipeline-state/` does not exist or write fails, log warning and continue — this is non-blocking.
+
 ## Inputs
 
 - `SESSION_ID` (optional) — If provided, scopes all checkpoint reads/writes to `~/.claude/sessions/<SESSION_ID>-tasks.json`. Without it, falls back to `~/.claude/sessions/workflow-tasks.json`. Passed automatically by auto-orchestrate and session-manager.

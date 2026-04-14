@@ -196,6 +196,54 @@ Agenda:
 5. Dependencies identified
 6. Stories marked "ready" or sent back for more detail
 
+## Receipt Writing (STATE-001)
+
+After completing a ceremony facilitation, write a receipt:
+
+1. `mkdir -p .pipeline-state/command-receipts .pipeline-state/process-log`
+2. Write `.pipeline-state/command-receipts/sprint-ceremony-<YYYYMMDD>-<HHMMSS>.json`:
+
+```json
+{
+  "command": "sprint-ceremony",
+  "receipt_id": "sprint-ceremony-<YYYYMMDD>-<HHMMSS>",
+  "timestamp": "<ISO-8601>",
+  "session_context": {
+    "session_id": "<orchestrate session_id if available, else null>",
+    "pipeline": "<auto-orchestrate|standalone>"
+  },
+  "inputs": {
+    "ceremony_type": "<planning|standup|review|retrospective|refinement>"
+  },
+  "outputs": {
+    "action_items": ["..."],
+    "sprint_goal": "<if planning ceremony>",
+    "ceremony_completed": true
+  },
+  "artifacts": [],
+  "processes_executed": ["P-022"],
+  "next_recommended_action": null,
+  "dispatch_context": {
+    "trigger_id": null,
+    "invoked_by": null
+  }
+}
+```
+
+3. For each process executed, append to `.pipeline-state/process-log/<process-id>.jsonl` (STATE-003).
+
+**Ceremony-to-process mapping**:
+
+| Ceremony | Processes |
+|----------|-----------|
+| Sprint Planning | P-022, P-023, P-024 |
+| Daily Standup | P-026 |
+| Sprint Review | P-027 |
+| Sprint Retrospective | P-028 |
+| Backlog Refinement | P-029 |
+
+If write fails, log warning and continue. See `_shared/protocols/cross-pipeline-state.md` for the full receipt schema.
+
 ## Usage
 
 Which ceremony do you need help with? Provide the ceremony name or I'll help you choose based on your sprint cadence.

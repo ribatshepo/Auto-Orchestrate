@@ -140,6 +140,29 @@ Session successfully started when:
 - Use `/workflow-dash` for full project dashboard
 - Use `/workflow-end` when done to wrap up the session
 
+## Shared State Integration
+
+After displaying the session overview, write workflow state for cross-pipeline visibility:
+
+```bash
+mkdir -p .pipeline-state/workflow
+```
+
+Write `.pipeline-state/workflow/active-session.json` (atomic write via `.tmp` + rename):
+```json
+{
+  "session_state": "active",
+  "started_at": "<ISO-8601>",
+  "ended_at": null,
+  "task_count": 12,
+  "tasks_completed": 5,
+  "tasks_in_progress": 1,
+  "last_updated": "<ISO-8601>"
+}
+```
+
+If `.pipeline-state/` does not exist or write fails, log warning and continue — this is non-blocking.
+
 ## Inputs
 
 - `SESSION_ID` (optional) — If provided, scopes all checkpoint reads/writes to `~/.claude/sessions/<SESSION_ID>-tasks.json`. Without it, falls back to `~/.claude/sessions/workflow-tasks.json`. Passed automatically by auto-orchestrate and session-manager.

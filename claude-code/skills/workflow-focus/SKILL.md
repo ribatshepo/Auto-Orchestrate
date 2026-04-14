@@ -130,6 +130,26 @@ Focus is properly set when:
 - Use `/workflow-dash` to see the full project state
 - Mark tasks complete with `TaskUpdate` when done
 
+## Shared State Integration
+
+After setting or displaying focus, update workflow state:
+
+```bash
+mkdir -p .pipeline-state/workflow
+```
+
+Write `.pipeline-state/workflow/task-focus.json` (atomic write via `.tmp` + rename):
+```json
+{
+  "focused_task_id": "<task-id or null>",
+  "focused_task_subject": "<subject>",
+  "focused_at": "<ISO-8601>",
+  "last_updated": "<ISO-8601>"
+}
+```
+
+If `.pipeline-state/` does not exist or write fails, log warning and continue — this is non-blocking.
+
 ## Inputs
 
 - `SESSION_ID` (optional) — If provided, scopes all checkpoint reads/writes to `~/.claude/sessions/<SESSION_ID>-tasks.json`. Without it, falls back to `~/.claude/sessions/workflow-tasks.json`. Passed automatically by auto-orchestrate and session-manager.

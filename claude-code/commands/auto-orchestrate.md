@@ -100,8 +100,13 @@ Throughout the pipeline system, components are classified as follows:
 | docs-lookup | **skill** | auto-orchestrate (Stage 6, via technical-writer) |
 | docs-write | **skill** | auto-orchestrate (Stage 6, via technical-writer) |
 | docs-review | **skill** | auto-orchestrate (Stage 6, via technical-writer) |
+| spec-compliance | **skill** | auto-orchestrate (Stage 5, via validator) |
+| refactor-analyzer | **skill** | auto-orchestrate (Stage 4.5, via codebase-stats) |
+| dependency-analyzer | **skill** | auto-orchestrate (P3, via technical-program-manager) |
+| production-code-workflow | **skill** | auto-orchestrate (Stage 3, via software-engineer) |
+| dev-workflow | **skill** | auto-orchestrate (Stage 3, via software-engineer) |
 
-> **TAXONOMY-001**: `spec-creator` and `validator` are ALWAYS skills, never agents. They are invoked inline by the orchestrator's subagents. Any document that classifies them as agents is in error — this table is authoritative.
+> **TAXONOMY-001**: `spec-creator`, `validator`, `spec-compliance`, `refactor-analyzer`, `dependency-analyzer`, `production-code-workflow`, `dev-workflow`, and `codebase-stats` are ALWAYS skills, never agents. They are invoked inline by the orchestrator's subagents. Any document that classifies them as agents is in error — this table is authoritative.
 
 ### Pipeline Component Matrix
 
@@ -109,15 +114,20 @@ Throughout the pipeline system, components are classified as follows:
 |-------|---------------|------|-----------|-------------------|
 | P1-P2 | product-manager | agent | YES | `agents[]` where `name == "product-manager"` |
 | P3 | technical-program-manager | agent | YES | `agents[]` where `name == "technical-program-manager"` |
+| P3 | dependency-analyzer | skill | YES | `skills[]` where `name == "dependency-analyzer"` |
 | P4 | engineering-manager | agent | YES | `agents[]` where `name == "engineering-manager"` |
 | 0 | researcher | agent | YES | `agents[]` where `name == "researcher"` |
 | 1 | product-manager | agent | YES | `agents[]` where `name == "product-manager"` |
 | 2 | spec-creator | skill | YES | `skills[]` where `name == "spec-creator"` |
 | 3 | software-engineer | agent | YES (one of) | `agents[]` where `name == "software-engineer"` |
+| 3 | production-code-workflow | skill | YES | `skills[]` where `name == "production-code-workflow"` |
+| 3 | dev-workflow | skill | YES | `skills[]` where `name == "dev-workflow"` |
 | 3 | library-implementer-python | skill | NO (alternative) | `skills[]` where `name == "library-implementer-python"` |
 | 4 | test-writer-pytest | skill | NO (Stage 4 optional) | `skills[]` where `name == "test-writer-pytest"` |
 | 4.5 | codebase-stats | skill | YES | `skills[]` where `name == "codebase-stats"` |
+| 4.5 | refactor-analyzer | skill | YES | `skills[]` where `name == "refactor-analyzer"` |
 | 5 | validator | skill | YES | `skills[]` where `name == "validator"` |
+| 5 | spec-compliance | skill | YES | `skills[]` where `name == "spec-compliance"` |
 | 6 | technical-writer | agent | YES | `agents[]` where `name == "technical-writer"` |
 
 ### Verification Steps
@@ -130,7 +140,7 @@ Throughout the pipeline system, components are classified as follows:
    c. Record result in `manifest_validation` object
 
 4. Classify results:
-   - **MANDATORY MISSING**: researcher, product-manager, technical-program-manager, engineering-manager, spec-creator, software-engineer, codebase-stats, validator, technical-writer
+   - **MANDATORY MISSING**: researcher, product-manager, technical-program-manager, engineering-manager, spec-creator, software-engineer, production-code-workflow, dev-workflow, codebase-stats, refactor-analyzer, validator, spec-compliance, dependency-analyzer, technical-writer
      - Abort with: `[MANIFEST-001] Mandatory {type} "{name}" not found in manifest. Stage {N} will fail. Aborting.`
    - **OPTIONAL MISSING**: library-implementer-python, test-writer-pytest
      - Warn: `[MANIFEST-WARN] Optional {type} "{name}" not found. Stage {N} may use alternatives.`
@@ -141,16 +151,21 @@ Throughout the pipeline system, components are classified as follows:
 Pre-flight Manifest Check:
   ✓ product-manager (Stage P1-P2 + Stage 1, agent)
   ✓ technical-program-manager (Stage P3, agent)
+  ✓ dependency-analyzer (Stage P3, skill)
   ✓ engineering-manager (Stage P4, agent)
   ✓ researcher (Stage 0, agent)
   ✓ spec-creator (Stage 2, skill)
   ✓ software-engineer (Stage 3, agent)
+  ✓ production-code-workflow (Stage 3, skill)
+  ✓ dev-workflow (Stage 3, skill)
   ? library-implementer-python (Stage 3, optional skill)
   ? test-writer-pytest (Stage 4, optional skill)
   ✓ codebase-stats (Stage 4.5, skill)
+  ✓ refactor-analyzer (Stage 4.5, skill)
   ✓ validator (Stage 5, skill)
+  ✓ spec-compliance (Stage 5, skill)
   ✓ technical-writer (Stage 6, agent)
-  Result: 10/10 mandatory present, 2 optional (0 missing)
+  Result: 15/15 mandatory present, 2 optional (0 missing)
 ```
 
 6. Log: `[MANIFEST] Verified {checked_count}/{total_count} pipeline components. Missing: {missing_list or "none"}`
@@ -162,8 +177,8 @@ Record verification result in checkpoint:
 {
   "manifest_validation": {
     "checked_at": "<ISO-8601>",
-    "total_checked": 12,
-    "mandatory_present": 10,
+    "total_checked": 17,
+    "mandatory_present": 15,
     "mandatory_missing": [],
     "optional_present": ["library-implementer-python", "test-writer-pytest"],
     "optional_missing": [],
@@ -171,15 +186,20 @@ Record verification result in checkpoint:
     "components": [
       { "name": "product-manager", "type": "agent", "stage": "P1-P2", "mandatory": true, "found": true },
       { "name": "technical-program-manager", "type": "agent", "stage": "P3", "mandatory": true, "found": true },
+      { "name": "dependency-analyzer", "type": "skill", "stage": "P3", "mandatory": true, "found": true },
       { "name": "engineering-manager", "type": "agent", "stage": "P4", "mandatory": true, "found": true },
       { "name": "researcher", "type": "agent", "stage": 0, "mandatory": true, "found": true },
       { "name": "product-manager", "type": "agent", "stage": 1, "mandatory": true, "found": true },
       { "name": "spec-creator", "type": "skill", "stage": 2, "mandatory": true, "found": true },
       { "name": "software-engineer", "type": "agent", "stage": 3, "mandatory": true, "found": true },
+      { "name": "production-code-workflow", "type": "skill", "stage": 3, "mandatory": true, "found": true },
+      { "name": "dev-workflow", "type": "skill", "stage": 3, "mandatory": true, "found": true },
       { "name": "library-implementer-python", "type": "skill", "stage": 3, "mandatory": false, "found": true },
       { "name": "test-writer-pytest", "type": "skill", "stage": 4, "mandatory": false, "found": true },
       { "name": "codebase-stats", "type": "skill", "stage": 4.5, "mandatory": true, "found": true },
+      { "name": "refactor-analyzer", "type": "skill", "stage": 4.5, "mandatory": true, "found": true },
       { "name": "validator", "type": "skill", "stage": 5, "mandatory": true, "found": true },
+      { "name": "spec-compliance", "type": "skill", "stage": 5, "mandatory": true, "found": true },
       { "name": "technical-writer", "type": "agent", "stage": 6, "mandatory": true, "found": true }
     ]
   }
@@ -385,6 +405,7 @@ ELSE:
 | **Gate** | Dependency Acceptance |
 | **Gate Pass Criteria** | Every dependency has named owner + "needed by" date; critical path documented; escalation paths defined for all blocked dependencies |
 | **Processes Triggered** | P-015 (Cross-Team Dependency Registration), P-016 (Critical Path Analysis) |
+| **Skills Invoked** | `dependency-analyzer` — Read `~/.claude/skills/dependency-analyzer/SKILL.md` and run dependency analysis to inform the Dependency Register and Critical Path |
 | **max_turns** | 20 |
 
 **Dependency Charter Template** (agent MUST produce all 4 sections):
@@ -393,6 +414,13 @@ ELSE:
 2. **Shared Resource Conflicts** -- table with columns: Resource, Competing Demands, Resolution
 3. **Critical Path** -- sequential dependency chain showing minimum timeline
 4. **Communication Protocol** -- table with columns: Mechanism, Cadence, Participants, Purpose
+
+**Dependency Analysis Skill Integration**:
+Before producing the Dependency Charter, the technical-program-manager MUST:
+1. Read `~/.claude/skills/dependency-analyzer/SKILL.md`
+2. Run dependency analysis on the project to extract source-level dependencies, detect circular imports, and validate architecture layers
+3. Use the cycle detection and layer validation outputs to populate the Dependency Register (section 1) and Critical Path (section 3)
+4. Flag any circular dependencies discovered as blockers in the Escalation Path column
 
 **Dependency Acceptance Gate Logic**:
 
@@ -724,7 +752,7 @@ Ensure the `.domain/` and `.pipeline-state/` directories exist at the project ro
 
 ```bash
 mkdir -p .domain
-mkdir -p .pipeline-state
+mkdir -p .pipeline-state .pipeline-state/command-receipts .pipeline-state/process-log .pipeline-state/workflow
 ```
 
 **`.domain/`** persists **cross-session, cross-command** domain knowledge (research findings, error→fix mappings, patterns, architecture decisions, codebase analysis, user preferences). All stores are append-only JSONL with file locking for concurrency safety. Pass `DOMAIN_MEMORY_DIR=.domain` in the orchestrator spawn prompt.
@@ -736,8 +764,16 @@ mkdir -p .pipeline-state
 2. Read `.pipeline-state/codebase-analysis.jsonl` — pass high-severity insights to researcher prompt
 3. Read `.pipeline-state/pipeline-context.json` — log if another pipeline was recently active
 4. Pass `PIPELINE_STATE_DIR=.pipeline-state` in the orchestrator spawn prompt
+5. Read `.pipeline-state/command-receipts/` (STATE-002) — scan for receipts from `/new-project`, `/gate-review`, `/security`, `/qa`, `/infra`, `/risk`, `/data-ml-ops`, `/org-ops`, `/sprint-ceremony`, `/release-prep`. Receipts predating this session's `created_at` are **context** (logged, not acted upon). Receipts from within the current session or with `dispatch_context.invoked_by` matching this session are **actionable** (injected into relevant stage context).
+6. Read `.pipeline-state/workflow/active-session.json` — if a workflow session is active, log task state summary for awareness
+7. Store `last_receipt_scan` timestamp in checkpoint for incremental scanning at stage transitions
 
-**On termination**: Update `.pipeline-state/pipeline-context.json` with final session state.
+**At each stage transition (Step 4.8c)**: Before evaluating dispatch triggers, re-scan `.pipeline-state/command-receipts/` for receipts written since `last_receipt_scan` (STATE-002). This catches receipts from domain guides invoked standalone or from other commands run in parallel. Update `last_receipt_scan`. For each new actionable receipt: if it has `next_recommended_action` pointing to a Tier 1 command, display `[DISPATCH-SUGGEST]` per existing Tier 1 protocol; if it has findings with severity HIGH or CRITICAL, treat as equivalent to TRIG-012 condition.
+
+**On termination**:
+- Update `.pipeline-state/pipeline-context.json` with final session state
+- Write receipt to `.pipeline-state/command-receipts/auto-orchestrate-<YYYYMMDD>-<HHMMSS>.json` (STATE-001) with: `inputs: { "task_description", "scope" }`, `outputs: { "terminal_state", "stages_completed": [], "tasks_total", "tasks_completed" }`, `processes_executed` aggregated from all stage receipts, `next_recommended_action`: `"release-prep"` if completed, `"auto-debug"` if failed with errors, `null` otherwise
+- Write process log entries for all processes executed across stages (STATE-003) to `.pipeline-state/process-log/<process-id>.jsonl`
 
 ### 0g. Project Type Detection
 
@@ -1778,8 +1814,8 @@ After dispatch evaluation, check if the orchestrator reported domain agent activ
   - Stage 1: `product-manager`, blockedBy Stage 0
   - Stage 2: `spec-creator`, blockedBy Stage 1
   - Stage 4: `test-writer-pytest`, blockedBy Stage 3 (**optional** — inject only if product-manager produced test tasks)
-  - Stage 4.5: `codebase-stats`, blockedBy Stage 3
-  - Stage 5: `validator`, blockedBy Stage 4.5
+  - Stage 4.5: `codebase-stats` + `refactor-analyzer`, blockedBy Stage 3
+  - Stage 5: `validator` + `spec-compliance` (SPEC_PATH=`.orchestrate/<SESSION_ID>/stage-2/`), blockedBy Stage 4.5
   - Stage 6: `technical-writer`, blockedBy Stage 5
 
 **4.10 Evaluate termination** (see Step 5).
@@ -2506,12 +2542,15 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns and file paths.
 - IMPL-001: No placeholders. IMPL-006: Enterprise production-ready. IMPL-008: 0 security issues. IMPL-013/MAIN-014: No auto-commit.
 - IMPL-014: MUST read Stage 0 research. Apply all remedies. MUST NOT use CVE-blocked packages. Pin to CVE-free versions.
 - IMPL-015: MUST use exact versions from researcher's "Recommended Versions" table. If the recommended version's API differs from expected patterns, emit `[IMPL-FEEDBACK] Package: {name}@{version}, Issue: {description}` and HALT — orchestrator re-spawns researcher (RES-013). Max 2 feedback loops; after 2nd, proceed with best info or escalate to user.
+- **IMPL-016**: MUST read `~/.claude/skills/production-code-workflow/SKILL.md` AND `~/.claude/skills/dev-workflow/SKILL.md` BEFORE writing any code. Apply production-code-workflow detection patterns (no placeholders, no hardcoded secrets, no empty implementations) and dev-workflow commit conventions throughout implementation.
 
 **codebase-stats** (Stage 4.5 — mandatory after implementation):
 - TODO/FIXME/HACK counts, large files, complex functions. Compare against previous.
+- MUST ALSO read and execute `~/.claude/skills/refactor-analyzer/SKILL.md` — run complexity analysis, identify refactoring candidates, and produce extraction plan. Output feeds Stage 5 validation as a quality signal.
 
 **validator** (Stage 5 — mandatory after implementation):
 - Zero-error gate: 0 errors, 0 warnings (MAIN-006).
+- **SPEC-COMPLIANCE-001**: MUST read `~/.claude/skills/spec-compliance/SKILL.md` and execute spec-compliance check with `SPEC_PATH=.orchestrate/<SESSION_ID>/stage-2/`, `PROJECT_ROOT=.`, `COMPLIANCE_THRESHOLD=90`. Both validator AND spec-compliance must pass for Stage 5 to complete. Output: `.orchestrate/<SESSION_ID>/stage-5/compliance-report.md`.
 - MANDATORY: User journey testing (CRUD, auth, navigation, error handling).
 - MANDATORY: Feature functionality testing per implemented feature.
 - Docker available: invoke docker-validator. Otherwise: API-level/code verification.

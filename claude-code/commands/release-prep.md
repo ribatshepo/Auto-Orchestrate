@@ -78,6 +78,52 @@ Post-Release:
 [ ] Stakeholders notified
 ```
 
+## Receipt Writing (STATE-001)
+
+After completing release preparation, write a receipt:
+
+1. `mkdir -p .pipeline-state/command-receipts .pipeline-state/process-log`
+2. Write `.pipeline-state/command-receipts/release-prep-<YYYYMMDD>-<HHMMSS>.json`:
+
+```json
+{
+  "command": "release-prep",
+  "receipt_id": "release-prep-<YYYYMMDD>-<HHMMSS>",
+  "timestamp": "<ISO-8601>",
+  "session_context": {
+    "session_id": "<orchestrate session_id if available, else null>",
+    "pipeline": "<auto-orchestrate|standalone>"
+  },
+  "inputs": {
+    "release_name": "<user-provided>"
+  },
+  "outputs": {
+    "checklist_status": {
+      "performance_testing": "pass|fail|skipped",
+      "infra_provisioned": "pass|fail|skipped",
+      "cicd_verified": "pass|fail|skipped",
+      "monitoring_configured": "pass|fail|skipped",
+      "runbooks_written": "pass|fail|skipped",
+      "release_notes_drafted": "pass|fail|skipped",
+      "cab_review_completed": "pass|fail|skipped|n/a",
+      "rollback_plan_documented": "pass|fail|skipped"
+    },
+    "blocking_items": ["CAB review not completed"]
+  },
+  "artifacts": [],
+  "processes_executed": ["P-035", "P-044", "P-045", "P-048", "P-059", "P-061", "P-076"],
+  "next_recommended_action": "post-launch",
+  "dispatch_context": {
+    "trigger_id": null,
+    "invoked_by": null
+  }
+}
+```
+
+3. For each process executed, append to `.pipeline-state/process-log/<process-id>.jsonl` (STATE-003).
+
+If write fails, log warning and continue. See `_shared/protocols/cross-pipeline-state.md` for the full receipt schema.
+
 ## Usage
 
 What release are you preparing? I'll help you:

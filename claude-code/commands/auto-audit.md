@@ -258,7 +258,7 @@ If FAIL: log `[AUD-WARN] Orchestrator agent not found in manifest — remediatio
 
 ### 0f. Domain Memory and Shared State Initialization
 
-Ensure `.domain/` and `.pipeline-state/` exist: `mkdir -p .domain .pipeline-state`. Pass `DOMAIN_MEMORY_DIR=.domain` and `PIPELINE_STATE_DIR=.pipeline-state` in auditor and orchestrator spawn prompts.
+Ensure `.domain/` and `.pipeline-state/` exist: `mkdir -p .domain .pipeline-state .pipeline-state/command-receipts .pipeline-state/process-log`. Pass `DOMAIN_MEMORY_DIR=.domain` and `PIPELINE_STATE_DIR=.pipeline-state` in auditor and orchestrator spawn prompts.
 
 **Domain memory integration for auditing:**
 - **Before audit**: Query `codebase_analysis` for previously identified risks on the same files
@@ -267,10 +267,10 @@ Ensure `.domain/` and `.pipeline-state/` exist: `mkdir -p .domain .pipeline-stat
 - **After remediation**: Append successful fixes to `fix_registry`
 
 **Shared state integration** (see `_shared/protocols/cross-pipeline-state.md`):
-- **On startup**: Read `.pipeline-state/fix-registry.jsonl` for known fixes, `.pipeline-state/codebase-analysis.jsonl` for prior risk findings, `.pipeline-state/research-cache.jsonl` for cached research
+- **On startup**: Read `.pipeline-state/fix-registry.jsonl` for known fixes, `.pipeline-state/codebase-analysis.jsonl` for prior risk findings, `.pipeline-state/research-cache.jsonl` for cached research. Read `.pipeline-state/command-receipts/` (STATE-002) for `/security` and `/qa` receipts — recent security or QA reviews inform audit expectations (known issues can be matched against gap findings to avoid redundant reporting).
 - **After audit**: Write file-level findings to `.pipeline-state/codebase-analysis.jsonl`
 - **After remediation**: Write verified fixes to `.pipeline-state/fix-registry.jsonl`
-- **On termination**: Update `.pipeline-state/pipeline-context.json` with audit state
+- **On termination**: Update `.pipeline-state/pipeline-context.json` with audit state. Write receipt to `.pipeline-state/command-receipts/auto-audit-<YYYYMMDD>-<HHMMSS>.json` (STATE-001) with: `inputs: { "spec_path" }`, `outputs: { "verdict", "compliance_score", "cycles_run" }`, `next_recommended_action`: `"auto-orchestrate"` if FAIL (remediation needed), `"release-prep"` if PASS. Write process log entries for all processes assessed (STATE-003) to `.pipeline-state/process-log/<process-id>.jsonl`.
 
 ---
 

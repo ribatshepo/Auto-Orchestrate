@@ -172,7 +172,7 @@ If FAIL: abort with `[DBG-GAP-002] Manifest missing or debugger agent not found 
 
 ### 0e. Domain Memory and Shared State Initialization
 
-Ensure `.domain/` and `.pipeline-state/` exist: `mkdir -p .domain .pipeline-state`. Pass `DOMAIN_MEMORY_DIR=.domain` and `PIPELINE_STATE_DIR=.pipeline-state` in debugger spawn prompts.
+Ensure `.domain/` and `.pipeline-state/` exist: `mkdir -p .domain .pipeline-state .pipeline-state/command-receipts .pipeline-state/process-log`. Pass `DOMAIN_MEMORY_DIR=.domain` and `PIPELINE_STATE_DIR=.pipeline-state` in debugger spawn prompts.
 
 **Domain memory integration for debugging:**
 - **Before diagnosis**: Query `fix_registry` for the error fingerprint — if a known fix exists with `verification_result: "pass"`, suggest it immediately
@@ -180,10 +180,10 @@ Ensure `.domain/` and `.pipeline-state/` exist: `mkdir -p .domain .pipeline-stat
 - **After diagnosis**: Append codebase findings to `codebase_analysis` for future reference
 
 **Shared state integration** (see `_shared/protocols/cross-pipeline-state.md`):
-- **On startup**: Read `.pipeline-state/fix-registry.jsonl` for known fixes matching current error fingerprint. Read `.pipeline-state/codebase-analysis.jsonl` for known risks that may inform diagnosis.
+- **On startup**: Read `.pipeline-state/fix-registry.jsonl` for known fixes matching current error fingerprint. Read `.pipeline-state/codebase-analysis.jsonl` for known risks that may inform diagnosis. Read `.pipeline-state/command-receipts/` (STATE-002) for `/infra` receipts — infrastructure reviews may explain environment-related errors.
 - **After fix verified**: Write error→fix mapping to `.pipeline-state/fix-registry.jsonl`
 - **On escalation to auto-orchestrate**: Write to `.pipeline-state/escalation-log.jsonl`
-- **On termination**: Update `.pipeline-state/pipeline-context.json` with debug state
+- **On termination**: Update `.pipeline-state/pipeline-context.json` with debug state. Write receipt to `.pipeline-state/command-receipts/auto-debug-<YYYYMMDD>-<HHMMSS>.json` (STATE-001) with: `inputs: { "error_description" }`, `outputs: { "errors_resolved", "errors_remaining", "escalations" }`, `next_recommended_action`: `"auto-orchestrate"` if escalation, `null` if resolved.
 
 ### 0f. Human-Input Treatment
 

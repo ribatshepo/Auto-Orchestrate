@@ -67,6 +67,43 @@ Quarterly: Process health review (P-071)
 | Project retrospective | `engineering-manager` | all participants |
 | Architecture drift | `staff-principal-engineer` | `sre` |
 
+## Receipt Writing (STATE-001)
+
+After completing a post-launch activity, write a receipt:
+
+1. `mkdir -p .pipeline-state/command-receipts .pipeline-state/process-log`
+2. Write `.pipeline-state/command-receipts/post-launch-<YYYYMMDD>-<HHMMSS>.json`:
+
+```json
+{
+  "command": "post-launch",
+  "receipt_id": "post-launch-<YYYYMMDD>-<HHMMSS>",
+  "timestamp": "<ISO-8601>",
+  "session_context": {
+    "session_id": "<orchestrate session_id if available, else null>",
+    "pipeline": "<auto-orchestrate|standalone>"
+  },
+  "inputs": {
+    "activity_type": "<incident-response|post-mortem|outcome-measurement|slo-review|retro>"
+  },
+  "outputs": {
+    "metrics_reviewed": ["SLO compliance", "error budget burn"],
+    "action_items": ["..."]
+  },
+  "artifacts": [],
+  "processes_executed": ["P-054", "P-055"],
+  "next_recommended_action": null,
+  "dispatch_context": {
+    "trigger_id": null,
+    "invoked_by": null
+  }
+}
+```
+
+3. For each process executed, append to `.pipeline-state/process-log/<process-id>.jsonl` (STATE-003).
+
+If write fails, log warning and continue. See `_shared/protocols/cross-pipeline-state.md` for the full receipt schema.
+
 ## Usage
 
 What post-launch activity do you need help with? I can:
