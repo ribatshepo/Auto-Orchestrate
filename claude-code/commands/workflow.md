@@ -1,3 +1,53 @@
+## Current Project Status
+
+Shows live status of your current project's gate progression and pipeline state.
+
+```bash
+# Step 1: Find most recent auto-orchestrate session
+MOST_RECENT_SESSION=$(python3 -c "
+import json, os
+idx = '.sessions/index.json'
+if not os.path.exists(idx): print('NO_SESSION'); exit()
+sessions = json.load(open(idx)).get('sessions', [])
+orc = [s for s in sessions if s.get('command') == 'auto-orchestrate' and s.get('status') in ('in_progress', 'complete')]
+orc.sort(key=lambda x: x.get('created_at',''), reverse=True)
+print(orc[0]['session_id'] if orc else 'NO_SESSION')
+" 2>/dev/null)
+
+# Step 2: If session found, display gate statuses
+if [ "$MOST_RECENT_SESSION" != "NO_SESSION" ]; then
+  GATE_FILE=".orchestrate/$MOST_RECENT_SESSION/gate-state.json"
+  python3 -c "
+import json, sys
+gs_path = sys.argv[1]
+try:
+    gs = json.load(open(gs_path))
+    gates = gs.get('gates', {})
+    print(f'Project: {gs.get(\"project_name\", \"Unknown\")} | Session: {gs.get(\"session_id\", \"Unknown\")}')
+    print()
+    STATUS_ICONS = {'pending': '○', 'in_review': '◷', 'passed': '✓', 'failed': '✗'}
+    for gate_id, gate_name in [('gate_1_intent_review','Gate 1: Intent Review'), ('gate_2_scope_lock','Gate 2: Scope Lock'), ('gate_3_dependency_acceptance','Gate 3: Dependency Acceptance'), ('gate_4_sprint_readiness','Gate 4: Sprint Readiness')]:
+        g = gates.get(gate_id, {})
+        status = g.get('status', 'pending')
+        icon = STATUS_ICONS.get(status, '?')
+        suffix = ''
+        if status == 'failed': suffix = f' — BLOCKED: {g.get(\"fail_reason\", \"see gate-review\")}'
+        elif g.get('override'): suffix = ' [OVERRIDE ACTIVE]'
+        print(f'  {icon} {gate_name}: {status}{suffix}')
+except FileNotFoundError:
+    print('  [GATE-WARN] Gate state not yet initialized. Run /new-project first.')
+except Exception as e:
+    print(f'  [GATE-WARN] Could not read gate state: {e}')
+  " "$GATE_FILE"
+else
+  echo "  No active project session found."
+  echo "  Run /new-project to start a new project."
+fi
+```
+
+---
+
+
 # Development Workflow
 
 Show the complete development workflow mapping agents to project phases.
@@ -95,15 +145,24 @@ Continuous/Cadenced:
 | Command | Phase | Description |
 |---------|-------|-------------|
 | `/new-project` | Starting | Walk through 4-stage delivery pipeline |
+| `/gate-review` | Starting | Run gate review checklist |
 | `/active-dev` | Development | Sprint execution guidance |
+| `/sprint-ceremony` | Development | Facilitate sprint ceremonies |
+| `/qa` | Development | QA & Testing process guide (P-032 to P-037) |
+| `/security` | Development/Release | Security & Compliance process guide (P-038 to P-043) |
+| `/infra` | Release/Operations | Infrastructure & Platform process guide (P-044 to P-048) |
+| `/risk` | Any | Risk & Change Management process guide (P-074 to P-077) |
+| `/data-ml-ops` | Development/Operations | Data & ML Operations process guide (P-049 to P-053) |
 | `/release-prep` | Release | Release preparation checklist |
 | `/post-launch` | Operations | Post-launch processes |
 | `/org-ops` | Continuous | Organizational operations |
+| `/auto-orchestrate` | Any | Autonomous implementation pipeline |
+| `/auto-audit` | Any | Spec compliance audit-remediate loop |
+| `/auto-debug` | Any | Autonomous error debugging loop |
+| `/workflow` | Any | Development workflow map |
 | `/assign-agent` | Any | Route task to correct agent |
-| `/gate-review` | Starting | Run gate review checklist |
 | `/process-lookup` | Any | Find process for a situation |
 | `/agent-capabilities` | Any | Show agent profiles |
-| `/sprint-ceremony` | Development | Facilitate sprint ceremonies |
 
 ## Quick Reference
 

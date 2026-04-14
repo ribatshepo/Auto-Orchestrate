@@ -406,6 +406,19 @@ Update checkpoint with: `audit_cycle`, `last_compliance_score`, `last_gap_count`
 
 If terminated, exit. Otherwise continue.
 
+### Auto-Debug Advisory Hint (GAP-CMD-003)
+
+When the gap report contains gaps categorized as `implementation_error` or `runtime_failure`:
+1. Display advisory message:
+   ```
+   [AUD-DEBUG-HINT] Detected <N> implementation errors / runtime failures in gap report.
+   These may benefit from autonomous debugging.
+   Consider running: /auto-debug
+   ```
+2. This is **advisory only** — the audit continues normally regardless.
+3. **NEVER trigger auto-debug automatically** from auto-audit. The hint is displayed once per audit cycle, not per gap.
+4. Log: `[AUD-DEBUG-HINT] Displayed for <N> error-type gaps`
+
 ### 4.6 Route based on verdict
 
 - If Verdict = PASS or ACCEPTABLE → proceed to termination (Step 6)
@@ -572,6 +585,65 @@ Set `terminal_state` and `status` in checkpoint, update parent task, display:
 |-------|------------------------|-----------------|---------------|
 | 1 | 12 | 5 | 0 |
 | 2 | 8 | 3 | 0 |
+```
+
+---
+
+## Step 7: Write Audit Receipt
+
+After displaying the termination summary (Step 6), write the audit receipt:
+
+### 7a. Determine next_steps array based on verdict
+
+| Verdict | next_steps |
+|---------|-----------|
+| `fully_compliant` | `["/sprint-ceremony — implementation fully compliant with spec"]` |
+| `acceptable_compliance` | `["/sprint-ceremony — compliance above threshold", "Optional: /auto-audit for remaining gaps"]` |
+| `max_cycles_reached` | `["Review remaining gaps manually", "Re-run /auto-audit with targeted scope if needed"]` |
+| `stalled` | `["Review audit gap report manually", "Consider /auto-debug for implementation errors", "Re-run /auto-audit after manual fixes"]` |
+| `user_stopped` | `["Session manually stopped — resume with /auto-audit c or start new session"]` |
+
+### 7b. Write audit-receipt.json
+
+Write `.audit/{session_id}/audit-receipt.json` atomically:
+- Write to `.audit/{session_id}/audit-receipt.tmp.json`
+- Validate JSON (python3 -m json.tool)
+- Rename to `audit-receipt.json`
+
+Schema (see `~/.claude/processes/schemas/audit-receipt-schema.json` for JSON Schema):
+```json
+{
+  "schema_version": "1.0",
+  "session_id": "{session_id}",
+  "type": "audit",
+  "verdict": "{fully_compliant|acceptable_compliance|max_cycles_reached|stalled|user_stopped}",
+  "final_compliance_score": {last_compliance_score},
+  "compliance_threshold": {compliance_threshold},
+  "timestamp": "{ISO-8601 completed_at}",
+  "cycle_count": {audit_cycle},
+  "gap_count": {last_gap_count},
+  "next_steps": [{next_steps_array}],
+  "related_orchestrate_session": "{session_id_of_most_recent_orchestrate_session_if_any}"
+}
+```
+
+### 7c. Update .sessions/index.json
+
+Add or update the audit session entry in `.sessions/index.json`:
+- Find existing entry for this session_id (if any)
+- Update status to `"complete"` and set `completed_at`
+- Add field: `"audit_receipt_path": ".audit/{session_id}/audit-receipt.json"`
+- Atomic write: write to `.sessions/index.tmp.json`, validate, rename
+
+### 7d. Display completion hint
+
+After writing the receipt:
+```
+[AUDIT-COMPLETE] Audit receipt written: .audit/{session_id}/audit-receipt.json
+Verdict: {verdict} | Score: {final_compliance_score}%
+
+Next steps:
+{for each next_step in next_steps}: - {next_step}
 ```
 
 ---

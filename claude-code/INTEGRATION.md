@@ -767,6 +767,8 @@ The auto-orchestrate system integrates with a human-facing organizational workfl
 | `/new-project` | Guide 4-stage org pipeline (Intent → Scope → Dependencies → Sprint) | Phase 5: hands off to /auto-orchestrate |
 | `/gate-review` | Run gate checklist, write gate state | Writes `.orchestrate/{session_id}/gate-state.json` |
 | `/auto-orchestrate` | 7-stage autonomous implementation pipeline | Reads handoff receipt, produces Stage 6 artifacts |
+| `/auto-debug` | Autonomous error diagnosis and fix loop | Escalation target from auto-orchestrate Stage 5 |
+| `/auto-audit` | Autonomous spec compliance audit-remediate loop | Advisory debug hints; produces audit receipt |
 | `/sprint-ceremony` | Sprint retrospective and close | Reads Stage 6 artifacts; requires Gate 4 passed |
 
 ### 12.2 Using the Bridge Protocol
@@ -1021,3 +1023,128 @@ Three organizational processes have no natural home in the auto-orchestrate pipe
 These stubs provide minimal documentation and manual engagement guidance to prevent process gaps during the transition to the full organizational workflow system.
 
 **Reference**: `claude-code/processes/process_injection_map.md`
+
+---
+
+## 15. Cross-Pipeline Integration
+
+**Added**: 2026-04-14 (Session: auto-orc-20260414-pipeflow)
+
+This section documents explicit integration points between autonomous pipelines (`/auto-orchestrate`, `/auto-debug`, `/auto-audit`) and the organizational workflow commands (`/sprint-ceremony`, `/new-project`, `/gate-review`).
+
+### 15.1 Auto-Orchestrate to Auto-Debug Escalation
+
+When `/auto-orchestrate` Stage 5 (validator) exhausts 3 fix iterations and errors persist, the orchestrator offers escalation to `/auto-debug`.
+
+**Flow**:
+```
+/auto-orchestrate Stage 5 (validator)
+    |
+    v
+Fix-loop: validate → report → fix → revalidate (max 3 iterations)
+    |
+    v
+Errors persist after 3 iterations?
+    +-- NO  --> Continue to Stage 6
+    +-- YES --> Display escalation prompt (GAP-CMD-003)
+                    |
+                    User confirms (Y)?
+                    +-- YES --> terminal_state: "escalated_to_debug"
+                    |           Exit auto-orchestrate
+                    |           User manually runs /auto-debug
+                    +-- NO  --> terminal_state: "stalled"
+                                Normal termination
+```
+
+**Key constraint**: Escalation NEVER happens automatically. User must confirm at the prompt.
+
+**Reference**: `claude-code/commands/auto-orchestrate.md` — Stage 5 validator section, GAP-CMD-003
+
+### 15.2 Auto-Audit to Auto-Debug Advisory
+
+When `/auto-audit` detects gaps categorized as `implementation_error` or `runtime_failure`, it displays an advisory hint suggesting `/auto-debug`.
+
+**Behavior**:
+- Advisory message: `[AUD-DEBUG-HINT] Detected <N> implementation errors...`
+- Displayed once per audit cycle (not per gap)
+- Audit continues normally regardless of hint
+- NEVER triggers auto-debug automatically
+
+**Reference**: `claude-code/commands/auto-audit.md` — Auto-Debug Advisory Hint section
+
+### 15.3 Pipeline Chain Completion Flow
+
+The pipeline chains protocol tracks explicit multi-command delivery sequences via `.sessions/index.json`.
+
+**Full delivery chain example**:
+```
+.sessions/index.json (schema_version: "1.1.0")
+    |
+    pipeline_chains[]:
+    +-- chain_id: "chain-20260414-delivery"
+        |
+        stages[]:
+        +-- { command: "new-project", status: "complete" }
+        +-- { command: "auto-orchestrate", status: "complete",
+              output_path: ".orchestrate/{session}/stage-6/" }
+        +-- { command: "sprint-ceremony", status: "ready",
+              trigger: "auto-orchestrate.complete" }
+```
+
+**Commands that update chain status**:
+- `session-manager`: Creates/updates chain entries on session lifecycle events
+- `auto-orchestrate`: Updates stage status at Stage 6 completion
+- `workflow`: Reads and displays chain status
+
+**Opt-in constraint (R-007)**: Chain entries are ONLY created on explicit user request.
+
+**Reference**: `claude-code/processes/pipeline_chains_spec.md`
+
+### 15.4 Handoff Receipt Return Path
+
+After `/auto-orchestrate` completes Stage 6, the handoff receipt is updated for sprint ceremony consumption.
+
+**Flow**:
+```
+/auto-orchestrate Stage 6 complete
+    |
+    v
+Update handoff-receipt.json:
+    auto_orchestrate_status: "completed"
+    |
+    v
+Artifacts available for /sprint-ceremony:
+    - Stage 6 docs: .orchestrate/{session_id}/stage-6/
+    - Stage 5 validation: .orchestrate/{session_id}/stage-5/
+    |
+    v
+/sprint-ceremony reads handoff-receipt.json
+    - Uses Stage 5 validation as sprint completion evidence
+    - Links Stage 6 docs to project record
+```
+
+**Reference**: `claude-code/processes/bridge_protocol.md`
+
+### 15.5 Gate State Flow
+
+The gate state system provides bidirectional state flow between organizational commands and autonomous pipelines.
+
+**Write path** (gate-review only):
+```
+/gate-review {gate_name}
+    |
+    v
+Write .orchestrate/{session_id}/gate-state.json
+    gates.{gate_name}.status: "passed" | "failed" | "in_review"
+```
+
+**Read paths**:
+| Command | Gate Checked | Action on Failure |
+|---------|--------------|-------------------|
+| `/sprint-ceremony` | `gate_4_sprint_readiness` | `[GATE-BLOCK]` — halt ceremony |
+| `/new-project` Stage 2 | `gate_1_intent_review` | `[GATE-BLOCK]` — halt stage |
+| `/new-project` Stage 3 | `gate_2_scope_lock` | `[GATE-BLOCK]` — halt stage |
+| `/new-project` Stage 4 | `gate_3_dependency_acceptance` | `[GATE-BLOCK]` — halt stage |
+| `workflow` | All 4 gates | Display status (no enforcement) |
+
+**Reference**: `claude-code/processes/gate_enforcement_spec.md`, `claude-code/processes/gate_state_schema.json`

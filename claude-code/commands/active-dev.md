@@ -32,6 +32,7 @@ Active processes:
 - **Contract Testing** (P-037) — Run on every PR that changes API contracts
 - **Test Architecture** (P-032) — QA maintains test strategy and frameworks
 - **Automated Testing Framework** (P-033) — CI runs unit/integration/e2e tests
+> **For deeper guidance**: `/qa` — dedicated QA & Testing process guide (P-032 to P-037)
 
 ### Security & Compliance (Category 6)
 
@@ -44,6 +45,7 @@ Active processes:
 - **CVE Triage on Dependency Updates** (P-040) — Assess new vulnerabilities
 - **Threat Modeling** (P-038) — Update threat model as architecture evolves
 - **Security Exceptions** (P-041) — Process for accepted risks
+> **For deeper guidance**: `/security` — dedicated Security & Compliance process guide (P-038 to P-043)
 
 ### Documentation & Knowledge (Category 10)
 
@@ -68,6 +70,14 @@ Documentation processes are invoked at the **skill level**, not the command leve
 Active processes:
 - **API Documentation** (P-058) — Update per API-changing story
 - **ADR Publication** (P-060) — Write ADR per significant technical decision
+
+
+### Infrastructure, Risk & Data Operations
+
+For specialized process guidance beyond sprint delivery:
+- `/infra` — Infrastructure & Platform process guide (P-044 to P-048)
+- `/risk` — Risk & Change Management process guide (P-074 to P-077)
+- `/data-ml-ops` — Data & ML Operations process guide (P-049 to P-053)
 
 ## Agent Routing for Active Development
 

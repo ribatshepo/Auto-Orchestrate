@@ -5,7 +5,7 @@
   "updated_at": "2026-04-09",
   "stats": {
     "total_skills": 35,
-    "total_agents": 17,
+    "total_agents": 18,
     "total_commands": 19,
     "total_protocols": 6,
     "total_templates": 2,
@@ -664,6 +664,20 @@
         ]
       },
       "path": "agents/technical-writer.md"
+    },
+    {
+      "name": "debugger",
+      "description": "Autonomous debugging agent. Executes triage-research-fix-verify cycle for software errors. Spawned by the auto-debug loop controller.",
+      "model": "sonnet",
+      "tools": ["Read", "Grep", "Glob", "Bash", "Write", "Edit"],
+      "dispatch_triggers": ["auto-debug", "triage-error", "debug-failure", "fix-error", "error triage", "debug cycle", "diagnose error"],
+      "capabilities": {
+        "pipeline": "cyclic",
+        "stages": [0, 1, 2, 3, 4, 5],
+        "max_internal_cycles": 3,
+        "outputs": [".debug/{session_id}/reports/", ".debug/{session_id}/error-history.jsonl", ".debug/{session_id}/stage-receipt.json"]
+      },
+      "path": "agents/debugger.md"
     }
   ],
   "skills": [

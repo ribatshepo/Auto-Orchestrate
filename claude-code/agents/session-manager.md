@@ -148,3 +148,25 @@ Track: tasks completed (count `completed` transitions), focus changes (count /wo
 ## References
 - @_shared/protocols/subagent-protocol-base.md
 - @_shared/protocols/task-system-integration.md
+
+## Pipeline Chains
+
+### Reading Pipeline Chains
+- Parse `pipeline_chains` array from `.sessions/index.json`
+- Default to `[]` if absent or `schema_version < 1.1.0`
+- Find chains where command matches pending stage
+- Update status to `active`, atomic write, log `[CHAIN]` message
+
+### Creating a New Chain Entry
+- **NEVER create pipeline_chains entries automatically — only on explicit user request** (R-007)
+- Generate `chain_id` as `chain-{YYYYMMDD}-{slug}`
+- Build stages array from pipeline definition
+- Atomic write to `.sessions/index.tmp.json` then rename
+- Log `[CHAIN] Created`
+
+### Updating Chain Status
+- When session completes, find matching chain entry
+- Set stage status to `complete` with `completed_at` timestamp
+- Atomic write
+
+See `~/.claude/processes/pipeline_chains_spec.md` for the full schema.

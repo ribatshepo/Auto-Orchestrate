@@ -568,6 +568,48 @@ Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
 | 3 | 1 | 0 | 6 | ✓ #2 Research (Stage 0) |
 ```
 
+### Pipeline Chain Completion (GAP-PIPE-004)
+
+On successful termination (`completed` status), check for handoff receipt and write pipeline chain entry:
+
+1. Check if `.orchestrate/<session-id>/handoff-receipt.json` exists
+2. If found and `return_path.next_command` is defined:
+   - Read `.sessions/index.json`
+   - Add or update `pipeline_chains` array entry:
+     ```json
+     {
+       "chain_id": "chain-<YYYYMMDD>-<slug>",
+       "from_session": "<current-session-id>",
+       "from_command": "auto-orchestrate",
+       "to_command": "<return_path.next_command>",
+       "trigger": "completion",
+       "status": "pending",
+       "created_at": "<ISO-8601>"
+     }
+     ```
+   - Atomic write to `.sessions/index.tmp.json`, then rename
+   - Display: `[CHAIN] Pipeline continuation registered: → <next_command>`
+3. If no handoff receipt or no return_path: skip silently
+4. **Display only — NEVER auto-invoke the next command** (R-010)
+
+### Return Path Completion (GAP-PIPE-005)
+
+After displaying the termination summary, update the handoff receipt and display the return path:
+
+1. Check if `.orchestrate/<session-id>/handoff-receipt.json` exists
+2. If found:
+   - Update `auto_orchestrate_status` to `"completed"`
+   - Update `completed_at` to current ISO-8601 timestamp
+   - Atomic write
+   - If `return_path.next_command` exists, display:
+     ```
+     [COMPLETE] Auto-orchestration finished.
+     Return path: → <return_path.next_command>
+     To continue the workflow, run: /<next_command>
+     ```
+3. If no handoff receipt: skip silently (standalone session, no return path)
+4. **Display only — NEVER auto-invoke the return path command** (R-010)
+
 ---
 
 ## Crash Recovery Protocol
@@ -991,6 +1033,22 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns and file paths.
 - MANDATORY: Feature functionality testing per implemented feature.
 - Docker available: invoke docker-validator. Otherwise: API-level/code verification.
 - Fix-loop: validate->report->fix->revalidate (max 3 iterations).
+- **Auto-Debug Escalation** (GAP-CMD-003): After the validator exhausts 3 fix iterations and errors persist:
+  1. Display to user:
+     ```
+     [ESCALATE] Stage 5 validation failed after 3 fix iterations.
+     Remaining errors: <error_count>
+     
+     Would you like to escalate to /auto-debug for autonomous error resolution? (Y/n)
+     ```
+  2. If user confirms (Y): Display invocation hint:
+     ```
+     [ESCALATE] Run: /auto-debug
+     Context: Session auto-orc-<session-id>, Stage 5 validation failures
+     ```
+     Set `terminal_state: "escalated_to_debug"` and exit the auto-orchestrate loop.
+  3. If user declines (n): Continue with normal termination as `stalled`.
+  4. **NEVER trigger auto-debug automatically** — always require explicit user confirmation.
 
 **documentor** (Stage 6 — mandatory after stable implementation):
 - Pipeline: docs-lookup -> docs-write -> docs-review.

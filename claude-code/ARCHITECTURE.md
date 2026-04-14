@@ -804,9 +804,13 @@ active -> /workflow-end -> ended
 
 **Mandatory Skill**: debug-diagnostics (Phase 1 — error categorization)
 
+**Cross-Pipeline Escalation Path**:
+- **From auto-orchestrate Stage 5**: When validator exhausts 3 fix iterations and errors persist, orchestrator displays escalation prompt. User confirms → session ends with `terminal_state: "escalated_to_debug"` → user manually invokes `/auto-debug`. See GAP-CMD-003 in `auto-orchestrate.md`.
+- **From auto-audit**: Advisory only. When gap report contains `implementation_error` or `runtime_failure` gaps, auto-audit displays `[AUD-DEBUG-HINT]` suggesting `/auto-debug`. Does not escalate automatically.
+
 **Decision Flow**:
 ```
-Error input
+Error input (manual or post-escalation)
     |
     v
 debug-diagnostics (Phase 1: categorize error)
@@ -2448,3 +2452,68 @@ As of 2026-04-06: all three are **byte-for-byte identical** (md5 verified).
 │       ├── dependency_coordination_stub.md  (P-015 to P-021, 106 lines)
 │       └── onboarding_stub.md               (P-090 to P-093, 98 lines)
 ```
+
+### 17.7 Pipeline Chains Protocol
+
+**Added**: 2026-04-14 (Session: auto-orc-20260414-pipeflow)
+
+Pipeline chains enable explicit cross-pipeline coordination by recording chaining relationships in `.sessions/index.json`. They extend the session index schema (version 1.1.0) with an optional `pipeline_chains` array that tracks multi-command delivery sequences.
+
+**Purpose**:
+- Track cross-pipeline coordination (e.g., `/new-project` → `/auto-orchestrate` → `/sprint-ceremony`)
+- Enable commands to know their position in a larger workflow
+- Allow users to trace unified delivery chains
+
+**Key Constraint (R-007)**: Pipeline chains are **ONLY created on explicit user request**. Commands NEVER create chain entries automatically.
+
+**Schema reference**: `claude-code/processes/pipeline_chains_spec.md`
+
+**Stage status values**: `pending` | `active` | `complete` | `failed` | `skipped` | `ready`
+
+**Commands that interact with pipeline_chains**:
+| Command | Operation | Trigger |
+|---------|-----------|---------|
+| `session-manager` | Read + Write | Session start/end when chain tracking active |
+| `auto-orchestrate` | Write (status) | Stage 6 completion when chain entry exists |
+| `workflow` | Read | Display chain status in Current Project Status |
+
+### 17.8 Audit Receipt Artifact
+
+**Added**: 2026-04-14 (Session: auto-orc-20260414-pipeflow)
+
+The audit receipt is a completion artifact written by `/auto-audit` Step 7 upon termination. It provides a machine-readable summary of audit session outcome, distinct from cycle-level `stage-receipt.json` files.
+
+**Path**: `.audit/{session_id}/audit-receipt.json`  
+**Schema**: `claude-code/processes/schemas/audit-receipt-schema.json` (JSON Schema Draft-7, version 1.0)
+
+**Required fields**:
+| Field | Type | Description |
+|-------|------|-------------|
+| `session_id` | string | Pattern: `auto-aud-YYYYMMDD-{slug}` |
+| `verdict` | enum | One of: `fully_compliant`, `acceptable_compliance`, `max_cycles_reached`, `stalled`, `user_stopped` |
+| `final_compliance_score` | number | 0-100 compliance percentage |
+| `compliance_threshold` | integer | Configured threshold for this session |
+| `cycle_count` | integer | Total audit cycles completed (minimum 1) |
+
+**Optional fields**: `gap_count`, `next_steps[]`, `related_orchestrate_session`
+
+**Consumers**: Sprint ceremonies, compliance dashboards, cross-pipeline traceability
+
+### 17.9 Gate 4 Enforcement in Sprint Ceremony
+
+**Added**: 2026-04-14 (Session: auto-orc-20260414-pipeflow)
+
+The `/sprint-ceremony` command enforces Gate 4 (Sprint Readiness) before facilitating any ceremony. This ensures that sprint execution only proceeds after the organizational readiness gate has been formally passed.
+
+**Enforcement flow**:
+1. Resolve session ID from environment or user input
+2. Read `.orchestrate/{session_id}/gate-state.json`
+3. Check `gates.gate_4_sprint_readiness.status`
+4. If `"passed"`: `[GATE-PASS]` — proceed to ceremony
+5. If not passed AND no valid override: `[GATE-BLOCK]` — halt and prompt for `/gate-review sprint-readiness`
+6. If valid override present: `[GATE-OVERRIDE]` — proceed with logged override
+7. If file not found: `[GATE-WARN]` — advisory prompt, backward compatible
+
+**Override requirements**: `override.reason` (>=10 chars), `override.authorized_by`, `override.timestamp`
+
+**Reference**: `claude-code/commands/sprint-ceremony.md` — Gate Enforcement Check section
