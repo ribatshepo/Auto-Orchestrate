@@ -8,6 +8,17 @@
 
 The three autonomous pipeline commands (`auto-orchestrate`, `auto-audit`, `auto-debug`) operate with isolated session directories (`.orchestrate/`, `.audit/`, `.debug/`). This protocol defines a shared state layer at `.pipeline-state/` that enables cross-pipeline knowledge transfer without violating session isolation. As of v2.0.0, all 20 commands participate in the shared state layer via command receipts and process logging.
 
+## Constraints
+
+| ID | Rule |
+|----|------|
+| SHARED-001 | **Shared knowledge at startup** — All pipelines MUST read shared knowledge stores (`research-cache.jsonl`, `fix-registry.jsonl`, `codebase-analysis.jsonl`) at startup before performing their first action. Stale entries (past `ttl_hours`) are treated as hints, not facts. |
+| SHARED-002 | **Escalation to shared store** — Escalation handoffs MUST be written to the shared `.pipeline-state/escalation-log.jsonl`, not to session-local directories. This ensures the target pipeline can discover and consume the handoff regardless of which session directory structure it uses. |
+| SHARED-003 | **Research cache before researcher** — Before spawning a researcher agent, the loop controller MUST check `.pipeline-state/research-cache.jsonl` for non-stale entries matching the research query. If a cached result exists with `ttl_hours` not expired, it SHOULD be used directly instead of re-researching. |
+| SHARED-004 | **Fix-registry append-only and shared** — The fix-registry (`.pipeline-state/fix-registry.jsonl`) is append-only and shared across all pipelines. Before diagnosing an error, `auto-debug` MUST check if a verified fix (`verification_result: "pass"`) already exists for the error fingerprint. Consumers MUST NOT modify or delete existing entries. |
+
+---
+
 ## Directory Structure
 
 ```

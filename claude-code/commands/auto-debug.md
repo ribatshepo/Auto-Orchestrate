@@ -202,8 +202,8 @@ Ensure `.domain/` and `.pipeline-state/` exist: `mkdir -p .domain .pipeline-stat
 - **After diagnosis**: Append codebase findings to `codebase_analysis` for future reference
 
 **Shared state integration** (see `_shared/protocols/cross-pipeline-state.md`):
-- **On startup**: Read `.pipeline-state/fix-registry.jsonl` for known fixes matching current error fingerprint. Read `.pipeline-state/codebase-analysis.jsonl` for known risks that may inform diagnosis. Read `.pipeline-state/command-receipts/` (STATE-002) for `/infra` receipts — infrastructure reviews may explain environment-related errors.
-- **After fix verified**: Write error→fix mapping to `.pipeline-state/fix-registry.jsonl`
+- **On startup (SHARED-001)**: Read `.pipeline-state/fix-registry.jsonl` for known fixes matching current error fingerprint (SHARED-004 — check before diagnosing). Read `.pipeline-state/codebase-analysis.jsonl` for known risks that may inform diagnosis. Read `.pipeline-state/research-cache.jsonl` for cached research relevant to the error domain (SHARED-003). Read `.pipeline-state/command-receipts/` (STATE-002) for `/infra` receipts — infrastructure reviews may explain environment-related errors.
+- **After fix verified**: Write error→fix mapping to `.pipeline-state/fix-registry.jsonl` (SHARED-004 — append-only, shared across all pipelines)
 - **On escalation to auto-orchestrate**: Write to `.pipeline-state/escalation-log.jsonl`
 - **On termination**: Update `.pipeline-state/pipeline-context.json` with debug state. Write receipt to `.pipeline-state/command-receipts/auto-debug-<YYYYMMDD>-<HHMMSS>.json` (STATE-001) with: `inputs: { "error_description" }`, `outputs: { "errors_resolved", "errors_remaining", "escalations" }`, `next_recommended_action`: `"auto-orchestrate"` if escalation, `null` if resolved.
 

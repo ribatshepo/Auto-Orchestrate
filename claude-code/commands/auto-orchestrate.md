@@ -774,13 +774,15 @@ mkdir -p .pipeline-state .pipeline-state/command-receipts .pipeline-state/proces
 
 **`.pipeline-state/`** enables **cross-pipeline knowledge transfer** between auto-orchestrate, auto-audit, and auto-debug. See `_shared/protocols/cross-pipeline-state.md` for the full protocol.
 
-**On startup**, read shared state:
+**On startup**, read shared state (SHARED-001):
 1. Read `.pipeline-state/escalation-log.jsonl` — consume unconsumed escalations from auto-debug (mark as `consumed: true`)
-2. Read `.pipeline-state/codebase-analysis.jsonl` — pass high-severity insights to researcher prompt
-3. Read `.pipeline-state/pipeline-context.json` — log if another pipeline was recently active
-4. Pass `PIPELINE_STATE_DIR=.pipeline-state` in the orchestrator spawn prompt
-5. Read `.pipeline-state/command-receipts/` (STATE-002) — scan for receipts from `/new-project`, `/gate-review`, `/security`, `/qa`, `/infra`, `/risk`, `/data-ml-ops`, `/org-ops`, `/sprint-ceremony`, `/release-prep`. Receipts predating this session's `created_at` are **context** (logged, not acted upon). Receipts from within the current session or with `dispatch_context.invoked_by` matching this session are **actionable** (injected into relevant stage context).
-6. Read `.pipeline-state/workflow/active-session.json` — if a workflow session is active, log task state summary for awareness
+2. Read `.pipeline-state/research-cache.jsonl` — cache entries for SHARED-003 lookup before Stage 0 researcher spawn
+3. Read `.pipeline-state/codebase-analysis.jsonl` — pass high-severity insights to researcher prompt
+4. Read `.pipeline-state/fix-registry.jsonl` — available as context for debugging regressions during validation
+5. Read `.pipeline-state/pipeline-context.json` — log if another pipeline was recently active
+6. Pass `PIPELINE_STATE_DIR=.pipeline-state` in the orchestrator spawn prompt
+7. Read `.pipeline-state/command-receipts/` (STATE-002) — scan for receipts from `/new-project`, `/gate-review`, `/security`, `/qa`, `/infra`, `/risk`, `/data-ml-ops`, `/org-ops`, `/sprint-ceremony`, `/release-prep`. Receipts predating this session's `created_at` are **context** (logged, not acted upon). Receipts from within the current session or with `dispatch_context.invoked_by` matching this session are **actionable** (injected into relevant stage context).
+8. Read `.pipeline-state/workflow/active-session.json` — if a workflow session is active, log task state summary for awareness
 7. Write `.pipeline-state/workflow/active-session.json` with `session_state: "active"`, `source: "auto-orchestrate"`, `session_id: <session_id>`, `started_at: <now>`. This signals WORKFLOW-SYNC-002 (read-only mode for workflow-* commands).
 8. Initialize `.pipeline-state/workflow/task-board.json` with empty task list: `{ "schema_version": "1.0.0", "source": "auto-orchestrate", "session_id": <session_id>, "last_updated": <now>, "iteration": 0, "pipeline_stage": null, "tasks": [], "stages_completed": [], "terminal_state": null }`
 7. Store `last_receipt_scan` timestamp in checkpoint for incremental scanning at stage transitions
@@ -1555,9 +1557,10 @@ ELSE:
 ```
 
 **Stage 0 — Researcher**:
-1. Spawn `Agent(subagent_type: "researcher")` with the enhanced prompt from Step 1
-2. Write checkpoint before spawn (AUTO-005 applies)
-3. On completion: write stage-receipt to `.orchestrate/<session>/stage-0/`
+1. **Research cache check (SHARED-003)**: Before spawning, check `.pipeline-state/research-cache.jsonl` for non-stale entries matching the task keywords. If cached results exist with `ttl_hours` not expired, include them in the researcher prompt as `[CACHED-RESEARCH]` context to avoid redundant lookups.
+2. Spawn `Agent(subagent_type: "researcher")` with the enhanced prompt from Step 1
+3. Write checkpoint before spawn (AUTO-005 applies)
+4. On completion: write stage-receipt to `.orchestrate/<session>/stage-0/`
 4. **Complexity upgrade check**: If researcher output contains any of: multiple services/components discovered, architectural concerns, dependency conflicts, or security flags → log `[FAST-PATH-ABORT] Researcher revealed complexity > trivial — falling back to full pipeline` and proceed to Step 3 with `stages_completed: [0]`, `fast_path_used: false`
 
 **Stage 3 — Software Engineer**:

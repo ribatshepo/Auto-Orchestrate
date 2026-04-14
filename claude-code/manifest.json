@@ -786,6 +786,22 @@
   ],
   "skills": [
     {
+      "name": "accessibility-check",
+      "description": "WCAG 2.1 AA/AAA compliance checking for web interfaces and UI components.",
+      "dispatch_triggers": [
+        "accessibility audit",
+        "WCAG check",
+        "a11y review",
+        "accessibility compliance",
+        "screen reader",
+        "keyboard navigation",
+        "color contrast"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/accessibility-check/SKILL.md"
+    },
+    {
       "name": "cicd-workflow",
       "description": "CI/CD pipeline creation, deployment automation, and troubleshooting for GitHub Actions and GitLab CI.",
       "dispatch_triggers": [
@@ -815,6 +831,22 @@
       "has_scripts": true,
       "has_references": false,
       "path": "skills/codebase-stats/SKILL.md"
+    },
+    {
+      "name": "cost-estimator",
+      "description": "Estimate cloud infrastructure costs for releases and deployments. FinOps analysis and cost optimization.",
+      "dispatch_triggers": [
+        "cost estimate",
+        "cloud costs",
+        "infrastructure costs",
+        "FinOps",
+        "cost analysis",
+        "deployment costs",
+        "pricing estimate"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/cost-estimator/SKILL.md"
     },
     {
       "name": "dependency-analyzer",
@@ -982,6 +1014,22 @@
       "has_scripts": true,
       "has_references": false,
       "path": "skills/library-implementer-python/SKILL.md"
+    },
+    {
+      "name": "observability-setup",
+      "description": "Configure monitoring, alerting, dashboards, and distributed tracing for production systems.",
+      "dispatch_triggers": [
+        "observability setup",
+        "monitoring configuration",
+        "alerting rules",
+        "dashboard setup",
+        "tracing setup",
+        "OpenTelemetry",
+        "SLO monitoring"
+      ],
+      "has_scripts": false,
+      "has_references": false,
+      "path": "skills/observability-setup/SKILL.md"
     },
     {
       "name": "production-code-workflow",
