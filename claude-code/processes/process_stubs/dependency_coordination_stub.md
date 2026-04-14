@@ -1,20 +1,18 @@
 ---
-status: STUB
+status: PARTIAL-INTEGRATED
 related_process: claude-code/processes/03_dependency_coordination.md
 category: category-03-dependency
 last_reviewed: 2026-04-14
 ---
 
-> **STATUS: STUB** — This is a quick-reference stub for dependency coordination. 
-> For full process definitions see `03_dependency_coordination.md`.
-> TODO: Complete or promote to full process status.
+> **STATUS: PARTIAL-INTEGRATED** — P-015 and P-016 are now injected at Stage 0 (COMPLEX + infra flag) as advisory notify hooks per the expanded process injection map (V2). P-017 through P-021 remain organizational-only (require cross-team human coordination). For full process definitions see `03_dependency_coordination.md`.
 
 # Process Stub: Dependency Coordination (P-015 through P-021)
 
-**Type**: Process stub — minimal placeholder  
-**Status**: STUB — No auto-orchestrate pipeline stage implements these processes  
-**Date**: 2026-04-06  
-**Produced by**: software-engineer (Task #8, SPEC T018)
+**Type**: Process stub — partially integrated (P-015, P-016 advisory; P-017-021 organizational-only)  
+**Status**: PARTIAL-INTEGRATED — P-015/P-016 injected at Stage 0 for COMPLEX tasks with infra flag  
+**Date**: 2026-04-14 (updated from 2026-04-06)  
+**Produced by**: software-engineer (Task #8, SPEC T018; updated A3)
 
 ---
 
@@ -93,14 +91,22 @@ The `/new-project` command guides dependency coordination in Stage 3, but when a
 
 ---
 
-## Integration Path (Future T019+)
+## Integration Path (Partially Implemented — A3 / PROCESS-SCOPE-001)
 
-When the orchestrator injection framework (T019) is implemented:
-- Hook point: Before Stage 0 spawn — check for dependency register
-- Action: `notify` — log `[PROCESS-STUB] P-015 through P-021 — Dependency coordination processes. Reference: claude-code/processes/process_stubs/dependency_coordination_stub.md. TPM should register cross-team dependencies before Stage 3.`
-- Enforced: `false` (advisory in V1)
+**Integrated processes** (P-015, P-016):
+- **Injection point**: Stage 0 (Research), scope_condition: `complex`, domain_flag: `infra`
+- **Action**: `notify` — log `[PROCESS-INJECT] Stage 0: P-015/P-016 — Researcher identifies cross-team infrastructure dependencies`
+- **Enforced**: `false` (advisory)
+- **Mechanism**: When triage classifies a task as COMPLEX with the `infra` domain flag, the researcher at Stage 0 is notified to identify cross-team infrastructure dependencies and critical path items.
+
+**Organizational-only processes** (P-017 through P-021):
+- P-017 (Resource Conflicts), P-018 (Communication Plan), P-019 (Dependency Acceptance Gate), P-020 (Dependency Standups), P-021 (Escalation Protocol) remain organizational-only
+- These require cross-team human coordination that cannot be automated
+- They are logged as `[PROCESS-INFO]` in process receipts when a COMPLEX task is active
+- The `/new-project` command (Tier 1) handles these in its Stage 3 guidance
 
 ---
 
 *Stub for: P-015 (Register Cross-Team Dependencies), P-016 (Critical Path), P-017 (Resource Conflicts), P-018 (Communication Plan), P-020 (Dependency Standups), P-021 (Escalation Protocol)*  
-*Full process: `claude-code/processes/03_dependency_coordination.md`*
+*Full process: `claude-code/processes/03_dependency_coordination.md`*  
+*Integration: `claude-code/processes/process_injection_map.md` (Domain-Conditional Injection Hooks)*

@@ -1,13 +1,11 @@
 ---
-status: STUB
+status: POST-PIPELINE
 related_process: claude-code/processes/17_onboarding_knowledge_transfer.md
 category: category-17-onboarding
 last_reviewed: 2026-04-14
 ---
 
-> **STATUS: STUB** — This is a quick-reference stub for onboarding and knowledge transfer. 
-> For full process definitions see `17_onboarding_knowledge_transfer.md`.
-> TODO: Complete or promote to full process status.
+> **STATUS: POST-PIPELINE** — These processes are now surfaced as informational hooks at pipeline completion (COMPLEX scope) per the expanded process injection map (V2). They are organizational-only and cannot be automated. For full process definitions see `17_onboarding_knowledge_transfer.md`.
 
 # Process Stub: Onboarding and Knowledge Transfer (P-090 through P-093)
 
@@ -84,15 +82,18 @@ Onboarding and knowledge transfer processes P-090 through P-093 occur **after St
 
 ---
 
-## Integration Path (Future T019+)
+## Integration Path (Implemented — A3 / PROCESS-SCOPE-001)
 
-When the orchestrator injection framework (T019) is implemented:
-- Hook point: After Stage 6 completes, during `hook:run:complete`
-- Action: `link` — write cross-reference to process_receipts.json for P-090, P-091, P-092, P-093
-- Log: `[PROCESS-STUB] P-090 through P-093 — Onboarding and knowledge transfer processes. Reference: claude-code/processes/process_stubs/onboarding_stub.md. Manual engagement required post-Stage 6.`
-- Enforced: `false` (advisory in V1)
+These processes are now referenced in the expanded process injection map (V2):
+- **Injection point**: Post-Stage 6, scope_condition: `complex`
+- **Action**: `informational` — log `[PROCESS-INFO] P-090 through P-093 noted as applicable. Reference: 17_onboarding_knowledge_transfer.md`
+- **Enforced**: `false`
+- **Mechanism**: When a COMPLEX task completes (terminal_state == completed), these processes are logged in the termination summary as informational references. They are organizational-only — knowledge handoff, runbook handover, team onboarding, and lessons learned require human facilitation.
+
+**Note**: The pipeline's Stage 6 (technical-writer) produces code documentation, not team onboarding materials. These processes represent the organizational handoff that follows code completion.
 
 ---
 
 *Stub for: P-090 (Knowledge Handoff), P-091 (Runbook Handover), P-092 (Team Onboarding Brief), P-093 (Lessons Learned)*  
-*Full process: `claude-code/processes/17_onboarding_knowledge_transfer.md`*
+*Full process: `claude-code/processes/17_onboarding_knowledge_transfer.md`*  
+*Integration: `claude-code/processes/process_injection_map.md` (Post-Pipeline Injection Hooks)*

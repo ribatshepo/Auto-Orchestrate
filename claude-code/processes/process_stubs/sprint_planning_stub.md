@@ -1,20 +1,18 @@
 ---
-status: STUB
+status: INTEGRATED-ADVISORY
 related_process: claude-code/processes/04_sprint_delivery_execution.md
 category: category-04-sprint
 last_reviewed: 2026-04-14
 ---
 
-> **STATUS: STUB** — This is a quick-reference stub for sprint planning. 
-> For full process definitions see `04_sprint_delivery_execution.md`.
-> TODO: Complete or promote to full process status.
+> **STATUS: INTEGRATED-ADVISORY** — These processes are now injected at Stage 1 (COMPLEX scope) as advisory notify hooks per the expanded process injection map (V2). For full process definitions see `04_sprint_delivery_execution.md`.
 
 # Process Stub: Sprint Planning (P-022, P-023, P-024)
 
-**Type**: Process stub — minimal placeholder  
-**Status**: STUB — No auto-orchestrate pipeline stage implements these processes  
-**Date**: 2026-04-06  
-**Produced by**: software-engineer (Task #8, SPEC T018)
+**Type**: Process stub — integrated advisory (formerly minimal placeholder)  
+**Status**: INTEGRATED-ADVISORY — Injected at Stage 1 when triage complexity = COMPLEX  
+**Date**: 2026-04-14 (updated from 2026-04-06)  
+**Produced by**: software-engineer (Task #8, SPEC T018; updated A3)
 
 ---
 
@@ -71,14 +69,18 @@ In autonomous mode, the orchestrator treats each Stage 1 task as a story. In hum
 
 ---
 
-## Integration Path (Future T019+)
+## Integration Path (Implemented — A3 / PROCESS-SCOPE-001)
 
-When the orchestrator injection framework (T019) is implemented:
-- Hook point: After Stage 1 completes, before Stage 3 begins
-- Action: `notify` — log `[PROCESS-STUB] P-022/P-023/P-024 — Sprint planning processes. Reference: claude-code/processes/process_stubs/sprint_planning_stub.md. Manual engagement required in human-led mode.`
-- Enforced: `false` (advisory in V1)
+These processes are now integrated into the expanded process injection map (V2):
+- **Injection point**: Stage 1 (Product Management), scope_condition: `complex`
+- **Action**: `notify` — log `[PROCESS-INJECT] Stage 1: P-022/P-023/P-024 — Product-manager aligns task decomposition with sprint planning patterns`
+- **Enforced**: `false` (advisory)
+- **Mechanism**: The product-manager at Stage 1 receives a process injection notification when the triage gate classifies the task as COMPLEX. This prompts alignment of task decomposition with sprint goal authoring, intent tracing, and story writing patterns.
+
+**Note**: In autonomous mode, Stage 1 task decomposition implicitly covers these processes. The injection hook ensures they are formally acknowledged in the process receipt.
 
 ---
 
 *Stub for: P-022 (Sprint Goals), P-023 (Intent Trace), P-024 (Story Writing)*  
-*Full process: `claude-code/processes/04_sprint_delivery_execution.md`*
+*Full process: `claude-code/processes/04_sprint_delivery_execution.md`*  
+*Integration: `claude-code/processes/process_injection_map.md` (COMPLEX Scope Injection Hooks)*

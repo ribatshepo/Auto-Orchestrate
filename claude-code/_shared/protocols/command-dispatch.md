@@ -56,8 +56,9 @@ R-010 states "Display only — NEVER auto-invoke" for cross-command lifecycle tr
 | TRIG-010 | Audit gap-report contains gaps for processes P-032 through P-037 with severity CRITICAL or HIGH | `/qa` | 2 | auto-audit | Step 4.5a |
 | TRIG-011 | Debugger returns `Category` of "docker", "infrastructure", "deploy", or "platform" | `/infra` | 2 | auto-debug | Step 4.2b |
 | TRIG-012 | Any stage produces a process acknowledgment or finding flagged HIGH or CRITICAL that maps to a domain guide's process range | Corresponding domain guide (see Domain Guide Process Ranges) | 2 | all three | Stage transition |
+| TRIG-013 | Stage N completes AND `process_scope.tier >= medium` AND expanded injection map has processes for Stage N that are (a) not natively handled by the stage agent, (b) not already dispatched by TRIG-001-012, and (c) have a `domain_guide` field pointing to a Tier 2 command | Corresponding domain guide per injection map `domain_guide` field | 2 | auto-orchestrate | Step 4.8c (after TRIG-001-012) |
 
-### Domain Guide Process Ranges (for TRIG-012)
+### Domain Guide Process Ranges (for TRIG-012 and TRIG-013)
 
 | Domain Guide | Process Range | Skill Name |
 |-------------|---------------|------------|
@@ -67,6 +68,70 @@ R-010 states "Display only — NEVER auto-invoke" for cross-command lifecycle tr
 | `/data-ml-ops` | P-049 to P-053 | `data-ml-ops` |
 | `/risk` | P-074 to P-077 | `risk` |
 | `/org-ops` | P-062 to P-069 | `org-ops` |
+
+---
+
+## Proactive Process Sweep (PROCESS-DELEGATE-001)
+
+TRIG-013 implements proactive process delegation. Unlike TRIG-001-012 which fire reactively when specific conditions are met, TRIG-013 proactively consults the expanded process injection map to ensure all scope-applicable processes with domain guide coverage are engaged.
+
+**Why this is needed**: TRIG-012 fires only when a process is flagged HIGH or CRITICAL. Many processes should be engaged proactively based on the task's scope classification, even when no severity flag exists. For example, if a COMPLEX task with the `infra` domain flag reaches Stage 2, the `/infra` domain guide should be consulted for P-044 (Golden Path) and P-046 (Environment Self-Service) regardless of whether those processes were flagged.
+
+**Constraint**: TRIG-013 caps at 2 proactive dispatches per stage transition. If more than 2 domain guides qualify, prioritize by: (1) number of applicable processes, (2) alphabetical order.
+
+```
+FUNCTION proactive_process_sweep(completed_stage, process_scope, already_dispatched):
+
+  INPUT:
+    completed_stage:     numeric stage just completed
+    process_scope:       checkpoint.triage.process_scope object
+    already_dispatched:  set of domain guide skill names already dispatched by TRIG-001-012
+
+  IF process_scope.tier == "trivial":
+    RETURN []  # No proactive sweep for trivial tasks
+
+  # Step 1: Get all injection hooks for the completed stage
+  stage_hooks = injection_map.get_hooks_for_stage(completed_stage)
+
+  # Step 2: Filter to hooks that are active given the process scope
+  active_hooks = [h for h in stage_hooks
+                  if hook_is_active(h, process_scope)
+                  AND h.domain_guide is not null
+                  AND h.domain_guide NOT IN already_dispatched]
+
+  # Step 3: Group by domain guide
+  by_guide = group_by(active_hooks, key=lambda h: h.domain_guide)
+
+  # Step 4: Build dispatch candidates
+  candidates = []
+  FOR EACH (guide, hooks) IN by_guide:
+    IF guide_is_tier_2(guide):  # Only auto-invoke Tier 2 guides
+      candidates.append({
+        guide: guide,
+        processes: [h.process_ids for h in hooks],
+        process_count: sum(len(h.process_ids) for h in hooks)
+      })
+
+  # Step 5: Sort by process count (descending), cap at 2
+  candidates.sort(key=lambda c: (-c.process_count, c.guide))
+  candidates = candidates[:2]  # TRIG-013 cap
+
+  # Step 6: Dispatch
+  dispatches = []
+  FOR EACH candidate IN candidates:
+    write_dispatch_context(
+      trigger_id=f"TRIG-013-{completed_stage}-{candidate.guide}",
+      processes=candidate.processes,
+      scope=f"Proactive process coverage for Stage {completed_stage}: {candidate.processes}"
+    )
+    result = Skill(skill: guide_to_skill(candidate.guide))
+    receipt = create_dispatch_receipt(result, trigger_id="TRIG-013")
+    dispatches.append(receipt)
+
+    display f"[DISPATCH-INVOKE] TRIG-013: Proactive sweep invoked {candidate.guide} for {len(candidate.processes)} processes"
+
+  RETURN dispatches
+```
 
 ---
 
@@ -319,7 +384,7 @@ Contents:
 |------|------|--------------------|
 | Step 0g | Pre-session dispatch check | TRIG-004 (no handoff → suggest /new-project) |
 | Step 0h | Planning loop | TRIG-008 (P4 complete → suggest /sprint-ceremony) |
-| Step 4.8c | Post-stage dispatch evaluation | TRIG-001, TRIG-002, TRIG-003, TRIG-007, TRIG-012 |
+| Step 4.8c | Post-stage dispatch evaluation | TRIG-001, TRIG-002, TRIG-003, TRIG-007, TRIG-012, TRIG-013 |
 | Step 5 | Post-termination dispatch | TRIG-005 (release-prep), TRIG-006 (post-launch) |
 | Appendix C | Spawn prompt injection | Include `dispatch_context.<current_stage>` in orchestrator prompt |
 

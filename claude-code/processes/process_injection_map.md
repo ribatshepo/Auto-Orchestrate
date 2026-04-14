@@ -1,42 +1,128 @@
 # Process Injection Map: Auto-Orchestrate ↔ Organizational Processes
 
-**Version**: 1.0  
-**Date**: 2026-04-06  
-**Produced by**: software-engineer (Task #8, SPEC T018)  
-**Status**: Active — V1 advisory injection (enforced: false by default)
+**Version**: 2.0  
+**Date**: 2026-04-14  
+**Produced by**: software-engineer (Task #8, SPEC T018; expanded A3)  
+**Status**: Active — Scope-conditional injection (PROCESS-SCOPE-001)
 
 ---
 
 ## Executive Summary
 
-The auto-orchestrate pipeline (Stages 0-6) and the organizational process framework (P-001 through P-093) run in parallel but have historically had no structured connection. Each auto-orchestrate stage implicitly produces outputs that organizational processes require, and each organizational process produces artifacts that auto-orchestrate stages need — but there is no explicit mechanism to link them. This document defines the **process injection map**: a cross-reference table identifying exactly which organizational processes apply at each auto-orchestrate stage, the injection event that triggers process engagement, and whether the hook blocks pipeline advancement (enforced) or is advisory (notify/link). V1 defaults to `enforced: false` for all hooks except P-038 (Security by Design), which is always enforced.
+The auto-orchestrate pipeline (Stages 0-6) and the organizational process framework (P-001 through P-093) run in parallel. This document defines the **process injection map**: a cross-reference table identifying which organizational processes apply at each auto-orchestrate stage, the injection event that triggers process engagement, whether the hook blocks pipeline advancement, and the **scope condition** that determines when the hook is active.
+
+V1 mapped 18 processes to pipeline stages. V2 expands coverage to all 93 processes via scope-conditional injection (PROCESS-SCOPE-001). Not all processes apply to every task — the triage gate classifies process scope as TRIVIAL, MEDIUM, or COMPLEX, and injection hooks only fire when their scope condition is met.
 
 ---
 
 ## Injection Table: Auto-Orchestrate Stage → Organizational Process
+
+### Core Injection Hooks (All Scope Tiers)
+
+These hooks fire for ALL tasks regardless of triage complexity. They represent the minimum process coverage.
 
 | AO Stage | Stage Name | Agent | Primary Org Processes | Injection Event | Action | Enforced |
 |----------|-----------|-------|----------------------|----------------|--------|----------|
 | Stage 0 | Research | researcher | P-001 (Intent), P-038 (AppSec Scope) | Before Stage 0: Verify P-001 Intent Brief exists in handoff receipt | notify | false |
 | Stage 1 | Product Management | product-manager | P-007 (Decompose Deliverables), P-008 (Definition of Done), P-009 (Success Metrics), P-010 (RAID) | During Stage 1: Link task decomposition to P-007; DoD per epic = P-008 | link | false |
 | Stage 2 | Specification | spec-creator | P-033 (Technical Design Review), P-038 (Security by Design) | During Stage 2: Spec must reference P-033 design review checklist; P-038 security requirements embedded | gate | **true** (P-038 only) |
-| Stage 3 | Implementation | software-engineer | P-034 (Code Review), P-036 (Security Review), P-040 (Dependency Inventory) | After Stage 3: Present P-034 Code Review checklist; P-040 dependency inventory written | notify | false |
+| Stage 3 | Implementation | software-engineer | P-031 (Feature Development), P-034 (Code Review), P-036 (Security Review), P-040 (Dependency Inventory) | After Stage 3: Present P-034 Code Review checklist; P-040 dependency inventory written | notify | false |
 | Stage 4 | Test Writing | test-writer-pytest | P-035 (Testing Protocols), P-037 (Automated Testing) | During Stage 4: Tests must cover P-035 test coverage requirements; test results captured via P-037 | link | false |
 | Stage 4.5 | Codebase Stats | codebase-stats | P-062 (Technical Debt Audit) | After Stage 4.5: Tech debt report written; link to P-062 audit record | link | false |
 | Stage 5 | Validation | validator | P-034 (Code Review), P-036 (Security), P-037 (UAT pass criteria) | Before Stage 5 exit: Confirm P-034 + P-036 + P-037 pass criteria met in validation report | gate | **true** (P-034, P-037) |
 | Stage 6 | Documentation | technical-writer | P-058 (Technical Docs), P-059 (API Docs), P-061 (Runbook) | After Stage 6: Link Stage 6 docs to P-058 + P-059 + P-061 process records; P-058 acknowledgment required | gate | **true** (P-058) |
 
+### MEDIUM Scope Injection Hooks (scope_condition: medium+)
+
+These hooks fire only when triage classifies the task as MEDIUM or COMPLEX complexity.
+
+| AO Stage | Stage Name | Org Processes | Injection Event | Action | Enforced | Domain Guide |
+|----------|-----------|---------------|----------------|--------|----------|-------------|
+| Stage 1 | Product Mgmt | P-011 (Exclusion Documentation), P-013 (Scope Lock), P-014 (Change Control) | During Stage 1: Link scope deliverables to P-011 exclusions and P-013 lock criteria | link | false | — |
+| Stage 2 | Specification | P-032 (Test Architecture Design) | During Stage 2: Spec includes testability section aligned with P-032 | link | false | `/qa` |
+| Stage 3 | Implementation | P-039 (SAST/DAST CI Integration) | After Stage 3: Notify that P-039 SAST/DAST checks should apply to new code | notify | false | `/security` |
+| Stage 5 | Validation | P-039 (SAST/DAST CI Verification) | During Stage 5: Validator checks P-039 scan results if CI engine present | notify | false | `/security` |
+| Stage 6 | Documentation | P-060 (ADR Publication) | After Stage 6: If architecture decisions made, publish ADR per P-060 | link | false | — |
+
+### COMPLEX Scope Injection Hooks (scope_condition: complex)
+
+These hooks fire only when triage classifies the task as COMPLEX.
+
+| AO Stage | Stage Name | Org Processes | Injection Event | Action | Enforced | Domain Guide |
+|----------|-----------|---------------|----------------|--------|----------|-------------|
+| Stage 0 | Research | P-002 (OKR Alignment), P-003 (Boundary Definition) | Before Stage 0: Link research scope to P-002 OKR alignment and P-003 boundaries | link | false | — |
+| Stage 0 | Research | P-005 (Strategic Prioritization), P-006 (Technical Vision) | Before Stage 0: Note P-005/P-006 as reference for research framing | informational | false | — |
+| Stage 0 | Research | P-074 (RAID Log), P-075 (Risk Register at Scope Lock) | During Stage 0: Researcher notes risks for P-074 RAID log seeding | link | false | `/risk` |
+| Stage 1 | Product Mgmt | P-012 (AppSec Scope Review) | During Stage 1: Link security scope to P-012 review | link | false | — |
+| Stage 1 | Product Mgmt | P-022 (Sprint Goals), P-023 (Intent Trace), P-024 (Story Writing) | During Stage 1: Product-manager aligns task decomposition with P-022-024 sprint patterns | notify | false | — |
+| Stage 2 | Specification | P-085 (RFC Process) | During Stage 2: If architectural decision required, reference P-085 RFC template | informational | false | — |
+| Stage 3 | Implementation | P-086 (Technical Debt Tracking) | After Stage 3: Log new tech debt items per P-086 | link | false | — |
+| Stage 3 | Implementation | P-060 (ADR Publication) | During Stage 3: If architecture decisions made during impl, draft ADR per P-060 | notify | false | — |
+| Stage 5 | Validation | P-076 (Pre-Launch Risk Review) | Before Stage 5: If release_flag is true, reference P-076 pre-launch checklist | notify | false | `/risk` |
+| Stage 6 | Documentation | P-087 (Architecture Patterns Registry) | After Stage 6: If new patterns established, register per P-087 | informational | false | — |
+
+### Domain-Conditional Injection Hooks (scope_condition: complex + domain flag)
+
+These hooks fire only when triage classifies the task as COMPLEX AND the corresponding domain flag is active.
+
+| AO Stage | Domain Flag | Org Processes | Injection Event | Action | Enforced | Domain Guide |
+|----------|-----------|---------------|----------------|--------|----------|-------------|
+| Stage 0 | `infra` | P-015 (Register Dependencies), P-016 (Critical Path) | During Stage 0: Researcher identifies cross-team infra dependencies | notify | false | — |
+| Stage 2 | `infra` | P-044 (Golden Path Adoption), P-046 (Environment Self-Service) | During Stage 2: Spec references P-044 golden path for deployment | link | false | `/infra` |
+| Stage 2 | `data_ml` | P-049 (Pipeline Quality), P-050 (Schema Migration) | During Stage 2: Spec includes data quality and migration requirements | link | false | `/data-ml-ops` |
+| Stage 3 | `infra` | P-045 (Infrastructure Provisioning) | During Stage 3: IaC must follow P-045 (no manual provisioning) | notify | false | `/infra` |
+| Stage 3 | `data_ml` | P-051 (ML Experiment Logging) | During Stage 3: ML code must include experiment logging per P-051 | notify | false | `/data-ml-ops` |
+| Stage 5 | `infra` | P-047 (Cloud Architecture Review), P-048 (Production Release Management) | Before Stage 5: Validate against P-047 CARB checklist; P-048 release gates | notify | false | `/infra` |
+| Stage 5 | `data_ml` | P-052 (Model Canary Deployment), P-053 (Data Drift Monitoring) | During Stage 5: Validate canary deployment config and drift monitoring setup | notify | false | `/data-ml-ops` |
+| Stage 5 | `sre` | P-054 (SLO Definition), P-055 (Incident Response Readiness) | During Stage 5: Validate SLO coverage and incident response runbook | notify | false | — |
+| Stage 6 | `sre` | P-056 (Post-Mortem Template), P-057 (On-Call Rotation) | After Stage 6: Reference P-056/P-057 in operational documentation | informational | false | — |
+
+### Post-Pipeline Injection Hooks (Tier 1 Suggest)
+
+These processes apply after the pipeline completes. They are surfaced as Tier 1 suggestions (R-010 preserved).
+
+| Timing | Org Processes | Condition | Suggested Command | Action |
+|--------|---------------|-----------|-------------------|--------|
+| Post-Stage 6 | P-070 (Post-Mortem), P-071 (Process Health Review) | COMPLEX + terminal_state == completed | `/post-launch` | suggest |
+| Post-Stage 6 | P-073 (Outcome Measurement) | COMPLEX + terminal_state == completed | `/post-launch` | suggest |
+| Post-Stage 6 | P-090 (Knowledge Handoff), P-091 (Runbook Handover), P-092 (Team Onboarding), P-093 (Lessons Learned) | COMPLEX + terminal_state == completed | Manual (organizational) | informational |
+| Post-P4 | P-025 (Sprint Readiness), P-026 (Daily Standup cadence), P-027 (Sprint Review), P-028 (Retrospective) | COMPLEX + planning completed | `/sprint-ceremony` | suggest |
+
+### Organizational-Only Processes (Informational Reference)
+
+These processes are genuinely organizational — they involve human coordination, team dynamics, or cadences that cannot be automated. They are logged as `[PROCESS-INFO]` in process receipts but never dispatched.
+
+| Category | Processes | Rationale |
+|----------|-----------|-----------|
+| Communication & Alignment (Cat 14) | P-078 (OKR Cascade), P-079 (Stakeholder Updates), P-080 (Guild Standards Enforcement), P-081 (DORA Metrics Tracking) | Require org-level human coordination and cadences |
+| Capacity & Resource Management (Cat 15) | P-082 (Quarterly Capacity Planning), P-083 (Shared Resource Allocation), P-084 (Succession Planning) | Human management decisions; quarterly planning cycles |
+| Technical Excellence (partial) | P-088 (Language Tier Policy), P-089 (Developer Experience Survey) | Org-wide policies and surveys; not task-scoped |
+| Sprint Delivery (partial) | P-029 (Sprint Metrics), P-030 (Velocity Tracking) | Cross-sprint aggregation; not meaningful for single pipeline run |
+| Dependency Coordination (partial) | P-017 (Resource Conflicts), P-018 (Communication Plan), P-019 (Dependency Acceptance Gate), P-020 (Dependency Standups), P-021 (Escalation Protocol) | Require cross-team human coordination |
+
 ---
 
-## Missing Process Coverage (Stubs Required)
+## Process Coverage Summary (PROCESS-SCOPE-001)
 
-The following organizational processes have **no home** in either pipeline. They are not triggered by any auto-orchestrate stage and are not represented in the `/new-project` 4-stage pipeline. Stub documents are created to acknowledge their existence, define their scope, and provide a minimal process description until a dedicated pipeline integration is built.
+V2 of the injection map provides coverage for all 93 processes across four tiers:
 
-| Gap | Between Stages | Missing Processes | Stub File |
-|-----|---------------|-------------------|-----------|
-| Sprint planning activities (sprint goals, intent trace, story writing) occur between epic decomposition and implementation but have no AO stage | Stage 1 → Stage 3 | P-022 (Sprint Goals), P-023 (Intent Trace), P-024 (Story Writing) | `claude-code/processes/process_stubs/sprint_planning_stub.md` |
-| Dependency coordination runs parallel to organizational Stages 1-3 but is never triggered by AO Stages 0-2 | Parallel to Stage 0-2 | P-015 (Register Cross-Team Dependencies), P-016 (Critical Path), P-017 (Resource Conflicts), P-018 (Communication Plan), P-020 (Dependency Standups), P-021 (Escalation Protocol) | `claude-code/processes/process_stubs/dependency_coordination_stub.md` |
-| Onboarding and knowledge transfer occur post-Stage 6 but AO pipeline terminates at Stage 6 | Post-Stage 6 | P-090 (Knowledge Handoff), P-091 (Runbook Handover), P-092 (Team Onboarding Brief), P-093 (Lessons Learned) | `claude-code/processes/process_stubs/onboarding_stub.md` |
+| Coverage Tier | Process Count | Mechanism |
+|--------------|--------------|-----------|
+| **Core** (all tasks) | 18 processes | Direct injection hooks — fire for every task |
+| **MEDIUM+** | +9 processes (27 total) | Scope-conditional hooks — fire when triage ≥ MEDIUM |
+| **COMPLEX** | +15 processes (42 total) | Scope-conditional hooks — fire when triage = COMPLEX |
+| **Domain-conditional** | +14 processes (56 total) | Scope + domain flag hooks — fire when COMPLEX + domain flag active |
+| **Post-pipeline** | +8 processes (64 total) | Tier 1 suggest — surfaced after pipeline completion |
+| **Organizational-only** | 16 processes (80 total) | Informational reference — logged but not dispatched |
+| **Implicitly covered** | 13 processes (93 total) | Covered by parent process or stage agent natively |
+
+### Previously Stubbed Processes — Integration Status
+
+| Stub | Processes | V1 Status | V2 Status | Integration |
+|------|-----------|-----------|-----------|-------------|
+| Sprint Planning | P-022, P-023, P-024 | STUB | **INTEGRATED-ADVISORY** | Injected at Stage 1 (COMPLEX scope) as notify hooks |
+| Dependency Coordination | P-015, P-016 | STUB (partial) | **INTEGRATED-ADVISORY** | P-015/P-016 injected at Stage 0 (COMPLEX + infra flag); P-017-021 remain organizational-only |
+| Onboarding | P-090, P-091, P-092, P-093 | STUB | **POST-PIPELINE** | Surfaced as informational at pipeline completion (COMPLEX scope) |
 
 ---
 
@@ -57,26 +143,49 @@ hook:
     in auto mode but must acknowledge the skip.
   output_artifact: null
   enforced: false
+  scope_condition: "all"
+  domain_flag: null
 ```
 
 **Field definitions**:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `ao_stage` | integer or string | YES | The AO pipeline stage number (0, 1, 2, 3, 4, 4.5, 5, 6) |
+| `ao_stage` | integer or string | YES | The AO pipeline stage number (0, 1, 2, 3, 4, 4.5, 5, 6) or `"post"` for post-pipeline |
 | `ao_agent` | string | YES | The agent name that triggers this hook (e.g., "software-engineer", "validator") |
 | `event` | string | YES | When the hook fires: `"before_stage_start"`, `"during_stage"`, `"after_stage_complete"` |
 | `process_ids` | string[] | YES | List of organizational process IDs this hook engages (e.g., ["P-034", "P-036"]) |
-| `action` | string | YES | One of: `"notify"`, `"gate"`, `"link"` |
+| `action` | string | YES | One of: `"notify"`, `"gate"`, `"link"`, `"informational"`, `"suggest"` |
 | `action_detail` | string | YES | Human-readable description of what happens when this hook fires |
 | `output_artifact` | string or null | NO | Path to a file written by this hook, if any. Null if the hook only logs. |
 | `enforced` | boolean | YES | `true` = blocks AO pipeline advancement until acknowledged; `false` = advisory only |
+| `scope_condition` | string | YES | Minimum triage tier for this hook to fire: `"all"`, `"medium"`, `"complex"`. Default: `"all"`. |
+| `domain_flag` | string or null | NO | Required domain flag for this hook to fire: `"infra"`, `"data_ml"`, `"sre"`, `"risk"`, or `null` (no domain restriction). Only evaluated when `scope_condition` is `"complex"`. |
+| `domain_guide` | string or null | NO | If this hook's process can be delegated to a domain guide for expert analysis, the Skill name (e.g., `"security"`, `"qa"`, `"infra"`). Used by TRIG-013 proactive sweep. |
 
 **Action type definitions**:
 
-- `notify` — Log a message to orchestrator output at the injection event. Does not block pipeline. The message format is: `[PROCESS-INJECT] Stage {N} ({event}): {process_ids} — {action_detail}`
+- `notify` — Log a message to orchestrator output at the injection event. Does not block pipeline. Format: `[PROCESS-INJECT] Stage {N} ({event}): {process_ids} — {action_detail}`
 - `gate` — Block pipeline advancement until the process requirement is explicitly acknowledged by the user or by a passing validation check. Used only when `enforced: true`.
 - `link` — Write a cross-reference entry to `.orchestrate/{session_id}/process_receipts.json` mapping the AO stage output to the organizational process record. Does not block pipeline.
+- `informational` — Log `[PROCESS-INFO] {process_ids} noted as applicable. Reference: {process_file}.` No pipeline impact. Used for organizational-only processes.
+- `suggest` — Display `[PROCESS-SUGGEST] Consider running {command} for {process_ids}.` Used for Tier 1 post-pipeline suggestions. Preserves R-010.
+
+**Scope condition evaluation**:
+
+```
+FUNCTION hook_is_active(hook, process_scope):
+  IF hook.scope_condition == "all":
+    RETURN true
+  IF hook.scope_condition == "medium" AND process_scope.tier IN ["medium", "complex"]:
+    RETURN true
+  IF hook.scope_condition == "complex" AND process_scope.tier == "complex":
+    IF hook.domain_flag is null:
+      RETURN true
+    IF hook.domain_flag IN process_scope.domain_flags:
+      RETURN true
+  RETURN false
+```
 
 ---
 
@@ -157,17 +266,26 @@ The following locations in `claude-code/agents/orchestrator.md` (and `~/.claude/
 
 For full process definitions, see the following process handbook files:
 
-| Process Range | File |
-|--------------|------|
-| P-001 to P-006 | `claude-code/processes/01_intent_strategic_alignment.md` |
-| P-007 to P-014 | `claude-code/processes/02_scope_contract_management.md` |
-| P-015 to P-021 | `claude-code/processes/03_dependency_coordination.md` |
-| P-022 to P-031 | `claude-code/processes/04_sprint_delivery_execution.md` |
-| P-033 to P-037 | `claude-code/processes/05_quality_assurance_testing.md` |
-| P-038 to P-040 | `claude-code/processes/06_security_compliance.md` |
-| P-058 to P-062 | `claude-code/processes/10_documentation_knowledge.md` |
-| P-090 to P-093 | `claude-code/processes/17_onboarding_knowledge_transfer.md` |
+| Process Range | Category | File | Domain Guide |
+|--------------|----------|------|-------------|
+| P-001 to P-006 | 1. Intent & Strategic Alignment | `claude-code/processes/01_intent_strategic_alignment.md` | — |
+| P-007 to P-014 | 2. Scope & Contract Management | `claude-code/processes/02_scope_contract_management.md` | — |
+| P-015 to P-021 | 3. Dependency & Coordination | `claude-code/processes/03_dependency_coordination.md` | — |
+| P-022 to P-031 | 4. Sprint & Delivery Execution | `claude-code/processes/04_sprint_delivery_execution.md` | — |
+| P-032 to P-037 | 5. Quality Assurance & Testing | `claude-code/processes/05_quality_assurance_testing.md` | `/qa` |
+| P-038 to P-043 | 6. Security & Compliance | `claude-code/processes/06_security_compliance.md` | `/security` |
+| P-044 to P-048 | 7. Infrastructure & Platform | `claude-code/processes/07_infrastructure_platform.md` | `/infra` |
+| P-049 to P-053 | 8. Data & ML Operations | `claude-code/processes/08_data_ml_operations.md` | `/data-ml-ops` |
+| P-054 to P-057 | 9. SRE & Operations | `claude-code/processes/09_sre_operations.md` | — |
+| P-058 to P-061 | 10. Documentation & Knowledge | `claude-code/processes/10_documentation_knowledge.md` | — |
+| P-062 to P-069 | 11. Organizational Audit | `claude-code/processes/11_organizational_audit.md` | `/org-ops` |
+| P-070 to P-073 | 12. Post-Delivery Retrospective | `claude-code/processes/12_post_delivery_retrospective.md` | — |
+| P-074 to P-077 | 13. Risk & Change Management | `claude-code/processes/13_risk_change_management.md` | `/risk` |
+| P-078 to P-081 | 14. Communication & Alignment | `claude-code/processes/14_communication_alignment.md` | — |
+| P-082 to P-084 | 15. Capacity & Resource Mgmt | `claude-code/processes/15_capacity_resource_management.md` | — |
+| P-085 to P-089 | 16. Technical Excellence | `claude-code/processes/16_technical_excellence_standards.md` | — |
+| P-090 to P-093 | 17. Onboarding & Knowledge Transfer | `claude-code/processes/17_onboarding_knowledge_transfer.md` | — |
 
 ---
 
-*Implements SPEC T018 | References: T009 (bridge protocol), T014 (gate state schema), T019 (orchestrator hooks — future)*
+*Implements SPEC T018, Improvement A3 (PROCESS-SCOPE-001, PROCESS-DELEGATE-001) | References: T009 (bridge protocol), T014 (gate state schema), command-dispatch.md (TRIG-013)*

@@ -838,6 +838,57 @@ ELSE:
 
 **Override**: The `--skip-planning` flag always wins. The triage gate only applies when `skip_planning` is not explicitly set.
 
+**Process scope classification (PROCESS-SCOPE-001)**:
+
+After determining complexity, classify the process scope. This determines which injection hooks from the expanded process injection map (`processes/process_injection_map.md`) are active for this session.
+
+**Domain flag detection** (from user input text only — same constraint as triage signals):
+
+| Domain Flag | Detection Keywords |
+|-------------|-------------------|
+| `infra` | "deploy", "infrastructure", "kubernetes", "k8s", "docker", "CI/CD", "pipeline", "terraform", "cloud" |
+| `data_ml` | "data pipeline", "ETL", "ML", "model", "training", "dataset", "schema migration", "dbt", "streaming" |
+| `sre` | "SLO", "incident", "monitoring", "on-call", "reliability", "observability", "alerting" |
+| `risk` | "risk", "compliance", "regulatory", "audit", "RAID" |
+
+```
+domain_flags = []
+FOR EACH (flag, keywords) IN DOMAIN_FLAG_TABLE:
+    IF any keyword IN lowercase(task_description + scope_specification):
+        domain_flags.append(flag)
+
+# Process scope tier follows complexity tier
+process_scope_tier = complexity  # trivial, medium, or complex
+
+# Active processes determined by tier
+IF process_scope_tier == "trivial":
+    active_processes = ["P-001", "P-007", "P-033", "P-034"]
+    active_categories = [1, 2, 5]
+    domain_guides_enabled = []
+ELSE IF process_scope_tier == "medium":
+    active_processes = CORE_PROCESSES + MEDIUM_PROCESSES  # ~27 processes
+    active_categories = [1, 2, 5, 6, 10]
+    domain_guides_enabled = ["/security", "/qa"]
+ELSE:  # complex
+    active_processes = CORE + MEDIUM + COMPLEX_PROCESSES  # base ~42
+    active_categories = [1, 2, 3, 5, 6, 10, 12, 13, 16]
+    domain_guides_enabled = ["/security", "/qa", "/risk"]
+    # Add domain-conditional categories
+    IF "infra" IN domain_flags:
+        active_categories += [7]
+        domain_guides_enabled += ["/infra"]
+        active_processes += INFRA_PROCESSES  # P-044-048
+    IF "data_ml" IN domain_flags:
+        active_categories += [8]
+        domain_guides_enabled += ["/data-ml-ops"]
+        active_processes += DATA_ML_PROCESSES  # P-049-053
+    IF "sre" IN domain_flags:
+        active_categories += [9]
+        active_processes += SRE_PROCESSES  # P-054-057
+    IF "risk" IN domain_flags:
+        active_processes += RISK_PROCESSES  # P-074-077 (already in domain_guides)
+```
+
 **Checkpoint addition**:
 ```json
 {
@@ -845,12 +896,20 @@ ELSE:
     "complexity": "trivial|medium|complex",
     "signals": { "trivial": 0, "medium": 0, "complex": 0 },
     "planning_skipped_by_triage": false,
-    "classified_at": "<ISO-8601>"
+    "classified_at": "<ISO-8601>",
+    "process_scope": {
+      "tier": "trivial|medium|complex",
+      "domain_flags": [],
+      "active_categories": [],
+      "domain_guides_enabled": [],
+      "total_active": 0
+    }
   }
 }
 ```
 
 Log: `[TRIAGE] Complexity: <classification> (trivial: <N>, medium: <N>, complex: <N> signals). Planning: <SKIP|REQUIRE>.`
+Log: `[PROCESS-SCOPE] Tier: <tier>. Domain flags: <flags>. Active categories: <N>. Domain guides: <guides>. Total processes: <count>.`
 
 ### 0h. Planning Phase Gate (PRE-RESEARCH-GATE)
 
@@ -1200,7 +1259,7 @@ If `.gate-state.json` exists at the project root (written by `/gate-review`):
 
 ```json
 {
-  "schema_version": "1.3.0",
+  "schema_version": "1.4.0",
   "session_id": "<session-id>",
   "created_at": "<ISO-8601>",
   "updated_at": "<ISO-8601>",
@@ -1276,6 +1335,26 @@ Log: `[MIGRATE] Added dispatch fields to checkpoint (1.1.0 → 1.2.0)`
 Log: `[MIGRATE] Added domain activation fields to checkpoint (1.2.0 → 1.3.0)`
 
 Update `schema_version` to `"1.3.0"` after migration.
+
+**Process scope fields migration (1.3.0 → 1.4.0)**: When resuming a session where `triage` exists but lacks `process_scope`, add it with a safe default:
+```json
+{
+  "triage": {
+    "process_scope": {
+      "tier": "complex",
+      "domain_flags": [],
+      "active_categories": [1, 2, 3, 5, 6, 7, 8, 9, 10, 12, 13, 16],
+      "domain_guides_enabled": ["/security", "/qa", "/infra", "/data-ml-ops", "/risk", "/org-ops"],
+      "total_active": 56
+    }
+  }
+}
+```
+Log: `[MIGRATE] Added process_scope to triage (1.3.0 → 1.4.0). Defaulting to complex (all processes active).`
+
+**Note**: Default is `complex` (all processes active) so existing sessions do not lose coverage. New sessions compute the actual scope via Step 0h-pre.
+
+Update `schema_version` to `"1.4.0"` after migration.
 
 ---
 
@@ -1608,9 +1687,36 @@ After evaluating pipeline progress (4.8), process hooks (4.8a), and human gates 
    append to checkpoint.dispatch_log
    ```
 
-5. **Log summary**: `[DISPATCH] Evaluated <N> triggers for <M> newly completed stages, <K> fired, <J> receipts written`
+5. **Proactive process sweep (TRIG-013 / PROCESS-DELEGATE-001)**:
 
-6. **Dispatch gate enforcement**: Before proceeding, check if any `dispatch_gates` block the next stage:
+   After evaluating TRIG-001 through TRIG-012, run the proactive process sweep if `checkpoint.triage.process_scope.tier >= "medium"`. This ensures processes from the expanded injection map that aren't natively handled get domain guide coverage.
+
+   ```
+   already_dispatched = set of skill names dispatched by TRIG-001-012 in this evaluation
+
+   IF checkpoint.triage.process_scope.tier != "trivial":
+       proactive_results = proactive_process_sweep(
+           completed_stage=newly_completed_stage,
+           process_scope=checkpoint.triage.process_scope,
+           already_dispatched=already_dispatched
+       )
+       # proactive_results follow the same receipt protocol as TRIG-001-012
+       # Process next_action for each proactive dispatch receipt
+       FOR EACH receipt IN proactive_results:
+           process_next_action(receipt)  # inject_into_stage, create_task, etc.
+           append to checkpoint.dispatch_log:
+               { trigger_id: "TRIG-013", command: receipt.command,
+                 tier: 2, action: "invoked", dispatch_id: receipt.dispatch_id,
+                 proactive: true, processes: receipt.processes, timestamp }
+   ```
+
+   Log: `[DISPATCH] TRIG-013 proactive sweep: <N> domain guides invoked for <M> processes`
+
+   **Cap**: Maximum 2 proactive dispatches per stage transition. If TRIG-001-012 already dispatched a domain guide, TRIG-013 skips it.
+
+6. **Log summary**: `[DISPATCH] Evaluated <N> triggers for <M> newly completed stages, <K> fired (reactive), <J> proactive, <R> receipts written`
+
+7. **Dispatch gate enforcement**: Before proceeding, check if any `dispatch_gates` block the next stage:
    ```
    IF checkpoint.dispatch_gates contains key for next pending stage:
        display "[DISPATCH-GATE] Stage <N> blocked by dispatch gate {dispatch_id}"
@@ -2159,6 +2265,10 @@ STAGE_CEILING: <calculated ceiling>
 MANIFEST_PATH: ~/.claude/manifest.json
 GATE_STATE: <current gate state or "not_enforced">
 PROJECT_TYPE: <greenfield|existing|continuation>
+PROCESS_SCOPE_TIER: <trivial|medium|complex>
+PROCESS_DOMAIN_FLAGS: <domain flags array>
+PROCESS_ACTIVE_CATEGORIES: <active category numbers>
+PROCESS_DOMAIN_GUIDES: <enabled domain guide commands>
 
 **GATE_STATE values**:
 - `"not_enforced"` — No `.gate-state.json` found; organizational gates not active
@@ -2199,6 +2309,23 @@ Follow scope specifications in Enhanced Prompt precisely.
 {{else}}
 No scope restriction — follow the enhanced prompt as written.
 {{/if}}
+
+## Process Scope (PROCESS-SCOPE-001)
+
+Process scope tier: **{{PROCESS_SCOPE_TIER}}**
+Domain flags: {{PROCESS_DOMAIN_FLAGS}}
+Active categories: {{PROCESS_ACTIVE_CATEGORIES}}
+Domain guides enabled: {{PROCESS_DOMAIN_GUIDES}}
+
+When evaluating process injection hooks from `processes/process_injection_map.md`, only fire hooks whose `scope_condition` is met by the current process scope tier. Hooks with `domain_flag` requirements only fire if that flag is in PROCESS_DOMAIN_FLAGS.
+
+At each stage transition, consult the expanded injection map for applicable processes:
+- **Core hooks** (scope_condition: "all"): Always fire
+- **MEDIUM hooks**: Fire only if PROCESS_SCOPE_TIER is "medium" or "complex"
+- **COMPLEX hooks**: Fire only if PROCESS_SCOPE_TIER is "complex"
+- **Domain-conditional hooks**: Fire only if PROCESS_SCOPE_TIER is "complex" AND the required domain_flag is active
+
+Log applicable processes as `[PROCESS-INJECT]` or `[PROCESS-INFO]` per the injection map's action types.
 
 ## Dispatch Context (from Command Dispatcher)
 
