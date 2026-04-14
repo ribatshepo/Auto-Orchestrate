@@ -15,10 +15,142 @@ log()  { echo -e "${GREEN}[✔]${NC} $*"; }
 warn() { echo -e "${YELLOW}[!]${NC} $*"; }
 err()  { echo -e "${RED}[✘]${NC} $*"; exit 1; }
 
-# --- Configuration ------------------------------------------------------------
-SOURCE_DIR="${1:-claude-code}"
+# --- Argument parsing ----------------------------------------------------------
+CHECK_MODE=0
+SOURCE_DIR=""
+for arg in "$@"; do
+  if [[ "$arg" == "--check" ]]; then
+    CHECK_MODE=1
+  elif [[ -z "$SOURCE_DIR" ]]; then
+    SOURCE_DIR="$arg"
+  fi
+done
+SOURCE_DIR="${SOURCE_DIR:-claude-code}"
+
 CLAUDE_DIR="$HOME/.claude"
 BACKUP_DIR="$CLAUDE_DIR/backup-$(date +%Y%m%d-%H%M%S)"
+
+# --- check_mode: drift detection (no writes) ----------------------------------
+check_mode() {
+  if [[ ! -d "$SOURCE_DIR" ]]; then
+    echo -e "${RED}[ERROR]${NC} Source directory '$SOURCE_DIR' not found."
+    exit 2
+  fi
+
+  local drift_count=0
+  local missing_list
+  local src_count dst_count
+
+  # --- Agents ---
+  missing_list=""
+  src_count=0
+  dst_count=0
+  if [[ -d "$SOURCE_DIR/agents" ]]; then
+    while IFS= read -r src_file; do
+      basename_file="$(basename "$src_file")"
+      src_count=$((src_count + 1))
+      if [[ -f "$CLAUDE_DIR/agents/$basename_file" ]]; then
+        dst_count=$((dst_count + 1))
+      else
+        missing_list="${missing_list:+$missing_list, }${basename_file%.md}"
+      fi
+    done < <(find "$SOURCE_DIR/agents" -maxdepth 1 -name "*.md" | sort)
+    if [[ $src_count -eq $dst_count ]]; then
+      echo -e "${GREEN}[OK]${NC} agents: ${dst_count}/${src_count}"
+    else
+      echo -e "${RED}[DRIFT]${NC} agents: ${dst_count}/${src_count} (missing: ${missing_list})"
+      drift_count=$((drift_count + 1))
+    fi
+  else
+    echo -e "${YELLOW}[SKIP]${NC} agents: source directory not found"
+  fi
+
+  # --- Commands ---
+  missing_list=""
+  src_count=0
+  dst_count=0
+  if [[ -d "$SOURCE_DIR/commands" ]]; then
+    while IFS= read -r src_file; do
+      basename_file="$(basename "$src_file")"
+      src_count=$((src_count + 1))
+      if [[ -f "$CLAUDE_DIR/commands/$basename_file" ]]; then
+        dst_count=$((dst_count + 1))
+      else
+        missing_list="${missing_list:+$missing_list, }${basename_file%.md}"
+      fi
+    done < <(find "$SOURCE_DIR/commands" -maxdepth 1 -name "*.md" | sort)
+    if [[ $src_count -eq $dst_count ]]; then
+      echo -e "${GREEN}[OK]${NC} commands: ${dst_count}/${src_count}"
+    else
+      echo -e "${RED}[DRIFT]${NC} commands: ${dst_count}/${src_count} (missing: ${missing_list})"
+      drift_count=$((drift_count + 1))
+    fi
+  else
+    echo -e "${YELLOW}[SKIP]${NC} commands: source directory not found"
+  fi
+
+  # --- Skills ---
+  missing_list=""
+  src_count=0
+  dst_count=0
+  if [[ -d "$SOURCE_DIR/skills" ]]; then
+    while IFS= read -r src_dir; do
+      skill_name="$(basename "$src_dir")"
+      src_count=$((src_count + 1))
+      if [[ -d "$CLAUDE_DIR/skills/$skill_name" ]]; then
+        dst_count=$((dst_count + 1))
+      else
+        missing_list="${missing_list:+$missing_list, }${skill_name}"
+      fi
+    done < <(find "$SOURCE_DIR/skills" -mindepth 1 -maxdepth 1 -type d | sort)
+    if [[ $src_count -eq $dst_count ]]; then
+      echo -e "${GREEN}[OK]${NC} skills: ${dst_count}/${src_count}"
+    else
+      echo -e "${RED}[DRIFT]${NC} skills: ${dst_count}/${src_count} (missing: ${missing_list})"
+      drift_count=$((drift_count + 1))
+    fi
+  else
+    echo -e "${YELLOW}[SKIP]${NC} skills: source directory not found"
+  fi
+
+  # --- Processes ---
+  missing_list=""
+  src_count=0
+  dst_count=0
+  if [[ -d "$SOURCE_DIR/processes" ]]; then
+    while IFS= read -r src_entry; do
+      entry_name="$(basename "$src_entry")"
+      src_count=$((src_count + 1))
+      if [[ -e "$CLAUDE_DIR/processes/$entry_name" ]]; then
+        dst_count=$((dst_count + 1))
+      else
+        missing_list="${missing_list:+$missing_list, }${entry_name}"
+      fi
+    done < <(find "$SOURCE_DIR/processes" -mindepth 1 -maxdepth 1 | sort)
+    if [[ $src_count -eq $dst_count ]]; then
+      echo -e "${GREEN}[OK]${NC} processes: ${dst_count}/${src_count}"
+    else
+      echo -e "${RED}[DRIFT]${NC} processes: ${dst_count}/${src_count} (missing: ${missing_list})"
+      drift_count=$((drift_count + 1))
+    fi
+  else
+    echo -e "${YELLOW}[SKIP]${NC} processes: source directory not found"
+  fi
+
+  echo ""
+  if [[ $drift_count -eq 0 ]]; then
+    echo -e "${GREEN}[PASS]${NC} No drift detected"
+    exit 0
+  else
+    echo -e "${RED}[DRIFT]${NC} ${drift_count} component(s) out of sync — run install.sh to fix"
+    exit 1
+  fi
+}
+
+# --- Run check mode if requested ----------------------------------------------
+if [[ $CHECK_MODE -eq 1 ]]; then
+  check_mode
+fi
 
 # --- Pre-flight checks --------------------------------------------------------
 if [[ ! -d "$SOURCE_DIR" ]]; then
@@ -35,7 +167,7 @@ echo "  Destination: $CLAUDE_DIR"
 echo ""
 
 # --- Create directories if needed ---------------------------------------------
-mkdir -p "$CLAUDE_DIR"/{skills,agents,commands}
+mkdir -p "$CLAUDE_DIR"/{skills,agents,commands,processes}
 
 # --- Backup existing config if present ----------------------------------------
 backup_if_exists() {
@@ -52,6 +184,8 @@ backup_if_exists() {
 # Skills (auto-discovered by Claude Code)
 if [[ -d "$SOURCE_DIR/skills" ]]; then
   backup_if_exists "$CLAUDE_DIR/skills"
+  rm -rf "$CLAUDE_DIR/skills"
+  mkdir -p "$CLAUDE_DIR/skills"
   cp -r "$SOURCE_DIR/skills/"* "$CLAUDE_DIR/skills/" 2>/dev/null || true
   log "Skills installed"
 else
@@ -61,6 +195,8 @@ fi
 # Agents (flat .md files)
 if [[ -d "$SOURCE_DIR/agents" ]]; then
   backup_if_exists "$CLAUDE_DIR/agents"
+  rm -rf "$CLAUDE_DIR/agents"
+  mkdir -p "$CLAUDE_DIR/agents"
   cp -r "$SOURCE_DIR/agents/"* "$CLAUDE_DIR/agents/" 2>/dev/null || true
   log "Agents installed"
 else
@@ -70,6 +206,8 @@ fi
 # Commands
 if [[ -d "$SOURCE_DIR/commands" ]]; then
   backup_if_exists "$CLAUDE_DIR/commands"
+  rm -rf "$CLAUDE_DIR/commands"
+  mkdir -p "$CLAUDE_DIR/commands"
   cp -r "$SOURCE_DIR/commands/"* "$CLAUDE_DIR/commands/" 2>/dev/null || true
   log "Commands installed"
 else
@@ -79,6 +217,7 @@ fi
 # Shared resources (protocols, templates, references, style-guides, schemas, tokens)
 if [[ -d "$SOURCE_DIR/_shared" ]]; then
   backup_if_exists "$CLAUDE_DIR/_shared"
+  rm -rf "$CLAUDE_DIR/_shared"
   mkdir -p "$CLAUDE_DIR/_shared"
   cp -r "$SOURCE_DIR/_shared/"* "$CLAUDE_DIR/_shared/" 2>/dev/null || true
   log "Shared resources installed"
@@ -89,11 +228,23 @@ fi
 # Lib (CI engine + domain memory)
 if [[ -d "$SOURCE_DIR/lib" ]]; then
   backup_if_exists "$CLAUDE_DIR/lib"
+  rm -rf "$CLAUDE_DIR/lib"
   mkdir -p "$CLAUDE_DIR/lib"
   cp -r "$SOURCE_DIR/lib/"* "$CLAUDE_DIR/lib/" 2>/dev/null || true
   log "Lib (ci_engine, domain_memory) installed"
 else
   warn "No lib directory found in $SOURCE_DIR — skipping"
+fi
+
+# Processes (orchestration process definitions)
+if [[ -d "$SOURCE_DIR/processes" ]]; then
+  backup_if_exists "$CLAUDE_DIR/processes"
+  rm -rf "$CLAUDE_DIR/processes"
+  mkdir -p "$CLAUDE_DIR/processes"
+  cp -r "$SOURCE_DIR/processes/"* "$CLAUDE_DIR/processes/" 2>/dev/null || true
+  log "Processes installed"
+else
+  warn "No processes directory found in $SOURCE_DIR — skipping"
 fi
 
 # Manifest (required for orchestrator routing)
@@ -124,6 +275,44 @@ for doc_file in ARCHITECTURE.md INTEGRATION.md PERMISSION-MODES.md; do
     warn "No $doc_file found in $SOURCE_DIR — skipping"
   fi
 done
+
+# --- Post-install verification ------------------------------------------------
+verify_pass=1
+verify_src_agents=0
+verify_dst_agents=0
+verify_src_commands=0
+verify_dst_commands=0
+verify_src_skills=0
+verify_dst_skills=0
+
+verify_src_agents=$(find "$SOURCE_DIR/agents" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l || echo 0)
+verify_dst_agents=$(find "$CLAUDE_DIR/agents" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l || echo 0)
+verify_src_commands=$(find "$SOURCE_DIR/commands" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l || echo 0)
+verify_dst_commands=$(find "$CLAUDE_DIR/commands" -maxdepth 1 -name "*.md" 2>/dev/null | wc -l || echo 0)
+verify_src_skills=$(find "$SOURCE_DIR/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l || echo 0)
+verify_dst_skills=$(find "$CLAUDE_DIR/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l || echo 0)
+verify_src_processes=$(find "$SOURCE_DIR/processes" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l || echo 0)
+verify_dst_processes=$(find "$CLAUDE_DIR/processes" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l || echo 0)
+
+echo "  Agents:    ${verify_dst_agents} installed / ${verify_src_agents} in source"
+echo "  Commands:  ${verify_dst_commands} installed / ${verify_src_commands} in source"
+echo "  Skills:    ${verify_dst_skills} installed / ${verify_src_skills} in source"
+echo "  Processes: ${verify_dst_processes} installed / ${verify_src_processes} in source"
+echo ""
+
+if [[ "$verify_dst_agents" -ne "$verify_src_agents" ]] || \
+   [[ "$verify_dst_commands" -ne "$verify_src_commands" ]] || \
+   [[ "$verify_dst_skills" -ne "$verify_src_skills" ]] || \
+   [[ "$verify_dst_processes" -ne "$verify_src_processes" ]]; then
+  verify_pass=0
+fi
+
+if [[ $verify_pass -eq 1 ]]; then
+  echo -e "  ${GREEN}[PASS]${NC} All components installed"
+else
+  echo -e "  ${RED}[FAIL]${NC} Component count mismatch — re-run install.sh"
+  exit 1
+fi
 
 # --- Summary ------------------------------------------------------------------
 echo ""

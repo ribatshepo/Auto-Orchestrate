@@ -2,8 +2,8 @@
 
 Comprehensive architecture documentation for the Auto-Orchestrate system.
 
-**Last Updated**: 2026-04-03
-**Components**: 8 agents | 35 skills | 3 commands | 6 protocols | 2 templates | 9 CI engine modules | 4 domain memory modules
+**Last Updated**: 2026-04-09
+**Components**: 16 agents | 35 skills | 14 commands | 6 protocols | 2 templates | 9 CI engine modules | 4 domain memory modules
 
 ---
 
@@ -206,7 +206,7 @@ claude-code/
         v               v           v           v               v
  ┌─────────────┐ ┌─────────────┐ ┌─────────┐ ┌─────────────┐ ┌──────────┐
  │   AGENTS    │ │   SKILLS    │ │COMMANDS │ │  CI ENGINE  │ │  DOMAIN  │
- │  (8 files)  │ │ (35 dirs)   │ │(3 files)│ │  (9 modules)│ │  MEMORY  │
+ │  (16 files)  │ │ (35 dirs)   │ │(14 files)│ │  (9 modules)│ │  MEMORY  │
  └──────┬──────┘ └──────┬──────┘ └─────────┘ └──────┬──────┘ │(4 modules│
         │               │                           │        └──────────┘
         │   ┌───────────┼───────────┐               │
@@ -227,7 +227,7 @@ claude-code/
 | Source Type | References `protocols` | References `lib/` |
 |-------------|------------------------|-------------------|
 | Skills (35) | 5 | 0 (use shared Python library) |
-| Agents (8) | 7 | 2 (orchestrator, debugger) |
+| Agents (16) | 7 | 2 (orchestrator, debugger) |
 | Commands (3) | 3 | 3 (CI engine + domain memory) |
 | Protocols (6) | 3 (internal) | 0 |
 
@@ -2225,3 +2225,119 @@ All commands follow the unified output standard defined in `_shared/protocols/ou
 - **Stage Receipt**: Every stage writes `stage-receipt.json` — the bridge to domain memory
 - **Subdirectories**: All commands use consistent phase/stage subdirectories
 - **Checkpoint Recovery**: Atomic tmp-then-rename with orphaned `.tmp.json` cleanup on startup
+
+---
+
+## 17. Organizational Workflow Integration
+
+**Added**: 2026-04-06 (Session: auto-orc-20260406-gapintg, gap remediation Stage 3)
+
+The auto-orchestrate pipeline connects to a human-facing organizational workflow pipeline through two integration mechanisms: the **bridge protocol** and the **gate state system**. New files in `claude-code/processes/` and a new section in `claude-code/agents/` implement this integration.
+
+### 17.1 New Files Added
+
+| File | Lines | Purpose |
+|------|-------|---------|
+| `claude-code/processes/bridge_protocol.md` | 218 | Defines how Scope Contract artifacts map to `/auto-orchestrate` invocation arguments. Covers trigger conditions, extraction table, handoff receipt schema, launch template, return path, and error handling. |
+| `claude-code/processes/gate_state_schema.json` | 134 | JSON Schema Draft-7 defining the structure of `.orchestrate/{session_id}/gate-state.json`. Validates all 4 organizational gate states with full state machine constraints. |
+| `claude-code/processes/gate_enforcement_spec.md` | 208 | Defines the gate state machine (valid/invalid transitions), enforcement points (GATE-BLOCK format), override mechanism, and initialization template. |
+| `claude-code/processes/process_injection_map.md` | 166 | Cross-reference table: each auto-orchestrate stage (0-6) mapped to organizational process IDs it engages. Hook format, enforcement philosophy, and orchestrator injection points for future T019. |
+| `claude-code/processes/process_stubs/sprint_planning_stub.md` | 73 | Placeholder for P-022/P-023/P-024 (Sprint Goals, Intent Trace, Story Writing) — processes with no AO pipeline home. |
+| `claude-code/processes/process_stubs/dependency_coordination_stub.md` | 95 | Placeholder for P-015 through P-021 (Dependency Coordination) — processes that run parallel to AO Stages 0-2 but are never triggered. |
+| `claude-code/processes/process_stubs/onboarding_stub.md` | 87 | Placeholder for P-090 through P-093 (Knowledge Handoff, Runbook Handover, Team Onboarding, Lessons Learned) — processes that occur after Stage 6. |
+| `claude-code/agents/agent-reconciliation-notes.md` | 263 | Checksum verification record for the three dual-definition agents (researcher, session-manager, orchestrator). Documents install risk and required install.sh guard for orchestrator.md. |
+
+### 17.2 Modified Files
+
+| File | Change |
+|------|--------|
+| `claude-code/commands/new-project.md` | Added Phase 5 (Pipeline Handoff) section + gate state checks at each stage transition. GATE-BLOCK error format at all 4 gate boundaries. |
+| `claude-code/commands/gate-review.md` | Added Gate State Write section: after every gate review, write result to `.orchestrate/{session_id}/gate-state.json`. Full state machine constraints, example JSON, override authorization. |
+
+### 17.3 System Bridge Protocol
+
+```
+/new-project (4-stage org pipeline)
+    │
+    Stage 1: Intent → Gate 1 → Stage 2: Scope → Gate 2 → Stage 3: Dependencies → Gate 3 → Stage 4: Sprint → Gate 4
+    │                                                                                                              │
+    │  Gate 4 passed (or Gate 2 for early handoff)                                                                │
+    ├─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+    │
+    v
+Phase 5: Pipeline Handoff
+    │
+    ├─ Read gate-state.json: confirm gate_2_scope_lock.status == "passed"
+    ├─ Extract task_description from Scope Contract (bridge_protocol.md)
+    ├─ Generate session_id: "auto-orc-YYYYMMDD-{project_slug}"
+    ├─ Write handoff-receipt.json
+    └─ Launch: /auto-orchestrate "{task_description}" --scope {F|B|S} --session_id {session_id}
+                    │
+                    v
+        /auto-orchestrate (7-stage technical pipeline)
+                    │
+                    Stage 0-6 complete
+                    │
+                    v
+        .orchestrate/{session_id}/stage-6/ ──→ feeds back to /sprint-ceremony
+```
+
+**Reference**: `claude-code/processes/bridge_protocol.md`
+
+### 17.4 Gate State System
+
+Runtime gate state file: `.orchestrate/{session_id}/gate-state.json`  
+Schema: `claude-code/processes/gate_state_schema.json` (JSON Schema Draft-7)  
+Enforcement spec: `claude-code/processes/gate_enforcement_spec.md`
+
+**State machine per gate**:
+```
+pending → in_review → passed
+              └──→ failed → in_review (retry)
+```
+
+**Invalid transitions** (MUST be blocked):
+- `pending → passed/failed`: [GATE-ERROR] Cannot skip in_review
+- `passed → failed/pending`: [GATE-ERROR] Use --reopen
+
+**Only `/gate-review` writes gate state. All other commands read only.**
+
+Override: If `gate_N.override` is non-null with required fields (reason ≥10 chars, authorized_by, timestamp), enforcement is waived for that gate only.
+
+### 17.5 Process Injection Map Summary
+
+| AO Stage | Org Processes | Action | Enforced |
+|----------|--------------|--------|----------|
+| Stage 0 | P-001, P-038 | notify | false |
+| Stage 1 | P-007/008/009/010 | link | false |
+| Stage 2 | P-033, **P-038** | gate | **true** (P-038 only) |
+| Stage 3 | P-034, P-036, P-040 | notify | false |
+| Stage 4 | P-035, P-037 | link | false |
+| Stage 4.5 | P-062 | link | false |
+| Stage 5 | P-034, P-036, P-037 | notify | false |
+| Stage 6 | P-058, P-059, P-061 | link | false |
+
+P-038 (Security by Design) is the only enforced gate in V1. Process stubs cover gaps at Stage 1→3 transition (sprint planning), parallel to Stage 0-2 (dependency coordination), and post-Stage 6 (onboarding).
+
+### 17.6 Agent Reconciliation
+
+Three agents are dual-defined (runtime `~/.claude/agents/` + source `claude-code/agents/`): researcher, session-manager, orchestrator.
+
+As of 2026-04-06: all three are **byte-for-byte identical** (md5 verified).
+
+**CRITICAL**: `orchestrator.md` (32,479 bytes) IS the live orchestrator system prompt. Divergence = broken pipeline. install.sh MUST verify checksums before overwriting. See `claude-code/agents/agent-reconciliation-notes.md` for the guard script.
+
+**Directory addition to Section 2 tree** (`claude-code/` structure):
+
+```
+├── processes/
+│   ├── gate_state_schema.json               (JSON Schema Draft-7, 134 lines)
+│   ├── gate_enforcement_spec.md             (state machine + enforcement, 208 lines)
+│   ├── bridge_protocol.md                   (org pipeline ↔ AO bridge, 218 lines)
+│   ├── process_injection_map.md             (AO stage → process IDs, 166 lines)
+│   ├── [01-17]_*.md                         (organizational process handbooks)
+│   └── process_stubs/
+│       ├── sprint_planning_stub.md          (P-022/023/024, 73 lines)
+│       ├── dependency_coordination_stub.md  (P-015 to P-021, 95 lines)
+│       └── onboarding_stub.md               (P-090 to P-093, 87 lines)
+```

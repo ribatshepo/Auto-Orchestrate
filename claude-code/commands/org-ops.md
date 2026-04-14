@@ -1,0 +1,80 @@
+# Organizational Operations
+
+Guide the user through continuous organizational processes that run independently of any single project.
+
+## Phase: Running the Organization (Continuous)
+
+### Organizational Audit (Category 11)
+
+**Primary agents**: `engineering-manager`, `staff-principal-engineer`
+**Reference**: `processes/11_organizational_audit.md`
+
+7-layer audit hierarchy with distinct cadences:
+- **Board/CEO Audit** (P-062) — Annual strategic review
+- **CTO Audit** (P-063) — Quarterly technology portfolio review
+- **VP Audit** (P-064) — Quarterly department health assessment
+- **Director Audit** (P-065) — Monthly team portfolio review
+- **EM Audit** (P-066) — Bi-weekly team health and delivery metrics
+- **Tech Lead/Staff Audit** (P-067) — Weekly technical quality review
+- **IC Audit** (P-068) — Continuous self-assessment and growth tracking
+- **Audit Finding Flow** (P-069) — How findings escalate up and actions flow down
+
+### Communication & Alignment (Category 14)
+
+**Primary agents**: `engineering-manager`, `product-manager`, `technical-program-manager`
+**Reference**: `processes/14_communication_alignment.md`
+
+- **OKR Cascade** (P-078) — Company -> Department -> Team -> Individual alignment
+- **Stakeholder Updates** (P-079) — Regular status communications
+- **Guild Standards** (P-080) — Cross-team technical community standards
+- **DORA Metrics Review** (P-081) — Deployment frequency, lead time, MTTR, change failure rate
+
+### Capacity & Resource Management (Category 15)
+
+**Primary agents**: `engineering-manager`, `technical-program-manager`
+**Reference**: `processes/15_capacity_resource_management.md`
+
+- **Quarterly Capacity Planning** (P-082) — Team capacity vs. demand forecasting
+- **Shared Resource Allocation** (P-083) — Cross-team resource negotiation
+- **Succession Planning** (P-084) — Key person risk mitigation
+
+### Technical Excellence & Standards (Category 16)
+
+**Primary agents**: `staff-principal-engineer`, `platform-engineer`
+**Reference**: `processes/16_technical_excellence_standards.md`
+
+- **RFC Process** (P-085) — Formal design proposal and review
+- **Tech Debt Tracking** (P-086) — Register, prioritize, schedule remediation
+- **Language Tier Policy** (P-087) — Approved languages and adoption criteria
+- **Architecture Patterns** (P-088) — Canonical patterns and anti-patterns
+- **Developer Experience Survey** (P-089) — Quarterly DX health measurement
+
+### Onboarding & Knowledge Transfer (Category 17)
+
+**Primary agents**: `engineering-manager`, `technical-writer`
+**Reference**: `processes/17_onboarding_knowledge_transfer.md`
+
+- **New Engineer Onboarding** (P-090) — 30/60/90 day onboarding plan
+- **Project Onboarding** (P-091) — Getting up to speed on an existing project
+- **Knowledge Transfer** (P-092) — Structured handoff between team members
+- **Cross-Team Dependency Onboarding** (P-093) — Understanding external team interfaces
+
+## Cadence Summary
+
+| Cadence | Processes |
+|---------|-----------|
+| Continuous | IC Audit (P-068), Guild Standards (P-080) |
+| Weekly | Tech Lead/Staff Audit (P-067) |
+| Bi-weekly | EM Audit (P-066) |
+| Monthly | Director Audit (P-065), Stakeholder Updates (P-079) |
+| Quarterly | CTO Audit (P-063), VP Audit (P-064), Capacity Planning (P-082), DORA Review (P-081), DX Survey (P-089), Process Health Review (P-071), Risk Review (P-077) |
+| Annual | Board/CEO Audit (P-062) |
+
+## Usage
+
+What organizational operation do you need help with? I can:
+- Run an audit at any organizational layer
+- Prepare OKR cascade or DORA metrics review
+- Draft an RFC or architecture decision
+- Set up onboarding plans for new team members
+- Review and prioritize tech debt

@@ -59,9 +59,13 @@ COMPONENTS=(
   "$CLAUDE_DIR/agents"
   "$CLAUDE_DIR/commands"
   "$CLAUDE_DIR/_shared"
+  "$CLAUDE_DIR/processes"
   "$CLAUDE_DIR/lib"
   "$CLAUDE_DIR/manifest.json"
   "$CLAUDE_DIR/settings.json"
+  "$CLAUDE_DIR/ARCHITECTURE.md"
+  "$CLAUDE_DIR/INTEGRATION.md"
+  "$CLAUDE_DIR/PERMISSION-MODES.md"
 )
 
 # --- Dry run: show what would be removed --------------------------------------
@@ -126,12 +130,17 @@ remove_component() {
   fi
 }
 
-remove_component "$CLAUDE_DIR/skills"      "Skills"
-remove_component "$CLAUDE_DIR/agents"      "Agents"
-remove_component "$CLAUDE_DIR/commands"    "Commands"
-remove_component "$CLAUDE_DIR/_shared"     "Shared resources"
-remove_component "$CLAUDE_DIR/manifest.json" "Manifest"
-remove_component "$CLAUDE_DIR/settings.json" "Settings"
+remove_component "$CLAUDE_DIR/skills"            "Skills"
+remove_component "$CLAUDE_DIR/agents"            "Agents"
+remove_component "$CLAUDE_DIR/commands"          "Commands"
+remove_component "$CLAUDE_DIR/_shared"           "Shared resources"
+remove_component "$CLAUDE_DIR/processes"         "Processes"
+remove_component "$CLAUDE_DIR/lib"               "Lib"
+remove_component "$CLAUDE_DIR/manifest.json"     "Manifest"
+remove_component "$CLAUDE_DIR/settings.json"     "Settings"
+remove_component "$CLAUDE_DIR/ARCHITECTURE.md"   "ARCHITECTURE.md"
+remove_component "$CLAUDE_DIR/INTEGRATION.md"    "INTEGRATION.md"
+remove_component "$CLAUDE_DIR/PERMISSION-MODES.md" "PERMISSION-MODES.md"
 
 # --- Summary ------------------------------------------------------------------
 echo ""

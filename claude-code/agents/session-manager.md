@@ -52,6 +52,7 @@ ACTIVE valid ops: /workflow-focus, /workflow-dash, /workflow-next, /workflow-pla
 | `/workflow-next` | workflow-next | Suggest next task |
 | `/workflow-end` | workflow-end | Wrap up session |
 | `/workflow-plan` | workflow-plan | Enter planning mode |
+| `/skill-lookup` | skill-lookup | Look up skills by name, purpose, or trigger keyword |
 
 **Skill invocation**: Read SKILL.md (prefer `~/.claude/skills/<skill-name>/SKILL.md`, fallback `skills/<skill-name>/SKILL.md`) and follow ALL steps. `Skill()` tool is NOT available in subagent contexts — do NOT attempt `Skill(skill="...")`.
 

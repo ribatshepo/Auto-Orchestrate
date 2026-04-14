@@ -2,8 +2,8 @@
 
 Step-by-step guide for integrating the plugins system with Claude Code.
 
-**Version**: 1.1.0
-**Last Updated**: 2026-03-25
+**Version**: 1.2.0
+**Last Updated**: 2026-04-06
 
 ---
 
@@ -71,7 +71,7 @@ After installation, components are immediately available:
 
 ### 3.1 Full Installation
 
-Install all 35 skills, 8 agents, and 3 commands:
+Install all 35 skills, 16 agents, and 14 commands:
 
 ```bash
 # Create directories if they don't exist
@@ -214,7 +214,7 @@ triggers:
 ### 4.2 Agents Verification
 
 ```bash
-# List installed agents (should be 8)
+# List installed agents (should be 16)
 ls ~/.claude/agents/*.md
 
 # Verify agent frontmatter exists
@@ -239,6 +239,17 @@ Expected structure:
 ```
 commands/
 ├── auto-orchestrate.md
+├── active-dev.md
+├── agent-capabilities.md
+├── assign-agent.md
+├── gate-review.md
+├── new-project.md
+├── org-ops.md
+├── post-launch.md
+├── process-lookup.md
+├── release-prep.md
+├── sprint-ceremony.md
+├── workflow.md
 ├── auto-debug.md
 └── auto-audit.md
 ```
@@ -369,14 +380,22 @@ After installation, your `~/.claude/` should look like:
 ├── settings.json
 ├── manifest.json
 ├── agents/
-│   ├── orchestrator.md
-│   ├── documentor.md
-│   ├── epic-architect.md
-│   ├── implementer.md
-│   ├── session-manager.md
-│   ├── researcher.md
-│   ├── debugger.md
-│   └── auditor.md
+│   ├── orchestrator.md          ← orchestration core
+│   ├── researcher.md            ← orchestration core
+│   ├── session-manager.md       ← orchestration core
+│   ├── cloud-engineer.md        ← team agent
+│   ├── data-engineer.md         ← team agent
+│   ├── engineering-manager.md   ← team agent
+│   ├── ml-engineer.md           ← team agent
+│   ├── platform-engineer.md     ← team agent
+│   ├── product-manager.md       ← team agent
+│   ├── qa-engineer.md           ← team agent
+│   ├── security-engineer.md     ← team agent
+│   ├── software-engineer.md     ← team agent
+│   ├── sre.md                   ← team agent
+│   ├── staff-principal-engineer.md ← team agent
+│   ├── technical-program-manager.md ← team agent
+│   └── technical-writer.md      ← team agent
 ├── skills/
 │   ├── researcher/
 │   │   └── SKILL.md
@@ -385,6 +404,17 @@ After installation, your `~/.claude/` should look like:
 │   └── ... (35 total)
 └── commands/
     ├── auto-orchestrate.md
+    ├── active-dev.md
+    ├── agent-capabilities.md
+    ├── assign-agent.md
+    ├── gate-review.md
+    ├── new-project.md
+    ├── org-ops.md
+    ├── post-launch.md
+    ├── process-lookup.md
+    ├── release-prep.md
+    ├── sprint-ceremony.md
+    ├── workflow.md
     ├── auto-debug.md
     └── auto-audit.md
 ```
@@ -517,8 +547,8 @@ Claude: [Summarizes session progress]
 | Category | Count | Location |
 |----------|-------|----------|
 | Skills | 35 | `~/.claude/skills/` |
-| Agents | 8 | `~/.claude/agents/` |
-| Commands | 3 | `~/.claude/commands/` |
+| Agents | 16 | `~/.claude/agents/` |
+| Commands | 14 | `~/.claude/commands/` |
 
 ### Skill Categories
 
@@ -543,6 +573,17 @@ Claude: [Summarizes session progress]
 | `/workflow-next` | Get next task suggestion |
 | `/workflow-plan` | Plan mode manager |
 | `/auto-orchestrate` | Autonomous orchestration loop |
+| `/new-project` | Guide 4-stage organizational pipeline (Intent → Scope → Dependencies → Sprint) |
+| `/gate-review` | Run gate checklist and record gate passage state |
+| `/sprint-ceremony` | Sprint retrospective and close |
+| `/assign-agent` | Route a task to the appropriate team agent |
+| `/active-dev` | Active development phase management |
+| `/agent-capabilities` | Discover available agent capabilities |
+| `/org-ops` | Organizational operations and reporting |
+| `/post-launch` | Post-launch operations and monitoring |
+| `/process-lookup` | Look up processes by category or ID |
+| `/release-prep` | Release preparation checklist and automation |
+| `/workflow` | Workflow overview and navigation |
 | `/auto-debug` | Autonomous cyclic error-fix-verify loop |
 | `/auto-audit` | Autonomous spec compliance audit-remediate loop |
 
@@ -637,3 +678,274 @@ Expected output:
 ```
 Import successful: EXIT_SUCCESS = 0
 ```
+
+---
+
+## 12. Organizational Workflow Integration
+
+**Added**: 2026-04-06 (Session: auto-orc-20260406-gapintg, gap remediation)
+
+The auto-orchestrate system integrates with a human-facing organizational workflow pipeline via the **bridge protocol**. This enables projects scoped in `/new-project` to flow into `/auto-orchestrate` without manual re-entry of project context.
+
+### 12.1 Commands Overview
+
+| Command | Purpose | Integration Point |
+|---------|---------|-------------------|
+| `/new-project` | Guide 4-stage org pipeline (Intent → Scope → Dependencies → Sprint) | Phase 5: hands off to /auto-orchestrate |
+| `/gate-review` | Run gate checklist, write gate state | Writes `.orchestrate/{session_id}/gate-state.json` |
+| `/auto-orchestrate` | 7-stage autonomous implementation pipeline | Reads handoff receipt, produces Stage 6 artifacts |
+| `/sprint-ceremony` | Sprint retrospective and close | Reads Stage 6 artifacts; requires Gate 4 passed |
+
+### 12.2 Using the Bridge Protocol
+
+**Step 1**: Complete the organizational pipeline via `/new-project` through at least Gate 2 (Scope Lock).
+
+**Step 2**: After Gate 4 (Sprint Readiness) — or Gate 2 for early handoff — Phase 5 automatically:
+1. Extracts `task_description` from the Scope Contract artifact
+2. Generates a `session_id`: `"auto-orc-YYYYMMDD-{project_slug}"`
+3. Writes a handoff receipt to `.orchestrate/{session_id}/handoff-receipt.json`
+4. Launches: `/auto-orchestrate "{task_description}" --scope {F|B|S} --session_id {session_id}`
+
+**Reference**: `claude-code/processes/bridge_protocol.md`
+
+### 12.3 Gate State File
+
+The gate state file tracks organizational gate passage and enforces stage sequencing:
+
+**Path**: `.orchestrate/{session_id}/gate-state.json`  
+**Schema**: `claude-code/processes/gate_state_schema.json` (JSON Schema Draft-7)  
+**Created by**: `/gate-review` on first use for a session  
+**Read by**: `/new-project`, `/gate-review`, `/sprint-ceremony`  
+**Written by**: `/gate-review` only
+
+**Initialization**: When `/gate-review` is first invoked for a session without a gate-state.json, it creates the file with all 4 gates at `status: "pending"`. Template in `claude-code/processes/gate_enforcement_spec.md` — Initialization section.
+
+**Valid transitions per gate**:
+```
+pending → in_review → passed
+              └──→ failed → in_review (retry permitted)
+```
+
+**Gate checks in /new-project** (GATE-BLOCK errors block stage advancement):
+- Before Stage 2 (Scope Contract): `gate_1_intent_review.status == "passed"`
+- Before Stage 3 (Dependency Coordination): `gate_2_scope_lock.status == "passed"`
+- Before Stage 4 (Sprint Bridge): `gate_3_dependency_acceptance.status == "passed"`
+- Before /sprint-ceremony: `gate_4_sprint_readiness.status == "passed"`
+
+**Override**: Include `override` object with `reason` (≥10 chars), `authorized_by`, and `timestamp` to waive enforcement for a single gate.
+
+### 12.4 Deferred Handoff
+
+If `/auto-orchestrate` is unavailable at handoff time:
+
+1. Phase 5 writes the handoff receipt with `auto_orchestrate_status: "deferred"`
+2. Team proceeds with manual implementation sprint
+3. Resume later: `/auto-orchestrate c --session_id {session_id}` — reads the handoff receipt to restore full context
+
+### 12.5 Return Path
+
+After `/auto-orchestrate` completes Stage 6:
+1. Update `handoff-receipt.json`: set `auto_orchestrate_status: "completed"`
+2. Link Stage 6 documentation to the project record
+3. Present Stage 5 validation report as sprint completion evidence
+4. Run `/sprint-ceremony` to close the sprint
+
+**Artifact locations**:
+- Stage 6 docs: `.orchestrate/{session_id}/stage-6/`
+- Stage 5 validation: `.orchestrate/{session_id}/stage-5/`
+
+### 12.6 Process Injection Points
+
+The process injection map (`claude-code/processes/process_injection_map.md`) defines advisory hooks at each auto-orchestrate stage for organizational process alignment. All hooks are advisory (non-blocking) in V1 except P-038 (Security by Design) at Stage 2, which is enforced.
+
+Hook log format: `[PROCESS-INJECT] Stage {N} ({event}): {process_ids} — {action_detail}`
+
+For processes with no pipeline home (sprint planning, dependency coordination, onboarding), process stubs in `claude-code/processes/process_stubs/` provide minimal documentation and manual engagement guidance.
+
+### 12.7 install.sh Safety Note
+
+Three agents are dual-defined (runtime `~/.claude/agents/` + source `claude-code/agents/`): researcher, session-manager, orchestrator. Before any `install.sh` run that touches agent files, verify checksums:
+
+```bash
+md5sum ~/.claude/agents/orchestrator.md claude-code/agents/orchestrator.md
+# Both MUST match. orchestrator.md (32479 bytes) IS the live system prompt.
+# Divergence breaks the entire auto-orchestrate pipeline.
+```
+
+See `claude-code/agents/agent-reconciliation-notes.md` for the recommended install.sh guard script and full checksum table.
+
+---
+
+## 13. Team Agent Installation
+
+**Added**: 2026-04-06 (Session: auto-orc-20260406-gapintg, gap remediation)
+
+The system includes 13 team agents covering the full organizational engineering role hierarchy. These agents are distinct from the 3 orchestration-core agents (orchestrator, researcher, session-manager) — they model specific human engineering roles and are used to route tasks to a domain-appropriate AI collaborator.
+
+### 13.1 Team Agent Roster
+
+| Agent | Role Coverage | Model | Key Skills |
+|-------|--------------|-------|------------|
+| `cloud-engineer` | Cloud Engineer (AWS/Azure/GCP), Cloud Architect | sonnet | researcher, dependency-analyzer |
+| `data-engineer` | Data Engineer, Analytics Engineer, Data Platform | opus | library-implementer-python, schema-migrator, python-venv-manager, production-code-workflow, test-writer-pytest |
+| `engineering-manager` | Engineering Manager, Director, VP Engineering, CTO | sonnet | spec-analyzer, task-executor, workflow-dash |
+| `ml-engineer` | ML Engineer, MLOps Engineer, AI Engineer | opus | library-implementer-python, python-venv-manager, docker-workflow, test-writer-pytest, production-code-workflow |
+| `platform-engineer` | Platform Engineer, DevOps Engineer, Infrastructure | opus | cicd-workflow, dev-workflow, docker-workflow, docker-validator, validator |
+| `product-manager` | Product Manager, GPM, Associate PM | sonnet | spec-analyzer, spec-creator, task-executor |
+| `qa-engineer` | QA Engineer, SDET, Performance Engineer | sonnet | test-writer-pytest, test-gap-analyzer, spec-compliance, codebase-stats |
+| `security-engineer` | AppSec Engineer, Security Engineer, Cloud Security | opus | security-auditor, debug-diagnostics, researcher |
+| `software-engineer` | Software Engineer L3–L5, Tech Lead | opus | production-code-workflow, dev-workflow, refactor-analyzer, refactor-executor, test-writer-pytest, codebase-stats |
+| `sre` | Site Reliability Engineer, Platform SRE | sonnet | docker-workflow, docker-validator, validator, error-standardizer |
+| `staff-principal-engineer` | Staff Engineer L6, Principal L7, Distinguished L8, Fellow | sonnet | hierarchy-unifier, dependency-analyzer, codebase-stats, researcher |
+| `technical-program-manager` | TPM, Release Manager, Program Manager | sonnet | task-executor, dependency-analyzer, spec-analyzer |
+| `technical-writer` | Technical Writer, Documentation Lead | sonnet | docs-lookup, docs-write, docs-review |
+
+### 13.2 Installation via install.sh
+
+All 13 team agents are installed automatically by `install.sh` — no extra flags required:
+
+```bash
+./install.sh
+```
+
+The script copies all `.md` files from `claude-code/agents/` to `~/.claude/agents/`, including all team agents.
+
+**Dry-run / verify before installing:**
+
+```bash
+./install.sh --check
+```
+
+The `--check` flag shows what would be installed or updated without making any changes to `~/.claude/`. Use this to audit the current installation state or verify after a git pull.
+
+**Manual install (team agents only):**
+
+```bash
+# Install all team agents
+for agent in cloud-engineer data-engineer engineering-manager ml-engineer \
+             platform-engineer product-manager qa-engineer security-engineer \
+             software-engineer sre staff-principal-engineer \
+             technical-program-manager technical-writer; do
+    cp "claude-code/agents/${agent}.md" ~/.claude/agents/
+done
+```
+
+### 13.3 Verifying Team Agent Installation
+
+```bash
+# Total agent count (should be 16)
+ls ~/.claude/agents/*.md | wc -l
+
+# List all installed agents
+ls ~/.claude/agents/*.md | xargs -I{} basename {}
+
+# Verify a specific team agent
+head -10 ~/.claude/agents/software-engineer.md
+```
+
+Expected: 16 agent files total (3 orchestration-core + 13 team agents).
+
+> **Note on legacy agents**: The runtime may also contain `auditor.md`, `debugger.md`, `documentor.md`, `epic-architect.md`, and `implementer.md` from previous installations. These are legacy orchestration-pipeline subagents and remain functional. They are not counted in the 16 team/core agents above since they live in `~/.claude/agents/` but are not currently in `claude-code/agents/`.
+
+> **Manifest completeness**: As of 2026-04-09, `manifest.json` includes all 16 agents and all 14 commands in its `agents[]` and `commands[]` arrays (plus all 35 skills). This ensures full orchestrator routing coverage — every agent can be dispatched by `dispatch_triggers`, and every command is registered for discovery. Verify with: `python3 -c "import json; m=json.load(open('claude-code/manifest.json')); print('agents:', len(m['agents']), '| commands:', len(m['commands']), '| skills:', len(m['skills']))"`
+
+### 13.4 Routing Tasks with /assign-agent
+
+The `/assign-agent` command routes a task description to the most appropriate team agent:
+
+```
+/assign-agent "Review the Terraform plan for the new VPC peering setup"
+```
+
+The command:
+1. Reads the task description
+2. Matches against agent role coverage and key skills
+3. Recommends the best-fit agent (e.g., `cloud-engineer` for the example above)
+4. Optionally spawns the agent immediately if `--spawn` flag is provided
+
+**Common routing examples:**
+
+| Task Type | Routed Agent |
+|-----------|-------------|
+| Production code implementation | `software-engineer` |
+| CI/CD pipeline changes | `platform-engineer` |
+| Data pipeline or ETL work | `data-engineer` |
+| Model training or ML inference | `ml-engineer` |
+| Security review or threat model | `security-engineer` |
+| Test plan or test automation | `qa-engineer` |
+| API documentation | `technical-writer` |
+| Sprint planning or OKR alignment | `engineering-manager` |
+| Release coordination | `technical-program-manager` |
+| Cross-cutting architectural decision | `staff-principal-engineer` |
+| Product requirements or user stories | `product-manager` |
+| SLO/SLA or on-call response | `sre` |
+| Cloud cost or multi-cloud strategy | `cloud-engineer` |
+
+---
+
+## 14. Process Injection Enforcement Roadmap
+
+**Added**: 2026-04-06 (Session: auto-orc-20260406-gapintg, gap remediation)
+
+The process injection map (`claude-code/processes/process_injection_map.md`) defines 8 hooks that fire at specific auto-orchestrate pipeline events, aligning the autonomous implementation pipeline with the organization's 93-process framework.
+
+### 14.1 What the Process Injection Map Does
+
+At each pipeline stage (0 through 6) and at run completion, the injection map specifies which organizational processes should be engaged. Each hook emits a log line:
+
+```
+[PROCESS-INJECT] Stage {N} ({event}): {process_ids} — {action_detail}
+```
+
+This provides an audit trail of which organizational processes were applied during each autonomous run, supporting compliance, retrospectives, and process improvement.
+
+### 14.2 V1 State: Advisory Hooks with One Enforced Exception
+
+In V1 (current), **all 8 stage hooks are advisory (non-blocking)** — the pipeline continues regardless of whether the process was followed. The one exception is **P-038 (Security by Design)** at Stage 2, which is **enforced (blocking)**.
+
+**Hook enforcement state (V1):**
+
+| Stage | Event | Process IDs | Enforcement |
+|-------|-------|-------------|-------------|
+| Stage 0 | before | P-061, P-062 (Research standards) | Advisory |
+| Stage 1 | before | P-001, P-002 (Epic decomposition) | Advisory |
+| Stage 2 | before | **P-038** (Security by Design) | **ENFORCED — blocks if not acknowledged** |
+| Stage 2 | before | P-010, P-011 (Spec standards) | Advisory |
+| Stage 3 | before | P-020 through P-025 (Implementation standards) | Advisory |
+| Stage 4 | before | P-030 through P-033 (Testing standards) | Advisory |
+| Stage 5 | before | P-040 through P-043 (Validation standards) | Advisory |
+| Stage 6 | before | P-050 through P-052 (Documentation standards) | Advisory |
+| Run complete | after | P-070 (Retrospective) | Advisory |
+
+### 14.3 Why P-038 Is the Only Enforced Hook
+
+Security by Design (P-038) is enforced at Stage 2 because security requirements identified after the specification phase are significantly more expensive to remediate. The spec is the last point before implementation where security constraints can be incorporated at zero cost. All other process hooks are positioned as advisory because V1 prioritizes adoption over enforcement — teams should build familiarity with the process framework before enforcement gates are added.
+
+### 14.4 V2 Enforcement Roadmap
+
+Additional hooks may be promoted to enforced in V2 under the following conditions:
+
+1. **Adoption threshold**: The candidate process shows voluntary compliance rate >80% for 3 consecutive sprints across all teams using auto-orchestrate. This is measured via the `[PROCESS-INJECT]` audit log.
+2. **Retrospective confirmation**: At least 2 sprint retrospectives have identified the process as adding measurable value (reduced defects, faster delivery, or improved handoff quality).
+3. **Team approval**: Engineering leadership sign-off confirming the enforcement will not block critical hotfix or incident response flows.
+
+**Processes most likely to be promoted in V2** (based on voluntary compliance data):
+- P-001 (Epic decomposition standards) — Stage 1
+- P-030 (Test coverage requirements) — Stage 4
+- P-050 (Documentation completeness) — Stage 6
+
+The V2 enforcement promotion mechanism is documented in `claude-code/processes/process_injection_map.md` under the "Enforcement Policy" section.
+
+### 14.5 Process Stubs for Uncovered Workflows
+
+Three organizational processes have no natural home in the auto-orchestrate pipeline (they are human-team workflows, not automatable stages):
+
+| Process | Stub File | Engagement Method |
+|---------|-----------|-------------------|
+| Sprint Planning | `process_stubs/sprint_planning_stub.md` | Manual — run before /auto-orchestrate |
+| Dependency Coordination | `process_stubs/dependency_coordination_stub.md` | Manual — run after /gate-review Gate 3 |
+| Team Onboarding | `process_stubs/onboarding_stub.md` | Manual — run once per new team member |
+
+These stubs provide minimal documentation and manual engagement guidance to prevent process gaps during the transition to the full organizational workflow system.
+
+**Reference**: `claude-code/processes/process_injection_map.md`
