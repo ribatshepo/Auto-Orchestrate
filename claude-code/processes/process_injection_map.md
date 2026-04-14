@@ -15,6 +15,60 @@ V1 mapped 18 processes to pipeline stages. V2 expands coverage to all 93 process
 
 ---
 
+## Process Coverage by Command — with Dispatch (E1)
+
+This section shows which commands execute which process ranges, and how the Command Dispatcher (DISPATCH-001) extends coverage from the Big Three autonomous loops.
+
+```
+BEFORE DISPATCH-001 (direct execution only):
+
+P-001───006  Intent       │ new-proj │ auto-orch │          │          │
+P-007───014  Scope        │ new-proj │ auto-orch │          │          │
+P-015───021  Dependencies │ new-proj │ auto-orch │          │          │
+P-022───031  Sprint       │ sprint   │ active    │ auto-orch│          │
+P-032───037  QA           │ qa       │ active    │ auto-orch│          │
+P-038───043  Security     │ security │ active    │ auto-orch│ audit    │
+P-044───048  Infra        │ infra    │ release   │          │          │
+P-049───053  Data/ML      │ data-ml  │           │          │          │
+P-054───057  SRE          │ post-lnch│           │          │          │
+P-058───061  Docs         │ auto-orch│ active    │          │          │
+P-062───069  Org Audit    │ org-ops  │           │ auto-orch│ audit    │
+P-070───073  Retro        │ post-lnch│           │          │          │
+P-074───077  Risk         │ risk     │ release   │          │          │
+P-078───081  Comms        │ org-ops  │           │          │          │
+P-082───084  Capacity     │ org-ops  │           │          │          │
+P-085───089  Tech Excl    │ org-ops  │           │          │          │
+P-090───093  Onboarding   │ org-ops  │           │          │          │
+                          │ Phase/   │ Phase/    │Autonomous│Autonomous│
+                          │ Domain   │ Domain    │Loop      │Loop      │
+
+AFTER DISPATCH-001 (all accessible via Big Three):
+
+P-001───006  Intent       │ new-proj │ auto-orch │          │          │
+P-007───014  Scope        │ new-proj │ auto-orch │          │          │
+P-015───021  Dependencies │ new-proj │ auto-orch │          │          │
+P-022───031  Sprint       │ sprint ◄─┤ active ◄──┤ auto-orch│          │
+P-032───037  QA           │ qa ◄─────┤ active ◄──┤ auto-orch│          │
+P-038───043  Security     │ security◄┤ active ◄──┤ auto-orch│ audit    │
+P-044───048  Infra        │ infra ◄──┤ release◄──┤ auto-orch│          │
+P-049───053  Data/ML      │ data-ml◄─┤           │ auto-orch│          │
+P-054───057  SRE          │ post-l ◄─┤           │ auto-orch│          │
+P-058───061  Docs         │          │           │ auto-orch│          │
+P-062───069  Org Audit    │ org-ops◄─┤           │ auto-orch│ audit    │
+P-070───073  Retro        │ post-l ◄─┤           │ auto-orch│          │
+P-074───077  Risk         │ risk ◄───┤ release◄──┤ auto-orch│          │
+P-078───081  Comms        │ org-ops◄─┤           │          │          │
+P-082───084  Capacity     │ org-ops◄─┤           │          │          │
+P-085───089  Tech Excl    │ org-ops◄─┤           │          │          │
+P-090───093  Onboarding   │ org-ops◄─┤           │          │          │
+
+  ◄── = accessible via command dispatcher from Big Three
+```
+
+**Key insight**: After DISPATCH-001, auto-orchestrate can reach ALL 93 processes — either directly (injection hooks), via domain guide dispatch (Tier 2), or via Tier 1 suggestions for phase commands. This makes auto-orchestrate the universal process coverage gateway.
+
+---
+
 ## Injection Table: Auto-Orchestrate Stage → Organizational Process
 
 ### Core Injection Hooks (All Scope Tiers)
@@ -40,8 +94,8 @@ These hooks fire only when triage classifies the task as MEDIUM or COMPLEX compl
 |----------|-----------|---------------|----------------|--------|----------|-------------|
 | Stage 1 | Product Mgmt | P-011 (Exclusion Documentation), P-013 (Scope Lock), P-014 (Change Control) | During Stage 1: Link scope deliverables to P-011 exclusions and P-013 lock criteria | link | false | — |
 | Stage 2 | Specification | P-032 (Test Architecture Design) | During Stage 2: Spec includes testability section aligned with P-032 | link | false | `/qa` |
-| Stage 3 | Implementation | P-039 (SAST/DAST CI Integration) | After Stage 3: Notify that P-039 SAST/DAST checks should apply to new code | notify | false | `/security` |
-| Stage 5 | Validation | P-039 (SAST/DAST CI Verification) | During Stage 5: Validator checks P-039 scan results if CI engine present | notify | false | `/security` |
+| Stage 3 | Implementation | P-039 (SAST/DAST CI Integration) | After Stage 3: Verify P-039 SAST/DAST scans run against new code; log scan results | link | false (upgradeable to GATE via ENFORCE-UPGRADE-001) | `/security` |
+| Stage 5 | Validation | P-039 (SAST/DAST CI Verification) | During Stage 5: Validator checks P-039 scan results; CRITICAL/HIGH findings must be addressed | gate | false (upgradeable to GATE via ENFORCE-UPGRADE-001) | `/security` |
 | Stage 6 | Documentation | P-060 (ADR Publication) | After Stage 6: If architecture decisions made, publish ADR per P-060 | link | false | — |
 
 ### COMPLEX Scope Injection Hooks (scope_condition: complex)
@@ -137,6 +191,7 @@ hook:
   event: "after_stage_complete"
   process_ids: ["P-034", "P-036"]
   action: "notify"
+  enforcement_tier: "ADVISORY"
   action_detail: >
     After Stage 3 (software-engineer) completes: present P-034 Code Review
     checklist to user. Gate optional — user may proceed without P-034
@@ -156,6 +211,7 @@ hook:
 | `event` | string | YES | When the hook fires: `"before_stage_start"`, `"during_stage"`, `"after_stage_complete"` |
 | `process_ids` | string[] | YES | List of organizational process IDs this hook engages (e.g., ["P-034", "P-036"]) |
 | `action` | string | YES | One of: `"notify"`, `"gate"`, `"link"`, `"informational"`, `"suggest"` |
+| `enforcement_tier` | string | YES | One of: `"GATE"`, `"ADVISORY"`, `"INFORMATIONAL"`. See Three-Tier Enforcement Model. Default derived from `action`: gate→GATE, notify/link→ADVISORY, informational/suggest→INFORMATIONAL. Can be upgraded by ENFORCE-UPGRADE-001 based on triage complexity. |
 | `action_detail` | string | YES | Human-readable description of what happens when this hook fires |
 | `output_artifact` | string or null | NO | Path to a file written by this hook, if any. Null if the hook only logs. |
 | `enforced` | boolean | YES | `true` = blocks AO pipeline advancement until acknowledged; `false` = advisory only |
@@ -189,28 +245,107 @@ FUNCTION hook_is_active(hook, process_scope):
 
 ---
 
-## Enforcement Philosophy
+## Three-Tier Process Enforcement Model (E2)
 
-**V1 Default**: `enforced: false` for all hooks. Advisory injection does not block the auto-orchestrate pipeline. This is intentional — in autonomous mode, blocking the pipeline for every organizational process review would defeat the purpose of automation.
+Every injection hook is classified into one of three enforcement tiers:
 
-**V1 Exceptions** (always `enforced: true`):
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  GATE (blocking):                                                │
+│    Process MUST pass before pipeline advances.                   │
+│    Failure = pipeline stops + notification.                      │
+│    Maps to: action="gate", enforced=true                         │
+│    Examples: P-034 (Code Review) at Stage 5                      │
+│              P-037 (Automated Testing) at Stage 5                │
+│              P-058 (Technical Docs) at Stage 6                   │
+│              P-038 (Security by Design) at Stage 2               │
+│                                                                  │
+│  ADVISORY (non-blocking, tracked):                               │
+│    Process runs and results are recorded, but pipeline           │
+│    continues regardless of result. Failures appear in            │
+│    final report as tech debt.                                    │
+│    Maps to: action="notify" or "link", enforced=false            │
+│    Examples: P-035 (Testing) at Stage 4                          │
+│              P-040 (Dependency Scanning) at Stage 3              │
+│              P-062 (Technical Debt Audit) at Stage 4.5           │
+│                                                                  │
+│  INFORMATIONAL (non-blocking, not tracked):                      │
+│    Process provides context but has no pass/fail state.          │
+│    Used for research, planning, and analysis processes.          │
+│    Maps to: action="informational" or "suggest"                  │
+│    Examples: P-001 (Intent Articulation) at Stage 0              │
+│              P-016 (Critical Path Analysis) at P3                │
+└──────────────────────────────────────────────────────────────────┘
+```
 
-| Process | Stage | Reason |
-|---------|-------|--------|
-| P-038 (Security by Design) | Stage 2 (spec-creator) | Security requirements cannot be skipped at specification time. A spec that omits security design is structurally incomplete. The auto-orchestrate spec-creator MUST reference P-038 checklist items before the spec is accepted. |
+### Triage-Based Enforcement Upgrading (ENFORCE-UPGRADE-001)
 
-**V2 Enforcement** (current):
+The enforcement tier of a hook can be **upgraded** (never downgraded) based on the triage complexity classification. This ensures that higher-complexity tasks receive stricter process enforcement.
+
+| Triage Complexity | Enforcement Behavior |
+|-------------------|---------------------|
+| **TRIVIAL** | All hooks use their default tier. No GATE processes enforced (all ADVISORY or INFORMATIONAL). |
+| **MEDIUM** | Security + code review processes are upgraded to GATE: P-034 (Code Review), P-036 (Security Review), P-038 (Security by Design), P-039 (SAST/DAST) |
+| **COMPLEX** | Security + code review + testing processes are GATE: all MEDIUM gates PLUS P-035 (Performance Testing), P-037 (Automated Testing) |
+
+**Upgrade logic** (evaluated during triage at Step 0h-pre, stored in `checkpoint.triage.enforcement_overrides`):
+
+```
+FUNCTION compute_enforcement_overrides(complexity):
+  IF complexity == "trivial":
+    RETURN {}  # all hooks use default enforcement_tier
+  
+  overrides = {}
+  
+  IF complexity IN ["medium", "complex"]:
+    # Security + code review → GATE
+    overrides["P-034"] = "GATE"  # Code Review
+    overrides["P-036"] = "GATE"  # Security Review
+    overrides["P-038"] = "GATE"  # Security by Design
+    overrides["P-039"] = "GATE"  # SAST/DAST
+  
+  IF complexity == "complex":
+    # Testing → GATE
+    overrides["P-035"] = "GATE"  # Performance Testing
+    overrides["P-037"] = "GATE"  # Automated Testing
+  
+  RETURN overrides
+```
+
+**Runtime enforcement**: When evaluating an injection hook, the effective tier is:
+```
+effective_tier = enforcement_overrides.get(process_id, hook.enforcement_tier)
+```
+
+### Static Enforcement (always GATE regardless of triage)
+
+These processes are always GATE — they cannot be downgraded by any triage result:
 
 | Process | Stage | Enforcement Rationale |
 |---------|-------|----------------------|
+| P-038 (Security by Design) | Stage 2 | Security requirements cannot be skipped at specification time |
 | P-034 (Code Review) | Stage 5 exit | Code review is a quality gate; validation without review is incomplete |
-| P-037 (Automated Testing) | Stage 5 exit | UAT criteria from scope contract must be verified against implementation |
-| P-058 (Technical Docs) | Stage 6 exit | Documentation is a mandatory pipeline stage; its process must be enforced |
+| P-037 (Automated Testing) | Stage 5 exit | UAT criteria must be verified against implementation |
+| P-058 (Technical Docs) | Stage 6 exit | Documentation is a mandatory pipeline stage |
 
-**V3+ Enforcement Candidates** (future):
+---
 
-- P-036 (Security Review) at Stage 3 — Enforce when automated security review tooling is integrated
-- P-040 (Dependency Inventory) at Stage 3 — Enforce when dependency verification tooling is built
+## Process Deduplication Resolutions (E3)
+
+Four potential process overlaps were identified. Resolutions:
+
+| Overlap | Process A | Process B | Resolution |
+|---------|-----------|-----------|------------|
+| Testing | P-033 (Automated Test Framework) in auto-orchestrate | P-037 (Contract Testing) in /qa | **Keep both.** P-033 = framework setup, P-037 = API contract testing. Different scopes. |
+| Code Review | P-034 at Stage 3 (ADVISORY) | P-034 at Stage 5 (GATE) | **Correct as-is.** Same process, different enforcement tiers at different lifecycle points. |
+| Security | P-038 (AppSec) at Stage 0/2 | P-039 (SAST/DAST) via `/security` only | **P-039 now injected at Stage 3 and Stage 5** (MEDIUM scope hooks). Previously only accessible via `/security` domain guide dispatch. |
+| RAID Log | P-010 (RAID Log) at Stage 1 | P-074 (RAID Log) in `/risk` | **Shared data store.** Both processes read/write the same RAID log file. See RAID-001 constraint below. |
+
+### RAID-001: Single RAID Log Constraint
+
+| ID | Rule |
+|----|------|
+| RAID-001 | **Single RAID log, append-only** — P-010 (Stage 1 seeding) and P-074 (risk management updates) share a single RAID log at `.orchestrate/{session_id}/raid-log.json`. Both processes append entries; neither overwrites. The product-manager (Stage 1) seeds initial RAID items from the Scope Contract. The `/risk` domain guide appends risk updates during execution. Format: JSONL, one entry per line, fields: `{ "id", "type": "Risk|Assumption|Issue|Dependency", "description", "severity", "owner", "status", "source_process", "timestamp" }`. |
 
 ---
 

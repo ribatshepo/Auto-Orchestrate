@@ -168,6 +168,13 @@ The compliance threshold applies to the **overall weighted score**, but individu
 | MAY / MEDIUM | 1x | No individual gate | Nice-to-have requirements. Standard weight contribution. |
 | OPTIONAL / LOW | 0.5x | Excluded from threshold | Informational findings. Reported but do not affect pass/fail. |
 
+**Mapping to Three-Tier Process Enforcement Model (E2)**: When auditing process compliance, the enforcement tier from `process_injection_map.md` maps to audit severity:
+- **GATE** processes → MUST / CRITICAL severity (3x weight, must pass)
+- **ADVISORY** processes → SHOULD / HIGH severity (2x weight, caps verdict at NEEDS_WORK if failing)
+- **INFORMATIONAL** processes → MAY / MEDIUM severity (1x weight, no individual gate)
+
+This mapping ensures that triage-upgraded GATE processes (ENFORCE-UPGRADE-001) are treated as CRITICAL requirements in audit scoring.
+
 **Weighted score calculation**:
 ```
 weighted_score = (

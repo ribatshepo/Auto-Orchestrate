@@ -275,6 +275,8 @@ The session_id follows the format: `auto-orc-{YYYYMMDD}-{project_slug}`
 | PRE-RESEARCH-GATE | **Planning phase prerequisite** — Stage 0 (researcher) MUST NOT begin unless `planning_stages_completed` contains all four values `["P1", "P2", "P3", "P4"]` AND all four entries in `planning_gate_statuses` have value `"PASSED"`. Skip conditions: (1) `--skip-planning` flag is passed, or (2) checkpoint field `planning_skipped` is `true` (set when resuming a session that already has planning artifacts from a prior session). Error codes: `[PLAN-GATE-001]` through `[PLAN-GATE-004]` for each incomplete stage. |
 | WORKFLOW-SYNC-001 | **Task board single source of truth** — When auto-orchestrate is running, `.pipeline-state/workflow/task-board.json` is the single source of truth for task state. auto-orchestrate WRITES this file at every iteration (Step 4.8e). `/workflow-dash`, `/workflow-next`, and `/workflow-focus` READ this file. No other command writes to it while auto-orchestrate is active. |
 | WORKFLOW-SYNC-002 | **Read-only workflow commands during orchestration** — When `pipeline-context.json` shows `active_command` as any Big Three AND `last_updated` is within 5 minutes, `/workflow-*` commands operate in read-only mode. They may read `task-board.json`, `focus-stack.json`, and `dashboard-cache.json` but MUST NOT modify task state. Full read/write access resumes when no Big Three session is active. |
+| ENFORCE-UPGRADE-001 | **Triage-based enforcement upgrading** — Process injection hooks have a default `enforcement_tier` (GATE, ADVISORY, INFORMATIONAL). Triage complexity can UPGRADE (never downgrade) hooks: TRIVIAL = all defaults; MEDIUM = security + code review processes become GATE (P-034, P-036, P-038, P-039); COMPLEX = MEDIUM gates + testing processes become GATE (P-035, P-037). Overrides stored in `checkpoint.triage.enforcement_overrides`. See `processes/process_injection_map.md` for the full Three-Tier Enforcement Model. |
+| RAID-001 | **Single RAID log** — P-010 (Stage 1 seeding) and P-074 (risk management) share a single RAID log at `.orchestrate/{session_id}/raid-log.json`. Append-only JSONL. Product-manager seeds; `/risk` domain guide appends. Neither process overwrites existing entries. |
 
 ## Execution Guard — AUTO-ORCHESTRATE IS A LOOP CONTROLLER, NOT A WORKER
 
@@ -792,6 +794,8 @@ mkdir -p .pipeline-state .pipeline-state/command-receipts .pipeline-state/proces
 - Update `.pipeline-state/workflow/active-session.json` with `session_state: "ended"`, `ended_at: <now>`, final `tasks_completed` and `task_count` tallies
 - Write final `.pipeline-state/workflow/task-board.json` with `terminal_state` set and all task statuses finalized (WORKFLOW-SYNC-001). This releases the read-only lock for workflow-* commands.
 
+> **Process coverage reference (E1)**: After DISPATCH-001, auto-orchestrate can reach ALL 93 organizational processes — directly via injection hooks, via domain guide dispatch (Tier 2), or via Tier 1 suggestions for phase commands. See `processes/process_injection_map.md` §"Process Coverage by Command" for the complete coverage map.
+
 ### 0g. Project Type Detection
 
 Classify the target project as `greenfield`, `existing`, or `continuation` to adapt pipeline behavior. Detection uses metadata operations only (git history, file counts, file existence) — no source file reading (preserves Execution Guard).
@@ -942,6 +946,37 @@ ELSE:  # complex
         active_processes += RISK_PROCESSES  # P-074-077 (already in domain_guides)
 ```
 
+**Enforcement override computation (ENFORCE-UPGRADE-001)**:
+
+After computing process scope, determine which process hooks should be upgraded to GATE enforcement based on triage complexity:
+
+```
+IF complexity == "trivial":
+    enforcement_overrides = {}  # all hooks use default enforcement_tier
+
+ELSE IF complexity == "medium":
+    enforcement_overrides = {
+        "P-034": "GATE",  # Code Review
+        "P-036": "GATE",  # Security Review
+        "P-038": "GATE",  # Security by Design
+        "P-039": "GATE"   # SAST/DAST
+    }
+
+ELSE IF complexity == "complex":
+    enforcement_overrides = {
+        "P-034": "GATE",  # Code Review
+        "P-035": "GATE",  # Performance Testing
+        "P-036": "GATE",  # Security Review
+        "P-037": "GATE",  # Automated Testing
+        "P-038": "GATE",  # Security by Design
+        "P-039": "GATE"   # SAST/DAST
+    }
+```
+
+Store in `checkpoint.triage.enforcement_overrides`. At runtime, effective enforcement tier = `enforcement_overrides.get(process_id, hook.default_tier)`.
+
+Log: `[ENFORCE-UPGRADE] Complexity: <complexity>. GATE-enforced processes: <list of overridden process IDs>.`
+
 **Checkpoint addition**:
 ```json
 {
@@ -960,7 +995,8 @@ ELSE:  # complex
       "active_categories": [],
       "domain_guides_enabled": [],
       "total_active": 0
-    }
+    },
+    "enforcement_overrides": {}
   }
 }
 ```
