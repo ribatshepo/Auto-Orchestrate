@@ -19,6 +19,16 @@ triggers:
 
 Structured error diagnosis for the debugger agent. Parses errors, categorizes them, collects relevant diagnostic data, and produces actionable reports.
 
+## Helper Scripts
+
+The following scripts in `scripts/` provide automated diagnostic capabilities:
+
+| Script | Purpose | CLI Example |
+|--------|---------|-------------|
+| `error_classifier.py` | Classify error messages by category and severity | `echo "$ERROR" \| python3 scripts/error_classifier.py` |
+| `log_parser.py` | Parse log files into structured JSON by severity | `python3 scripts/log_parser.py --file app.log --level ERROR,WARN` |
+| `diagnostic_collector.py` | Collect category-specific diagnostic data with secret redaction | `python3 scripts/diagnostic_collector.py --category docker --root .` |
+
 ## Before You Begin
 
 Read `references/error-categories.md` — full error taxonomy with language-specific patterns and decision tree.

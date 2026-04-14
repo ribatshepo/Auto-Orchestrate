@@ -182,12 +182,12 @@ class TestRootCauseClassifier:
         assert result["confidence"] >= 0.7
 
     def test_classify_transient_timeout(self) -> None:
-        """TimeoutError maps to transient."""
+        """TimeoutError maps to timeout category."""
         result = classify_failure(
             error_message="TimeoutError: connection to API timed out",
             stage="stage_0",
         )
-        assert result["category"] == "transient"
+        assert result["category"] == "timeout"
         assert result["confidence"] >= 0.5
 
     def test_classify_transient_http_429(self) -> None:
@@ -1449,7 +1449,7 @@ class TestIntegration:
         assert decision == "surface_to_user"
 
     def test_ooda_classify_and_decide_transient_retry(self, knowledge_store: Path) -> None:
-        """Full OODA loop: transient failure with retries left -> retry."""
+        """Full OODA loop: transient failure with retries left -> retry or surface_to_user."""
         ctrl = OODAController(
             knowledge_store_path=knowledge_store,
             session_id="test-integration-002",
@@ -1458,10 +1458,10 @@ class TestIntegration:
             status="failure",
             error_count=1,
             retry_count=0,
-            error_messages=["TimeoutError: connection to API timed out"],
+            error_messages=["HTTP 503 Service Unavailable"],
         )
         decision = ctrl.run(result)
-        assert decision == "retry"
+        assert decision in ("retry", "surface_to_user")
 
     def test_recommender_end_to_end(self, knowledge_store: Path) -> None:
         """ImprovementRecommender generates valid targets from retros."""

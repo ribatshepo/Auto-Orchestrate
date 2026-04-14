@@ -223,7 +223,7 @@ class DomainMemoryStore:
         for entry in entries:
             search_fields = fields or [
                 k for k, v in entry.items()
-                if isinstance(v, str) and not k.startswith("_")
+                if isinstance(v, (str, list)) and not k.startswith("_")
             ]
             for f in search_fields:
                 val = entry.get(f, "")

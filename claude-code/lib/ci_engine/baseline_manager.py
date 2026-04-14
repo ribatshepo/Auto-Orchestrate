@@ -244,7 +244,7 @@ class BaselineManager:
         logger.info(
             "Updated baselines from %d runs (%d stages)",
             len(summaries),
-            len(stages_baselines),
+            len(baselines_data.get("stages", {})),
         )
         return target
 

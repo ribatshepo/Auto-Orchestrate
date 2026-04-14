@@ -1109,7 +1109,13 @@ class StageMetricsCollector:
         # Persist run summary to knowledge store
         try:
             knowledge_store_writer.write_run_summary(
-                self._telemetry_dir.parent, summary,
+                store_path=self._telemetry_dir.parent,
+                run_id=summary["run_id"],
+                completed_at=summary["completed_at"],
+                stages=summary["stages"],
+                overall_status=summary["overall_status"],
+                improvement_notes=[],
+                kpis=summary["kpis"],
             )
         except Exception:
             logger.warning(

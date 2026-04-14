@@ -194,7 +194,7 @@ def on_user_correction(
 # ---------------------------------------------------------------------------
 
 _PATH_PATTERN = re.compile(r"(?:/[\w./-]+)+")
-_NUMBER_PATTERN = re.compile(r"\b\d{4,}\b")
+_NUMBER_PATTERN = re.compile(r"\b\d+\b")
 _HEX_PATTERN = re.compile(r"0x[0-9a-fA-F]+")
 
 

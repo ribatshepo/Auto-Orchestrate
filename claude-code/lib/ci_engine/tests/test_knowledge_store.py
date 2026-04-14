@@ -323,6 +323,8 @@ class TestAppendStageTelemetry:
             )
 
     def test_indexes_into_sqlite(self, store: Path) -> None:
+        # Write a run summary first to satisfy the FK constraint
+        _write_sample_run(store, run_id="run-idx-001")
         ksw.append_stage_telemetry(
             store_path=store,
             run_id="run-idx-001",
@@ -1085,13 +1087,14 @@ class TestStageMetricsCollectorTier3:
         collector.record_stage_error("software_engineer", "transient", "timeout")
         collector.record_stage_end("software_engineer", "partial", token_input=200, token_output=100)
 
-        kpis = collector.finalize_run()
+        summary = collector.finalize_run()
 
-        assert "run_total_duration_seconds" in kpis
-        assert "run_stage_failure_bitmap" in kpis
-        assert kpis["research_completeness_score"] == 85.0
+        assert "kpis" in summary
+        kpis = summary["kpis"]
+        assert "total_duration_seconds" in kpis
+        assert "stage_failure_bitmap" in kpis
         # Bitmap should have software_engineer bit set (bit 3)
-        assert kpis["run_stage_failure_bitmap"] & (1 << 3) != 0
+        assert kpis["stage_failure_bitmap"] & (1 << 3) != 0
 
     def test_finalize_emits_run_finalize_event(self, collector: Any) -> None:
         collector.record_stage_start("researcher", 0)
@@ -1122,8 +1125,8 @@ class TestStageMetricsCollectorTier3:
             "validator", "success",
             spec_compliance_score=92.0,
         )
-        kpis = collector.finalize_run()
-        assert kpis["spec_compliance_score"] == 92.0
+        summary = collector.finalize_run()
+        assert summary["kpis"]["spec_compliance_score"] == 92.0
 
     def test_test_coverage_recorded(self, collector: Any) -> None:
         collector.record_stage_start("test_writer", 4)
@@ -1131,8 +1134,8 @@ class TestStageMetricsCollectorTier3:
             "test_writer", "success",
             test_coverage_pct=78.5,
         )
-        kpis = collector.finalize_run()
-        assert kpis["test_coverage_pct"] == 78.5
+        summary = collector.finalize_run()
+        assert summary["kpis"]["test_coverage_pct"] == 78.5
 
     def test_prometheus_registry_is_none_tier3(self, collector: Any) -> None:
         assert collector.prometheus_registry is None

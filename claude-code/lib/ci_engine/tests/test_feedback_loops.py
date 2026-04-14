@@ -164,35 +164,35 @@ class TestOODAController:
         """Successful stage should produce 'continue' decision."""
         controller = OODAController(
             session_id="test-session",
-            telemetry_dir=tmp_telemetry,
+            knowledge_store_path=tmp_telemetry,
         )
-        observation = ObservationRecord(
-            stage_name="researcher",
-            status="success",
-            duration_seconds=30.0,
-            error_count=0,
-            retry_count=0,
-            error_messages=(),
-        )
-        result = controller.run(observation)
-        assert result.decision == "continue"
+        stage_result = {
+            "stage_name": "researcher",
+            "status": "success",
+            "duration_seconds": 30.0,
+            "error_count": 0,
+            "retry_count": 0,
+            "error_messages": [],
+        }
+        result = controller.run(stage_result)
+        assert result == "continue"
 
     def test_transient_failure_retries(self, tmp_telemetry: Path) -> None:
         """Transient failure with retries left should produce 'retry'."""
         controller = OODAController(
             session_id="test-session",
-            telemetry_dir=tmp_telemetry,
+            knowledge_store_path=tmp_telemetry,
         )
-        observation = ObservationRecord(
-            stage_name="researcher",
-            status="failure",
-            duration_seconds=5.0,
-            error_count=1,
-            retry_count=0,
-            error_messages=("HTTP 503 Service Unavailable",),
-        )
-        result = controller.run(observation)
-        assert result.decision in ("retry", "surface_to_user")
+        stage_result = {
+            "stage_name": "researcher",
+            "status": "failure",
+            "duration_seconds": 5.0,
+            "error_count": 1,
+            "retry_count": 0,
+            "error_messages": ["HTTP 503 Service Unavailable"],
+        }
+        result = controller.run(stage_result)
+        assert result in ("retry", "surface_to_user")
 
 
 # ---------------------------------------------------------------------------
@@ -225,7 +225,7 @@ class TestStageMetricsCollector:
             telemetry_dir=tmp_telemetry,
         )
         collector.record_stage_start("software_engineer", 3)
-        collector.record_error("software_engineer", "transient", "timeout")
+        collector.record_stage_error("software_engineer", "transient", "timeout")
         collector.record_stage_end("software_engineer", "partial")
 
     def test_finalize_run_produces_summary(self, tmp_telemetry: Path) -> None:
@@ -253,9 +253,12 @@ class TestBaselineManager:
     def test_first_run_returns_first_run_flag(
         self, tmp_knowledge_store: Path,
     ) -> None:
-        """When no run summaries exist, should return first_run flag."""
+        """When no run summaries exist, should write a first_run baseline file."""
         manager = BaselineManager(
-            store_path=tmp_knowledge_store,
+            knowledge_store_path=tmp_knowledge_store,
         )
-        result = manager.update_baselines()
-        assert result.get("first_run") is True or result.get("baselines") == {}
+        result_path = manager.update_baselines()
+        assert result_path.exists()
+        import json
+        data = json.loads(result_path.read_text())
+        assert data.get("first_run") is True or data.get("baselines") == {}

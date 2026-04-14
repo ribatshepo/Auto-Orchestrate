@@ -38,7 +38,7 @@ The following scripts in `scripts/` provide automated test generation:
 
 ```bash
 # First, discover functions using hierarchy-unifier
-python ../hierarchy-unifier/scripts/function_discoverer.py lib/ -o json > funcs.json
+python ~/.claude/skills/hierarchy-unifier/scripts/function_discoverer.py lib/ -o json > funcs.json
 
 # Generate test templates
 python scripts/test_template_generator.py funcs.json --output-dir tests/
