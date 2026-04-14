@@ -56,6 +56,7 @@ arguments:
 | DBG-LOOP-008 | **Fix-verify cycle tracking** — Track per-error fix-verify attempts. After `fix_verify_cycles` failures for the same error, escalate to user with full diagnostic context. |
 | PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. Never leave extended silence. See `commands/CONVENTIONS.md` for format. |
 | MANIFEST-001 | **Manifest-driven pipeline** — The debugger MUST read `~/.claude/manifest.json` at boot and use it as the authoritative registry for skill discovery. Auto-debug passes the manifest path in every debugger spawn. |
+| DBG-LOOP-009 | **Escalation return path** — When the debugger determines that an error is architectural (not a bug) — e.g., missing feature, design flaw, incorrect abstraction — auto-debug MUST offer to escalate back to auto-orchestrate instead of continuing fix attempts. The debugger signals this via `Escalation-Type: architectural` in its DONE block. Auto-debug then displays the return path option to the user. |
 
 ## Execution Guard — AUTO-DEBUG IS A LOOP CONTROLLER, NOT A WORKER
 
@@ -169,14 +170,20 @@ test -f ~/.claude/manifest.json && grep -q '"debugger"' ~/.claude/manifest.json 
 
 If FAIL: abort with `[DBG-GAP-002] Manifest missing or debugger agent not found at ~/.claude/manifest.json. Cannot proceed. Run install.sh to install.`
 
-### 0e. Domain Memory Initialization
+### 0e. Domain Memory and Shared State Initialization
 
-Ensure `.domain/` exists: `mkdir -p .domain`. Pass `DOMAIN_MEMORY_DIR=.domain` in debugger spawn prompts.
+Ensure `.domain/` and `.pipeline-state/` exist: `mkdir -p .domain .pipeline-state`. Pass `DOMAIN_MEMORY_DIR=.domain` and `PIPELINE_STATE_DIR=.pipeline-state` in debugger spawn prompts.
 
 **Domain memory integration for debugging:**
 - **Before diagnosis**: Query `fix_registry` for the error fingerprint — if a known fix exists with `verification_result: "pass"`, suggest it immediately
 - **After fix verified**: Append error→fix mapping to `fix_registry` so future sessions benefit
 - **After diagnosis**: Append codebase findings to `codebase_analysis` for future reference
+
+**Shared state integration** (see `_shared/protocols/cross-pipeline-state.md`):
+- **On startup**: Read `.pipeline-state/fix-registry.jsonl` for known fixes matching current error fingerprint. Read `.pipeline-state/codebase-analysis.jsonl` for known risks that may inform diagnosis.
+- **After fix verified**: Write error→fix mapping to `.pipeline-state/fix-registry.jsonl`
+- **On escalation to auto-orchestrate**: Write to `.pipeline-state/escalation-log.jsonl`
+- **On termination**: Update `.pipeline-state/pipeline-context.json` with debug state
 
 ### 0f. Human-Input Treatment
 
@@ -294,7 +301,9 @@ Create parent tracking task via `TaskCreate` (if unavailable, log `[CROSS-001] T
   "current_debug_cycle": 0,
   "terminal_state": null,
   "stall_counter": 0,
-  "last_error_snapshot": null
+  "last_error_snapshot": null,
+  "thrash_counter": 0,
+  "state_hash_window": []
 }
 ```
 
@@ -462,6 +471,26 @@ Compare current vs previous iteration:
 
 **Stall signals** include: error counts, resolved counts, AND `fix_verify_attempts` per error. A fix attempt that fails verification is still progress (the debugger tried something new).
 
+### 4.6a Thrashing detection (THRASH-001)
+
+Track a rolling window of error state hashes (last 6 iterations). The state hash is computed from: `SHA-256(sorted error_fingerprints + ":" + sorted error_statuses + ":" + sorted files_modified)`.
+
+If the current state hash matches ANY previous hash in the rolling window, the system is **thrashing** — fix A breaks B, fix B breaks A, oscillating without net progress. Thrashing evades the stall detector because counts change every iteration.
+
+When thrashing is detected:
+1. Log: `[THRASH-001] Error state hash collision — iteration <N> matches iteration <M>. Debug loop is thrashing.`
+2. Increment `thrash_counter` in checkpoint
+3. If `thrash_counter >= 2`: set terminal_state to `thrashing` and terminate
+4. If `thrash_counter == 1`: log `[THRASH-WARN] First thrashing — providing full oscillation context to debugger` and include both iteration snapshots in the next debugger spawn prompt so it can see the oscillation pattern
+
+**Checkpoint additions**:
+```json
+{
+  "thrash_counter": 0,
+  "state_hash_window": []
+}
+```
+
 ### 4.7 Evaluate termination (see Step 5)
 
 ### 4.8 If NOT terminated
@@ -476,6 +505,61 @@ Return to Step 3.
 ---
 
 ## Step 5: Termination Conditions
+
+### Escalation Return Path (DBG-LOOP-009)
+
+When the debugger identifies an issue as **architectural** (not a targeted bug), auto-debug offers escalation back to auto-orchestrate:
+
+**Detection**: The debugger's DONE block contains `Escalation-Type: architectural` with one of these categories:
+- `missing_feature` — The "bug" is actually a feature that was never implemented
+- `design_flaw` — The fix requires changing the architecture, not patching code
+- `spec_mismatch` — The implementation doesn't match the spec; needs re-spec, not debug
+- `dependency_issue` — A dependency needs to be replaced, not patched
+
+**Escalation flow**:
+```
+1. Debugger returns: Escalation-Type: architectural, Category: <category>
+2. Auto-debug displays:
+   ```
+   [ESCALATE-RETURN] Debugger identified architectural issue (not a bug):
+   Category: <category>
+   Details: <from debugger DONE block>
+   
+   This issue requires broader work than debugging can address.
+   Options:
+   - "escalate" → Create handoff receipt for /auto-orchestrate
+   - "continue" → Continue debugging anyway (may not resolve)
+   - "stop" → End debug session
+   ```
+3. If user chooses "escalate":
+   a. Write `.debug/<session-id>/escalation-receipt.json`:
+      ```json
+      {
+        "schema_version": "1.0",
+        "source_command": "auto-debug",
+        "source_session": "<session-id>",
+        "escalation_type": "architectural",
+        "category": "<category>",
+        "error_context": "<original error + debugger findings>",
+        "files_investigated": ["<list from debugger>"],
+        "suggested_scope": "<debugger recommendation>",
+        "created_at": "<ISO-8601>"
+      }
+      ```
+   b. Set terminal_state to `escalated_to_orchestrate`
+   c. Display:
+      ```
+      [ESCALATE-RETURN] Escalation receipt written.
+      To continue with broader work, run: /auto-orchestrate <suggested task description>
+      Context from this debug session will be available in .debug/<session-id>/
+      ```
+```
+
+**Escalation receipt consumption**: When `/auto-orchestrate` starts, check for escalation receipts from auto-debug:
+1. Scan `.debug/*/escalation-receipt.json` for receipts with no `consumed_at` field
+2. If found: inject the escalation context into the enhanced prompt (Step 1)
+3. Mark receipt as `consumed_at: <ISO-8601>`
+4. Log: `[ESCALATE-RESUME] Consuming escalation from auto-debug session <id>`
 
 Evaluate in order:
 
@@ -494,7 +578,9 @@ Evaluate in order:
 | `resolved` | All errors fixed, verification passed |
 | `max_iterations_reached` | Hit MAX_ITERATIONS limit |
 | `stalled` | No progress for STALL_THRESHOLD iterations |
-| `escalated` | All active errors escalated, user stopped |
+| `thrashing` | System alternating between states without net progress |
+| `escalated` | All active errors escalated to user, user stopped |
+| `escalated_to_orchestrate` | Architectural issue identified, escalated back to /auto-orchestrate |
 | `user_stopped` | User manually cancelled |
 
 ### On Termination

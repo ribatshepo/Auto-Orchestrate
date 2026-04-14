@@ -51,6 +51,18 @@ arguments:
     required: false
     default: false
     description: Skip P-series planning stages (P1-P4). Use when planning artifacts already exist or for tasks that do not require formal planning.
+  - name: fast_path
+    type: boolean
+    required: false
+    default: false
+    description: Enable fast-path mode for trivial single-stage tasks. Bypasses full pipeline when the orchestrator determines only one agent is needed. Requires --skip-planning.
+  - name: human_gates
+    type: string
+    required: false
+    description: |
+      Comma-separated list of stage numbers where the pipeline pauses for human review before proceeding.
+      Example: "2,5" pauses after Stage 2 (specs) and Stage 5 (validation).
+      Default: none (fully autonomous). Use "all" for every stage.
 ---
 
 # Autonomous Orchestration Loop
@@ -58,6 +70,38 @@ arguments:
 ## Pre-flight Component Verification
 
 Before spawning Stage 0 (researcher), verify ALL 9 pipeline-critical components exist in manifest:
+
+### Component Taxonomy
+
+Throughout the pipeline system, components are classified as follows:
+
+| Classification | Definition | Examples | Invocation |
+|---------------|-----------|----------|------------|
+| **Agent** | Autonomous role with its own `.md` definition in `agents/`, model assignment, and tool access. Can spawn subagents. | orchestrator, researcher, software-engineer, product-manager | `Agent(subagent_type: "<name>")` |
+| **Skill** | Reusable capability with a `SKILL.md` in `skills/`, invoked inline by an agent or via the Skill tool. Cannot spawn subagents. | spec-creator, validator, codebase-stats, test-writer-pytest | Read and follow `SKILL.md` inline |
+
+**Canonical classification** (authoritative across all pipelines):
+
+| Component | Type | Used In |
+|-----------|------|---------|
+| orchestrator | agent | auto-orchestrate, auto-audit (remediation) |
+| researcher | agent | auto-orchestrate (Stage 0), auto-debug (optional) |
+| product-manager | agent | auto-orchestrate (P1-P2, Stage 1) |
+| technical-program-manager | agent | auto-orchestrate (P3) |
+| engineering-manager | agent | auto-orchestrate (P4) |
+| software-engineer | agent | auto-orchestrate (Stage 3) |
+| technical-writer | agent | auto-orchestrate (Stage 6) |
+| auditor | agent | auto-audit (Phase A) |
+| debugger | agent | auto-debug |
+| spec-creator | **skill** | auto-orchestrate (Stage 2) |
+| validator | **skill** | auto-orchestrate (Stage 5) |
+| codebase-stats | **skill** | auto-orchestrate (Stage 4.5) |
+| test-writer-pytest | **skill** | auto-orchestrate (Stage 4, optional) |
+| docs-lookup | **skill** | auto-orchestrate (Stage 6, via technical-writer) |
+| docs-write | **skill** | auto-orchestrate (Stage 6, via technical-writer) |
+| docs-review | **skill** | auto-orchestrate (Stage 6, via technical-writer) |
+
+> **TAXONOMY-001**: `spec-creator` and `validator` are ALWAYS skills, never agents. They are invoked inline by the orchestrator's subagents. Any document that classifies them as agents is in error — this table is authoritative.
 
 ### Pipeline Component Matrix
 
@@ -186,14 +230,15 @@ The session_id follows the format: `auto-orc-{YYYYMMDD}-{project_slug}`
 |----|------|
 | AUTO-001 | **Orchestrator-only gateway** — Spawn ONLY `subagent_type: "orchestrator"`. Never spawn software-engineer, technical-writer, etc. directly. If 2 consecutive retries return empty output, abort with `[AUTO-001]` message. |
 | AUTO-002 | **Mandatory stage completion** — Cannot declare `completed` unless `stages_completed` includes 0, 1, 2, 4.5, 5, and 6. Stage 4 (test-writer-pytest) is optional — included only when the product-manager (Stage 1) produces test tasks. If no Stage 4 tasks exist, Stage 4 is considered implicitly complete. |
-| AUTO-003 | **Stage monotonicity** — `current_pipeline_stage` only increases or holds. Keep high-water mark on regression. |
+| AUTO-003 | **Stage monotonicity with validation regression** — `current_pipeline_stage` only increases or holds, EXCEPT: when Stage 5 (Validation) fails AND the validator identifies implementation defects (not spec or architecture issues), the pipeline MAY regress to Stage 3 (Implementation) for targeted fixes. Regression rules: (1) Only Stage 5 → Stage 3 regression is permitted; (2) Maximum 3 regression cycles per session — tracked in `validation_regression_count`; (3) Each regression creates a new Stage 3 task with `blockedBy` referencing the failed Stage 5 task and `regression: true` flag; (4) After 3 regressions, the pipeline must proceed to termination or escalate to auto-debug; (5) Log `[REGRESS] Stage 5 → 3 regression {N}/3 — <reason>`. The high-water mark `stages_completed` is NOT modified on regression — Stage 3 remains "completed" but new fix tasks are injected. |
 | AUTO-004 | **Post-implementation stage gate** — If Stage 3 done but 4.5/5/6 missing for 1+ iterations, set `mandatory_stage_enforcement: true` and inject missing-stage tasks. |
 | AUTO-005 | **Checkpoint-before-spawn** — Write checkpoint to disk before every orchestrator spawn. |
 | AUTO-006 | **No direct agent routing** — Never tell the orchestrator which agent to use; routing is its decision. |
 | AUTO-008 | **Orchestrator delegation mandate** — The orchestrator MUST spawn subagents for ALL stage work. It must NEVER do research, analysis, implementation, testing, or documentation itself. Reading project files to "understand" the codebase is researcher work, not orchestrator work. |
+| AUTO-009 | **Fast-path bypass** — When `fast_path: true` AND `skip_planning: true`, the orchestrator MAY bypass the full stage sequence if it determines the task requires only a single agent and fits within a single stage. Fast-path tasks still write a stage-receipt and proposed-tasks.json. The orchestrator reports `FAST_PATH: true` in PROPOSED_ACTIONS. Auto-orchestrate logs `[FAST-PATH] Single-stage execution — Stage <N> only`. Fast-path is NEVER available when scope is `frontend`, `backend`, or `fullstack` (scoped work always requires the full pipeline). |
 | AUTO-007 | **Iteration history immutability** — Only append to `iteration_history`; never modify existing entries. |
 | CEILING-001 | **Stage ceiling enforcement** — Calculate `STAGE_CEILING` from `stages_completed` before every spawn (Step 3a). Orchestrator MUST NOT work above STAGE_CEILING. Auto-fix missing `blockedBy` chains. |
-| CHAIN-001 | **Mandatory blockedBy chains** — Every proposed task for Stage N (N > 0) must include `blockedBy` referencing at least one Stage N-1 task. Auto-orchestrate validates and auto-fixes in Step 4.2. |
+| CHAIN-001 | **Mandatory blockedBy chains with independence exceptions** — Every proposed task for Stage N (N > 0) must include `blockedBy` referencing at least one Stage N-1 task. Auto-orchestrate validates and auto-fixes in Step 4.2. **Independence exception (CHAIN-002)**: When the product-manager (Stage 1) marks tasks as `independent: true` (no shared files, no data dependencies), independent task groups MAY progress through stages concurrently. Task A at Stage 3 and Task B at Stage 0 can execute in parallel if they are in different independence groups. Independence groups are declared in Stage 1 output and validated by the orchestrator. Tasks within the same independence group follow strict sequential staging. The orchestrator MUST NOT run two tasks from the same group at different stages simultaneously. |
 | PROGRESS-001 | **Always-visible processing** — Output status lines before/after every tool call, spawn, and processing step. Never leave extended silence. See `commands/CONVENTIONS.md` for format. |
 | PROGRESS-002 | **In-progress blocks completion** — Tasks with status `in_progress` mean background agents are still working. NEVER evaluate termination, declare completion, or mark stages done while `in_progress > 0`. Display running task count prominently. |
 | DISPLAY-001 | **Task board at every iteration** — Show full task board with individual tasks grouped by stage at iteration start (Step 3) and post-iteration (Step 4.3). |
@@ -456,6 +501,46 @@ Stage 1: product-manager reads all P1-P4 artifacts for task decomposition
 Stages 2-6: unchanged (consume Stage 0/1 outputs as before)
 ```
 
+### Planning Revision Protocol (PLAN-REV)
+
+The planning flow supports **conditional backward edges** when a later stage discovers that an earlier stage's assumptions are invalid.
+
+| ID | Rule |
+|----|------|
+| PLAN-REV-001 | **Revision trigger** — If P3 (Dependency Map) or P4 (Sprint Bridge) discovers that a dependency, resource conflict, or timeline constraint makes the P2 Scope Contract infeasible, the agent MUST emit a `[PLAN-REVISION]` signal in its output. |
+| PLAN-REV-002 | **Revision scope** — A revision can target P2 (scope change) or P1 (intent change). It CANNOT skip — revising P1 requires re-running P2, P3, and P4. Revising P2 requires re-running P3 and P4. |
+| PLAN-REV-003 | **Revision budget** — Maximum 2 revision cycles per planning phase. After 2 revisions, the pipeline proceeds with the current artifacts and logs `[PLAN-REV-CAP] Revision budget exhausted — proceeding with current planning artifacts`. |
+| PLAN-REV-004 | **Revision artifact** — The revising agent writes a `P{N}-revision-rationale.md` explaining what changed and why before the target stage re-executes. |
+
+**Revision signal format**:
+```
+[PLAN-REVISION] Target: P2 | Reason: <one-line reason>
+Invalidating finding: <specific dependency/conflict that makes current scope infeasible>
+Recommended change: <what should change in the target artifact>
+```
+
+**Revision flow**:
+```
+P1 → P2 → P3 ──[PLAN-REVISION Target:P2]──→ P2' → P3' → P4
+                                                     │
+P1 → P2 → P3 → P4 ──[PLAN-REVISION Target:P1]──→ P1' → P2' → P3' → P4'
+```
+
+**Gate handling on revision**: When a revision is triggered:
+1. The triggering stage's gate status remains `"FAILED"` (it did not complete successfully)
+2. The target stage's gate status is reset to `null`
+3. All stages between target and trigger (inclusive) are removed from `planning_stages_completed`
+4. `planning_revision_count` is incremented in checkpoint
+5. Log: `[PLAN-REV] Revision {N}/2 — reverting to P{target} due to: <reason>`
+
+**Checkpoint addition**:
+```json
+{
+  "planning_revision_count": 0,
+  "planning_revision_history": []
+}
+```
+
 ## Pipeline Stage Reference
 
 | Stage | Name | Agent (`dispatch_hint`) | Mandatory | Artifact | Gate | Complete when |
@@ -633,15 +718,26 @@ test -f ~/.claude/manifest.json && grep -q '"orchestrator"' ~/.claude/manifest.j
 
 If FAIL: abort with `[AO-GAP-002] Manifest missing or orchestrator agent not found at ~/.claude/manifest.json. Cannot proceed.`
 
-### 0f. Domain Memory Initialization
+### 0f. Domain Memory and Shared State Initialization
 
-Ensure the `.domain/` directory exists at the project root:
+Ensure the `.domain/` and `.pipeline-state/` directories exist at the project root:
 
 ```bash
 mkdir -p .domain
+mkdir -p .pipeline-state
 ```
 
-This directory persists **cross-session, cross-command** domain knowledge (research findings, error→fix mappings, patterns, architecture decisions, codebase analysis, user preferences). All stores are append-only JSONL with file locking for concurrency safety. Pass `DOMAIN_MEMORY_DIR=.domain` in the orchestrator spawn prompt.
+**`.domain/`** persists **cross-session, cross-command** domain knowledge (research findings, error→fix mappings, patterns, architecture decisions, codebase analysis, user preferences). All stores are append-only JSONL with file locking for concurrency safety. Pass `DOMAIN_MEMORY_DIR=.domain` in the orchestrator spawn prompt.
+
+**`.pipeline-state/`** enables **cross-pipeline knowledge transfer** between auto-orchestrate, auto-audit, and auto-debug. See `_shared/protocols/cross-pipeline-state.md` for the full protocol.
+
+**On startup**, read shared state:
+1. Read `.pipeline-state/escalation-log.jsonl` — consume unconsumed escalations from auto-debug (mark as `consumed: true`)
+2. Read `.pipeline-state/codebase-analysis.jsonl` — pass high-severity insights to researcher prompt
+3. Read `.pipeline-state/pipeline-context.json` — log if another pipeline was recently active
+4. Pass `PIPELINE_STATE_DIR=.pipeline-state` in the orchestrator spawn prompt
+
+**On termination**: Update `.pipeline-state/pipeline-context.json` with final session state.
 
 ### 0g. Project Type Detection
 
@@ -703,6 +799,59 @@ ELSE:
 
 Log: `[DETECT] Project type: <classification> (commits: <N>, source files: <N>, prior sessions: <N>)`
 
+### 0h-pre. Complexity Triage Gate (TRIAGE-001)
+
+Before entering the planning phase, classify the task complexity to determine whether full P1-P4 planning is warranted.
+
+**Triage signals** (from user input text only — no file reading):
+
+| Signal | Trivial | Medium | Complex |
+|--------|---------|--------|---------|
+| Word count of task_description | < 20 words | 20-100 words | > 100 words |
+| Explicit scope flag | No flag (custom) | Single flag (F/B) | Fullstack (S) |
+| Keywords: "fix", "typo", "config", "bump" | Present | — | — |
+| Keywords: "build", "implement", "create", "redesign" | — | — | Present |
+| Keywords: "refactor", "update", "add", "improve" | — | Present | — |
+| Multiple deliverables mentioned | No | 1-2 | 3+ |
+| `project_type` (from Step 0g) | Any | existing | greenfield |
+
+**Classification logic**:
+```
+trivial_signals = count of Trivial column matches
+complex_signals = count of Complex column matches
+
+IF trivial_signals >= 3 AND complex_signals == 0:
+    complexity = "trivial"
+ELSE IF complex_signals >= 2 OR scope == "fullstack":
+    complexity = "complex"
+ELSE:
+    complexity = "medium"
+```
+
+**Triage routing**:
+
+| Complexity | Planning | Pipeline |
+|-----------|----------|----------|
+| `trivial` | **SKIP** P1-P4 (auto-set `planning_skipped: true`) | Full pipeline (Stage 0-6) unless `fast_path: true` |
+| `medium` | **SKIP** P1-P4 (auto-set `planning_skipped: true`) | Full pipeline (Stage 0-6) |
+| `complex` | **REQUIRE** P1-P4 (proceed to Step 0h) | Full pipeline (Stage 0-6) |
+
+**Override**: The `--skip-planning` flag always wins. The triage gate only applies when `skip_planning` is not explicitly set.
+
+**Checkpoint addition**:
+```json
+{
+  "triage": {
+    "complexity": "trivial|medium|complex",
+    "signals": { "trivial": 0, "medium": 0, "complex": 0 },
+    "planning_skipped_by_triage": false,
+    "classified_at": "<ISO-8601>"
+  }
+}
+```
+
+Log: `[TRIAGE] Complexity: <classification> (trivial: <N>, medium: <N>, complex: <N> signals). Planning: <SKIP|REQUIRE>.`
+
 ### 0h. Planning Phase Gate (PRE-RESEARCH-GATE)
 
 Before proceeding to Step 1 (Enhance User Input) and the execution pipeline, verify that all four planning stages have been completed.
@@ -714,7 +863,12 @@ Before proceeding to Step 1 (Enhance User Input) and the execution pipeline, ver
    - Log: `[PLAN-SKIP] --skip-planning flag set. Bypassing planning phase.`
    - Proceed directly to Step 1
 
-2. Planning artifacts already exist from a prior session or manual creation:
+2. Complexity triage (Step 0h-pre) classified task as `trivial` or `medium`:
+   - Set `planning_skipped: true` and `planning_skipped_by_triage: true` in checkpoint
+   - Log: `[PLAN-SKIP] Triage classified task as <complexity>. Bypassing planning phase.`
+   - Proceed directly to Step 1
+
+3. Planning artifacts already exist from a prior session or manual creation:
    - Check for existence of ALL four files:
      - `.orchestrate/<session>/planning/P1-intent-brief.md`
      - `.orchestrate/<session>/planning/P2-scope-contract.md`
@@ -726,8 +880,8 @@ Before proceeding to Step 1 (Enhance User Input) and the execution pipeline, ver
      - Log: `[PLAN-REUSE] Planning artifacts found from prior session. Skipping planning phase.`
      - Proceed directly to Step 1
 
-3. Handoff receipt from `/new-project` has `planning_complete: true`:
-   - Set checkpoint fields as in condition 2
+4. Handoff receipt from `/new-project` has `planning_complete: true`:
+   - Set checkpoint fields as in condition 3
    - Log: `[PLAN-HANDOFF] Planning completed in /new-project handoff. Skipping planning phase.`
    - Proceed directly to Step 1
 
@@ -940,7 +1094,14 @@ Write checkpoint **atomically** (write to `checkpoint.tmp.json`, then rename to 
     "P4": null
   },
   "current_planning_stage": null,
-  "planning_skipped": false
+  "planning_skipped": false,
+  "triage": null,
+  "planning_revision_count": 0,
+  "planning_revision_history": [],
+  "validation_regression_count": 0,
+  "thrash_counter": 0,
+  "state_hash_window": [],
+  "human_gates": []
 }
 ```
 
@@ -1265,6 +1426,45 @@ Acknowledgment detection patterns (grep stage output or stage-receipt.json):
 }
 ```
 
+**4.8b Human Checkpoint Gates (HUMAN-GATE-001)**:
+
+If `human_gates` is configured, check whether a newly completed stage requires human review:
+
+```
+IF human_gates is set AND human_gates != "":
+    completed_stages_this_iteration = stages_completed - stages_completed_previous_iteration
+    
+    FOR each newly_completed_stage in completed_stages_this_iteration:
+        IF newly_completed_stage in human_gates_list OR human_gates == "all":
+            1. Display stage output summary:
+               ```
+               ╔══════════════════════════════════════════════════════════════╗
+               ║  HUMAN REVIEW GATE — Stage <N> (<name>) completed           ║
+               ║                                                              ║
+               ║  Output: .orchestrate/<session>/stage-<N>/                   ║
+               ║  Tasks completed: <list>                                     ║
+               ║                                                              ║
+               ║  Review the output and respond:                              ║
+               ║  - "continue" or "y" to proceed to next stage               ║
+               ║  - "revise" to re-run this stage with feedback              ║
+               ║  - "stop" to halt the pipeline                              ║
+               ╚══════════════════════════════════════════════════════════════╝
+               ```
+            2. Wait for user input (no timeout — human gates are synchronous)
+            3. On "continue"/"y": proceed normally
+            4. On "revise": mark stage tasks as `pending`, remove stage from `stages_completed`, log `[HUMAN-GATE] Stage <N> sent back for revision by user`
+            5. On "stop": set terminal_state to `user_stopped`, terminate
+            6. Log: `[HUMAN-GATE] Stage <N> — user response: <response>`
+```
+
+**Checkpoint addition**:
+```json
+{
+  "human_gates": [],
+  "human_gate_history": []
+}
+```
+
 **4.9 Mandatory stage gates**:
 - **AUTO-004**: If Stage 3 done but 4.5/5/6 missing for 1+ iterations → `mandatory_stage_enforcement: true`, inject missing tasks.
 - **Proactive injection**: For any mandatory stage at or below `STAGE_CEILING` absent from `stages_completed` with no pending/in-progress task, create it immediately with proper `blockedBy` chain:
@@ -1313,6 +1513,28 @@ Evaluate in order (ONLY when zero tasks are `in_progress` AND planning is comple
 
 **Stall detection**: Same pending+completed counts for 2 consecutive iterations = stall. However, `in_progress` tasks reset the stall counter (work is actively happening). `tasks_partial_continued` also resets counter.
 
+**Thrashing detection (THRASH-001)**: Track a rolling window of state hashes (last 6 iterations). The state hash is computed from: `SHA-256(sorted task IDs + ":" + sorted task statuses + ":" + sorted stages_completed)`. If the current state hash matches ANY previous hash in the rolling window, the system is **thrashing** — alternating between states without making net progress. Thrashing is detected even when individual iteration counts change (which would evade the stall counter).
+
+When thrashing is detected:
+1. Log: `[THRASH-001] State hash collision detected — iteration <N> matches iteration <M>. System is thrashing.`
+2. Increment `thrash_counter` in checkpoint
+3. If `thrash_counter >= 2`: set terminal_state to `thrashing` and terminate
+4. If `thrash_counter == 1`: log `[THRASH-WARN] First thrashing occurrence — attempting recovery` and inject a diagnostic task: "Analyze pipeline thrashing — identify conflicting changes between iterations <M> and <N>"
+
+**Checkpoint additions**:
+```json
+{
+  "thrash_counter": 0,
+  "state_hash_window": [],
+  "thrash_history": []
+}
+```
+
+Add `thrashing` to the Terminal State Reference table as:
+```
+| `thrashing` | System alternating between states without net progress |
+```
+
 **In-progress ceiling (AO-INEFF-001)**: Track per-task `in_progress_iterations` count. If any task remains `in_progress` for 5 consecutive iterations without completing, treat it as failed: set status to `failed`, log `[AO-INEFF-001] Task #<id> "<subject>" stuck in_progress for 5 iterations — marking failed`, and do NOT let it reset the stall counter.
 
 ### On Termination
@@ -1355,6 +1577,8 @@ Stage 0 <✓/✗> → Stage 1 <✓/✗> → ... → Stage 6 <✓/✗>
 | `stalled` | No progress for STALL_THRESHOLD consecutive iterations |
 | `all_blocked` | All remaining tasks blocked, zero in_progress |
 | `user_stopped` | User manually cancelled |
+| `thrashing` | System alternating between states without net progress |
+| `escalated_to_debug` | Escalated to /auto-debug after validation failures |
 
 ### Git Commit Instructions
 > Auto-orchestrate NEVER commits automatically. Review and commit manually.

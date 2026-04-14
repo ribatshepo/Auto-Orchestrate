@@ -42,7 +42,12 @@ arguments:
     type: integer
     required: false
     default: 90
-    description: Minimum compliance percentage to accept (100 = all requirements must fully pass).
+    description: Minimum overall compliance percentage to accept (100 = all requirements must fully pass). Used alongside severity-weighted scoring.
+  - name: critical_must_pass
+    type: boolean
+    required: false
+    default: true
+    description: When true, ALL requirements with MUST/CRITICAL severity must individually pass regardless of overall score. A 95% overall score with a failing CRITICAL requirement is still FAIL.
   - name: resume
     type: boolean
     required: false
@@ -127,6 +132,56 @@ Phase B: REMEDIATE (spawn orchestrator)                        │
 | `STALL_THRESHOLD` | 3 | Consecutive no-improvement cycles before stall |
 | `CHECKPOINT_DIR` | `.audit/<session-id>/` | Session checkpoint directory |
 
+### Weighted Severity Model (AUD-SEV-001)
+
+The compliance threshold applies to the **overall weighted score**, but individual severity tiers have independent pass criteria:
+
+| Severity | Weight | Individual Gate | Description |
+|----------|--------|----------------|-------------|
+| MUST / CRITICAL | 3x | **All must pass** (when `critical_must_pass: true`) | Core requirements that define system correctness. A single CRITICAL failure = overall FAIL regardless of score. |
+| SHOULD / HIGH | 2x | No individual gate | Important requirements that significantly impact quality. Contribute double weight to the overall score. |
+| MAY / MEDIUM | 1x | No individual gate | Nice-to-have requirements. Standard weight contribution. |
+| OPTIONAL / LOW | 0.5x | Excluded from threshold | Informational findings. Reported but do not affect pass/fail. |
+
+**Weighted score calculation**:
+```
+weighted_score = (
+    (MUST_pass_count * 3 + SHOULD_pass_count * 2 + MAY_pass_count * 1) /
+    (MUST_total * 3 + SHOULD_total * 2 + MAY_total * 1)
+) * 100
+
+# PARTIAL requirements count as 0.5 of their weight
+# OPTIONAL/LOW requirements excluded from denominator
+```
+
+**Verdict logic (replaces simple threshold check)**:
+```
+IF critical_must_pass AND any MUST/CRITICAL requirement has status != PASS:
+    verdict = FAIL
+    reason = "CRITICAL requirement(s) not met: <list>"
+ELSE IF weighted_score >= 100:
+    verdict = PASS
+ELSE IF weighted_score >= compliance_threshold:
+    verdict = ACCEPTABLE
+ELSE:
+    verdict = FAIL
+```
+
+**Display format** (extends the compliance board in Step 4.2):
+```
+ COMPLIANCE BOARD (Cycle <N>):
+ ┌─ CRITICAL/MUST Requirements ────────────────
+ │  PASS: 8/8 (100%) — ALL CRITICAL MET ✓
+ ├─ HIGH/SHOULD Requirements ──────────────────
+ │  PASS: 5/7 (71%) | PARTIAL: 1 | FAIL: 1
+ ├─ MEDIUM/MAY Requirements ───────────────────
+ │  PASS: 4/5 (80%) | MISSING: 1
+ ├─ Weighted Score ────────────────────────────
+ │  87.3% [ACCEPTABLE — above 85% threshold]
+ │  (unweighted: 81.0%)
+ └─────────────────────────────────────────────
+```
+
 ---
 
 ## Step 0: Autonomous Mode Declaration
@@ -201,15 +256,21 @@ grep -q '"orchestrator"' ~/.claude/manifest.json && echo "PASS" || echo "FAIL"
 
 If FAIL: log `[AUD-WARN] Orchestrator agent not found in manifest — remediation phase will be unavailable` (do not abort; audit-only mode can still proceed).
 
-### 0f. Domain Memory Initialization
+### 0f. Domain Memory and Shared State Initialization
 
-Ensure `.domain/` exists: `mkdir -p .domain`. Pass `DOMAIN_MEMORY_DIR=.domain` in auditor and orchestrator spawn prompts.
+Ensure `.domain/` and `.pipeline-state/` exist: `mkdir -p .domain .pipeline-state`. Pass `DOMAIN_MEMORY_DIR=.domain` and `PIPELINE_STATE_DIR=.pipeline-state` in auditor and orchestrator spawn prompts.
 
 **Domain memory integration for auditing:**
 - **Before audit**: Query `codebase_analysis` for previously identified risks on the same files
 - **Before remediation**: Query `fix_registry` for known fixes matching audit gaps
 - **After audit**: Append file-level findings to `codebase_analysis`
 - **After remediation**: Append successful fixes to `fix_registry`
+
+**Shared state integration** (see `_shared/protocols/cross-pipeline-state.md`):
+- **On startup**: Read `.pipeline-state/fix-registry.jsonl` for known fixes, `.pipeline-state/codebase-analysis.jsonl` for prior risk findings, `.pipeline-state/research-cache.jsonl` for cached research
+- **After audit**: Write file-level findings to `.pipeline-state/codebase-analysis.jsonl`
+- **After remediation**: Write verified fixes to `.pipeline-state/fix-registry.jsonl`
+- **On termination**: Update `.pipeline-state/pipeline-context.json` with audit state
 
 ---
 
@@ -283,6 +344,7 @@ Create parent tracking task via `TaskCreate` (if unavailable, log `[CROSS-001] T
   "max_audit_cycles": 5,
   "max_orchestrate_iterations": 100,
   "compliance_threshold": 90,
+  "critical_must_pass": true,
   "stall_threshold": 3,
   "docker_mode": false,
   "spec_path": "<path>",
@@ -359,17 +421,19 @@ If DONE block is missing or unparseable, treat as Verdict=FAIL, Compliance-Score
 
 ```
  COMPLIANCE BOARD (Cycle <N>):
- ┌─ Requirements ──────────────────────────
- │  PASS:    12/20 (60%)
- │  PARTIAL:  3/20 (15%)
- │  MISSING:  4/20 (20%)
- │  FAIL:     1/20 (5%)
- ├─ Services (Docker) ─────────────────────
+ ┌─ CRITICAL/MUST Requirements ────────────────
+ │  PASS: 5/5 (100%) — ALL CRITICAL MET ✓
+ ├─ HIGH/SHOULD Requirements ──────────────────
+ │  PASS: 4/8 (50%) | PARTIAL: 2 | FAIL: 2
+ ├─ MEDIUM/MAY Requirements ───────────────────
+ │  PASS: 3/7 (43%) | MISSING: 4
+ ├─ Services (Docker) ─────────────────────────
  │  Healthy:  3/4
  │  Unhealthy: 1/4 (redis)
- ├─ Score ─────────────────────────────────
+ ├─ Weighted Score ────────────────────────────
  │  67.5% [FAIL — below 90% threshold]
- └─────────────────────────────────────────
+ │  (CRITICAL gate: PASSED | Weighted: 67.5% | Unweighted: 60%)
+ └─────────────────────────────────────────────
 ```
 
 ### 4.3 Record cycle history (AUD-LOOP-007)
@@ -511,8 +575,9 @@ Evaluate in order:
 
 | # | Condition | Status |
 |---|-----------|--------|
-| 1 | Verdict = PASS (100% compliance) | `fully_compliant` |
-| 2 | Verdict = ACCEPTABLE (score ≥ threshold) | `acceptable_compliance` |
+| 1 | Verdict = PASS (100% weighted compliance AND all CRITICAL pass) | `fully_compliant` |
+| 2 | Verdict = ACCEPTABLE (weighted score ≥ threshold AND all CRITICAL pass when `critical_must_pass: true`) | `acceptable_compliance` |
+| 2a | Weighted score ≥ threshold BUT CRITICAL requirement(s) failing | `critical_blocked` — cannot accept until CRITICAL requirements pass |
 | 3 | `audit_cycle >= MAX_AUDIT_CYCLES` | `max_cycles_reached` |
 | 4 | `stall_counter >= STALL_THRESHOLD` | `stalled` |
 | 5 | User requests stop | `user_stopped` |
@@ -531,6 +596,7 @@ Evaluate in order:
 | `max_cycles_reached` | Hit MAX_AUDIT_CYCLES limit |
 | `stalled` | No meaningful progress for STALL_THRESHOLD cycles |
 | `user_stopped` | User manually cancelled |
+| `critical_blocked` | Overall score acceptable but CRITICAL requirements failing |
 
 ### On Termination
 
@@ -720,17 +786,28 @@ NEVER modify any file. NEVER git commit/push. NEVER run docker compose up/down.
 2. **Phase 2 (Codebase Scanning)**: Run spec-compliance/compliance_checker.py.
    Supplement with codebase-stats and test-gap-analyzer for evidence.
 
-3. **Phase 3 (Docker Audit)**: If DOCKER_MODE, run
-   spec-compliance/service_discovery.py. Cross-reference with spec requirements.
-   READ-ONLY: do NOT run docker compose up/down.
+3. **Phase 3 (Runtime Verification)**: Supplement static analysis with runtime evidence:
+   - Run existing test suites in dry-run/collection mode to verify test coverage
+   - If DOCKER_MODE: start containers read-only, hit health endpoints (GET only), verify service connectivity
+   - Query database schemas (read-only) to verify migration state
+   - Check API endpoint availability (GET /health, GET /api/docs, etc.)
+   - Record all runtime evidence in audit report with `[RUNTIME]` prefix
+   - **Constraint**: No POST/PUT/DELETE requests, no file modifications, no destructive commands
+   - If runtime verification fails (containers won't start, tests error): log `[RUNTIME-SKIP] <reason>` and proceed with static-only analysis
 
-4. **Phase 4 (Report)**: Run security-auditor. Aggregate all findings.
-   Write audit report and gap-report.json. Determine verdict.
+4. **Phase 4 (Docker Audit)**: If DOCKER_MODE, run
+   spec-compliance/service_discovery.py. Cross-reference with spec requirements
+   AND runtime verification results from Phase 3.
 
-5. **Return DONE block** with all required fields.
+5. **Phase 5 (Report)**: Run security-auditor. Aggregate all findings (static + runtime).
+   Write audit report and gap-report.json. Determine verdict using weighted severity model.
+   Flag any requirements that passed static analysis but failed runtime verification.
+
+6. **Return DONE block** with all required fields.
 
 ## Constraints
-- AUD-001: Read-only — NEVER modify files or Docker state
+- AUD-001: Source-read-only — NEVER modify source files, configuration, or Docker state. MAY execute read-only runtime verification: run existing test suites (`pytest --co`, `npm test -- --dry-run`), hit health/status endpoints, query database schemas (read-only), and check service availability. Runtime verification results supplement static analysis.
+- AUD-001a: Runtime audit mode — When DOCKER_MODE=true, the auditor MAY start containers in read-only mode (`docker compose up -d` for health checks), query API endpoints (GET only), and inspect container state. The auditor MUST NOT modify container state, push images, or run destructive commands. After verification, the auditor MUST leave containers in their original state.
 - AUD-002: Spec-first — read spec before scanning code
 - AUD-003: Evidence-based — cite file paths and line numbers
 - AUD-005: Structured output — both report and gap-report.json
