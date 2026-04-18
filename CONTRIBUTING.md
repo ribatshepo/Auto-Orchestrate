@@ -142,6 +142,35 @@ claude-code/skills/<skill-name>/
 
 > **References subdirectory**: Skills that need lookup tables, pattern libraries, or reference data should place those files in `skills/<name>/references/`. Several skills use this pattern (e.g., `debug-diagnostics/references/error-categories.md`, `spec-compliance/references/compliance-patterns.md`). Reference files are loaded at the start of the SKILL.md `## Before You Begin` section.
 
+### Writing skill helper scripts (optional)
+
+Skills that need deterministic parsing, validation, or heavy computation should delegate to a Python helper script rather than relying on LLM judgment. Roughly two-thirds of the shipped skills have a `scripts/` subdirectory for this purpose (e.g., `researcher/scripts/depth_check.py`, `spec-compliance/scripts/compliance_checker.py`, `test-gap-analyzer/scripts/`).
+
+**When to write one**:
+- Output must be parsed by another agent (JSON contract)
+- Logic is well-defined and benefits from unit-testable code
+- Check runs fast and deterministically (no LLM variability)
+- You want the skill to be auditable from outside the LLM context
+
+**Where**: Create `claude-code/skills/<skill-name>/scripts/<helper>.py`.
+
+**Conventions** (match the existing pattern across 23+ skills):
+
+- **Shebang + docstring**: `#!/usr/bin/env python3` followed by a module docstring covering Usage, Exit codes, and one example invocation.
+- **stdlib preferred**: avoid third-party imports unless strictly necessary — keeps scripts runnable on any Python 3.10+ environment without installation. If you need `_shared/python/layer0..3`, be aware that path doesn't resolve from all skill directories.
+- **Arguments via `argparse`**:
+  - `--selftest` — runs built-in golden-case tests inline and exits (0 pass, 1 fail). Include at least 2-3 representative cases. See `researcher/scripts/depth_check.py` for a 3-case template.
+  - `--json` — emit machine-readable output for consumption by agents. Default should be human-readable.
+  - Normal invocation args — document in the module docstring.
+- **Exit code convention**: `0` = PASS, `1` = WARN (optional shortfalls), `2` = FAIL (core contract violated), `3` = ERROR (script/file failure). Keep this consistent across skills so agents can route on exit codes.
+- **Invocation from SKILL.md**: wire the helper into the skill's Decision Flow as a Bash step:
+  ```bash
+  python3 ~/.claude/skills/<skill-name>/scripts/<helper>.py --file <input> --json
+  ```
+  Then interpret the exit code and JSON output inline.
+
+**Canonical example**: `claude-code/skills/researcher/scripts/depth_check.py` — stdlib-only, 3-case selftest, JSON mode, 4-tier research-depth validation logic. Run `python3 ~/.claude/skills/researcher/scripts/depth_check.py --selftest` to see the selftest harness pattern in action.
+
 ### Manifest entry format
 
 ```json

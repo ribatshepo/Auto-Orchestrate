@@ -450,10 +450,7 @@ skill-lookup, skill-creator, dev-workflow, python-venv-manager
 Auto-Orchestrate/
 ├── README.md                    # This file
 ├── LICENSE                      # MIT License
-├── SECURITY.md                  # Security policy and vulnerability reporting
 ├── CHANGELOG.md                 # Version history and changes
-├── RELEASE-NOTES.md             # v1.0.0 release notes
-├── SECURITY-AUDIT-v1.0.0.md     # Security audit report for v1.0.0
 ├── protect-branches.sh          # GitHub branch protection manager
 ├── install.sh     # Installer script
 ├── uninstall.sh   # Uninstaller script
@@ -614,7 +611,7 @@ Manages GitHub branch protection rules and rulesets via the `gh` CLI. Use it to 
 
 **Repository detection:** The script auto-detects the repository from the current git remote. Override with `REPO=owner/repo`.
 
-**Security:** The script enforces a minimum `gh` CLI version (>= 2.63.0) to mitigate CVE-2024-53858. All inputs are validated against strict patterns to prevent command injection. All API operations are idempotent. See [SECURITY.md](SECURITY.md) for the full security policy.
+**Security:** The script enforces a minimum `gh` CLI version (>= 2.63.0) to mitigate CVE-2024-53858. All inputs are validated against strict patterns to prevent command injection. All API operations are idempotent.
 
 Run `./protect-branches.sh help` for complete usage details, examples, environment variables, and exit codes.
 
@@ -625,10 +622,7 @@ Run `./protect-branches.sh help` for complete usage details, examples, environme
 - **[ARCHITECTURE.md](claude-code/ARCHITECTURE.md)** — System architecture and constraint matrix
 - **[INTEGRATION.md](claude-code/INTEGRATION.md)** — Integration patterns and workflows  
 - **[PERMISSION-MODES.md](claude-code/PERMISSION-MODES.md)** — Permission model documentation
-- **[SECURITY.md](SECURITY.md)** — Security policy and vulnerability reporting
 - **[CHANGELOG.md](CHANGELOG.md)** — Version history and release changes
-- **[RELEASE-NOTES.md](RELEASE-NOTES.md)** — Latest release notes (v1.0.0)
-- **[SECURITY-AUDIT-v1.0.0.md](SECURITY-AUDIT-v1.0.0.md)** — Security audit report for v1.0.0
 
 ## Contributing
 

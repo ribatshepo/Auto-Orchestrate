@@ -850,7 +850,7 @@ active -> /workflow-end -> ended
 
 **Tools**: Read, Glob, Grep, Bash, WebSearch, WebFetch
 
-**Constraints (RES-001 to RES-013)**:
+**Constraints (RES-001 to RES-014)**:
 - RES-001: Evidence-based — every claim cites a source (URL, file path, or tool output)
 - RES-002: Current — prefer sources ≤2 years old; explicitly flag older sources
 - RES-003: Relevant — answer only the research questions; no tangential exploration
@@ -864,10 +864,26 @@ active -> /workflow-end -> ended
 - RES-011: **Package version pinning** — for every dependency referenced, specify the exact CVE-free version confirmed via NVD/GitHub Security Advisories; never recommend unpinned or "latest" versions
 - RES-012: **Transitive dependency audit** — CVE checks MUST cover direct AND transitive dependencies; flag any transitive chain that includes a HIGH/CRITICAL CVE
 - RES-013: **Re-audit trigger** — if the software-engineer or debugger encounters a new package not in the original research, they MUST trigger a FEEDBACK-LOOP-001 cycle before proceeding
+- RES-014: **Tiered research depth (RESEARCH-DEPTH-001)** — every spawn receives a `RESEARCH_DEPTH` input (`minimal` / `normal` / `deep` / `exhaustive`) resolved at Step 0h-pre of `/auto-orchestrate`. Tier controls WebSearch query floor (0-1 / ≥3 / ≥10 / ≥30), sources-per-HIGH-finding (1 / 1 / ≥2 / ≥3), and output shape (1-page / full template / + Production Incident Patterns / domain-partitioned). The researcher self-checks output against the tier contract via `~/.claude/skills/researcher/scripts/depth_check.py` before finalizing the manifest entry; shortfalls emit `status: "partial"` with a `depth_shortfall` array naming the unmet items.
 
 **Output**: Research findings file at `.orchestrate/<SESSION_ID>/stage-0/YYYY-MM-DD_<slug>.md` and manifest entry with `key_findings`.
 
 **Skill Delegation**: None — executes directly using WebSearch and WebFetch tools.
+
+#### 4.6.1 Research Depth Tiers (RES-014)
+
+Depth auto-resolves from triage complexity (Step 0h-pre of `/auto-orchestrate`): `trivial` → `minimal`, `medium` → `normal`, `complex` → `deep`. The `security` and `risk` domain flags bump the resolved tier up one level. Explicit `--research-depth=<tier>` CLI flag overrides the triage default.
+
+| Tier | WebSearch queries | Sources per HIGH finding | Output shape | Best for |
+|------|-------------------|-------------------------|--------------|----------|
+| `minimal` | 0-1 (cache-first) | 1 | 1-page summary, CVE-only | Trivial fixes, fast-path |
+| `normal` | ≥3 | 1 | Full template (CVEs, Risks & Remedies, Versions) | Most medium tasks |
+| `deep` | ≥10 clustered | ≥2 independent | Full template + Production Incident Patterns | Complex tasks, unfamiliar stacks |
+| `exhaustive` | ≥30 across domains | ≥3 independent | Domain-partitioned (security / perf / ops / UX) + synthesis | Regulated work, high-risk changes |
+
+The tier propagates through the orchestrator spawn prompt as `RESEARCH_DEPTH` and is consumed by the researcher's Decision Flow. The `depth_check.py` validator parses the rendered research markdown, counts Sources-table rows and HIGH-finding citations, checks required sections (CVE, Risks & Remedies, Recommended Versions, Production Incident Patterns for `deep`+, domain-partitioned sections for `exhaustive`), and emits a structured JSON verdict. Exit codes: `0` PASS, `1` WARN (optional shortfalls), `2` FAIL (core contract violated), `3` ERROR.
+
+See also: RESEARCH-DEPTH-001 resolution logic in `commands/auto-orchestrate.md` Step 0h-pre; `PLAYBOOK.md` §4 flag cookbook; `agents/researcher.md` RES-014 and tier contracts.
 
 ---
 

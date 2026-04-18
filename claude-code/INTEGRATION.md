@@ -330,6 +330,58 @@ See ARCHITECTURE.md for technical implementation details of domain memory.
 
 ---
 
+## 4.6 Cross-Pipeline State
+
+The Big Three commands (`/auto-orchestrate`, `/auto-audit`, `/auto-debug`) share a project-local `.pipeline-state/` directory that lets them hand off context, cache research, and log cross-command escalations. The full protocol is specified in `claude-code/_shared/protocols/cross-pipeline-state.md`; this section covers the integration-level layout.
+
+### Directory layout
+
+Created automatically by any Big Three command on first invocation (Step 0f of `/auto-orchestrate`; equivalent bootstraps in the other two). Append-only JSONL files with file-locking for concurrent-safety; JSON files use atomic write (write-to-`.tmp` then rename).
+
+```
+.pipeline-state/
+├── pipeline-context.json          # Most-recent session marker (last active command + timestamp)
+├── research-cache.jsonl           # Researcher cache (SHARED-003 TTL-aware lookup)
+├── fix-registry.jsonl             # Known error→fix mappings (SHARED-004)
+├── escalation-log.jsonl           # Cross-pipeline handoffs (ESCALATE-002)
+├── codebase-analysis.jsonl        # Architecture insights shared across commands
+├── command-receipts/              # Per-command termination receipts (STATE-001)
+│   └── <command>-<YYYYMMDD>-<HHMMSS>.json
+├── process-log/                   # Per-process-ID execution log (STATE-003)
+│   └── <P-XXX>.jsonl
+└── workflow/                      # Shared with /workflow-* commands (WORKFLOW-SYNC-001)
+    ├── active-session.json        # "is a Big Three command currently running?" marker
+    ├── task-board.json            # Single source of truth for task state while active
+    └── focus-stack.json           # In-progress task stack for /workflow-focus
+```
+
+### File roles
+
+| File | Written by | Read by | Purpose |
+|------|-----------|---------|---------|
+| `research-cache.jsonl` | researcher (via auto-orchestrate Stage 0) | researcher (SHARED-003 lookup before WebSearch) | Avoid redundant WebSearch for recent topics |
+| `fix-registry.jsonl` | debugger (via auto-debug) | auto-orchestrate (context for regressions during Stage 5 validation) | Propagate known-working fixes across sessions |
+| `escalation-log.jsonl` | all Big Three when handing off to another pipeline | target pipeline on boot (consumes `consumed: false` entries) | Track the ESCALATE-001 2-hop limit |
+| `codebase-analysis.jsonl` | all Big Three when architecture findings emerge | researcher prompt (high-severity insights injected) | Share architecture understanding across commands |
+| `command-receipts/*.json` | each Big Three on termination | startup scan (STATE-002 incremental reconciliation) | Per-session audit trail + next-recommended-action signals |
+| `process-log/<process-id>.jsonl` | each Big Three on termination | `/process-lookup` (if invoked) | Track which of the 93 organizational processes ran in each session |
+| `workflow/active-session.json` | Big Three on boot/terminate | `/workflow-*` (enforces WORKFLOW-SYNC-002 read-only mode) | Signal that task-board is being actively managed |
+| `workflow/task-board.json` | auto-orchestrate Step 4.8e per iteration | `/workflow-dash`, `/workflow-next` | Single source of truth for task state during active sessions |
+| `workflow/focus-stack.json` | auto-orchestrate Step 4.8e per iteration | `/workflow-focus` | In-progress task stack |
+
+### Lifecycle
+
+- **Creation**: First Big Three invocation on a project creates `.pipeline-state/` and all required subdirectories
+- **Growth**: Append-only — no file is ever truncated or rewritten in place
+- **Consumption**: Entries have a `consumed: false` flag; target pipelines mark `consumed: true` with a `consumed_at` timestamp when they read the entry. The raw entry stays in the file as an audit record
+- **Cleanup**: Never automatic. Safe to delete entire `.pipeline-state/` between projects; keep within a project's git history (typically gitignored alongside `.orchestrate/`)
+
+### Cross-Reference
+
+See `claude-code/_shared/protocols/cross-pipeline-state.md` for the full protocol including schema definitions, concurrency guarantees, and the SHARED-001 through SHARED-004 constraint set. Command-level entry points are Step 0f of `commands/auto-orchestrate.md` and equivalents in `auto-audit.md` / `auto-debug.md`.
+
+---
+
 ## 5. Configuration
 
 ### 5.1 Skill Triggers
