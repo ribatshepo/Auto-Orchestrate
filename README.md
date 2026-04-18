@@ -621,6 +621,7 @@ Run `./protect-branches.sh help` for complete usage details, examples, environme
 ## Documentation
 
 - **[README.md](README.md)** — Getting started guide (this file)
+- **[PLAYBOOK.md](PLAYBOOK.md)** — Operational playbook: when to use what, scenario walkthroughs, flag cookbook, failure modes, troubleshooting
 - **[ARCHITECTURE.md](claude-code/ARCHITECTURE.md)** — System architecture and constraint matrix
 - **[INTEGRATION.md](claude-code/INTEGRATION.md)** — Integration patterns and workflows  
 - **[PERMISSION-MODES.md](claude-code/PERMISSION-MODES.md)** — Permission model documentation
