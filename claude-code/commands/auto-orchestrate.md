@@ -63,6 +63,15 @@ arguments:
       Comma-separated list of stage numbers where the pipeline pauses for human review before proceeding.
       Example: "2,5" pauses after Stage 2 (specs) and Stage 5 (validation).
       Default: none (fully autonomous). Use "all" for every stage.
+  - name: research_depth
+    type: string
+    required: false
+    description: |
+      Explicit override for research tier (RESEARCH-DEPTH-001). One of:
+      "minimal", "normal", "deep", "exhaustive".
+      If omitted, depth is auto-resolved from triage complexity + domain flags
+      (see Step 0h-pre). This flag wins over all other precedence sources.
+      Invalid values fall back to the triage default and log a warning.
 ---
 
 # Autonomous Orchestration Loop
@@ -751,6 +760,50 @@ Command arguments are **human-authored input**: preserve context, don't reinterp
 
 Record: `"scope": { "flag": "<letter>", "resolved": "<scope>", "layers": [...] }`
 
+### 0d-bis. Research Depth Flag Extraction (RESEARCH-DEPTH-001 explicit path)
+
+Extract and validate the `--research-depth` argument BEFORE Step 0h-pre resolution, so the resolution block can consume it via its `explicit` precedence path.
+
+**Extraction**:
+```
+raw = command_args.get("research_depth") OR None
+
+# Also accept --research-depth=<value> inline in task_description for convenience:
+IF raw is None:
+    match = regex_match(r"--research-depth(?:=|\s+)(\w+)", task_description)
+    IF match:
+        raw = match.group(1)
+        task_description = task_description_with_flag_stripped  # remove from objective
+        Log: "[RESEARCH-DEPTH-FLAG] Extracted --research-depth from task_description"
+```
+
+**Validation**:
+```
+VALID_TIERS = {"minimal", "normal", "deep", "exhaustive"}
+
+IF raw is None:
+    # No explicit override — resolution falls through to triage default in Step 0h-pre
+    explicit_research_depth = None
+    Log: "[RESEARCH-DEPTH] No explicit override; will resolve from triage."
+
+ELSE IF raw.lower() in VALID_TIERS:
+    explicit_research_depth = raw.lower()
+    Log: "[RESEARCH-DEPTH] Explicit override: {explicit_research_depth}"
+
+ELSE:
+    explicit_research_depth = None
+    Log: "[RESEARCH-DEPTH-WARN] Invalid tier '{raw}' — expected one of {VALID_TIERS}. Falling back to triage default."
+```
+
+**Store for Step 0h-pre consumption**: Write `command_args.research_depth = explicit_research_depth`. The RESEARCH-DEPTH-001 resolution block (Step 0h-pre) reads this as its highest-priority source:
+```
+IF command_args.research_depth is not None:
+    research_depth.tier = command_args.research_depth
+    research_depth.source = "explicit"
+```
+
+**Case-insensitive**: Accept any case (`DEEP`, `Deep`, `deep` all map to `deep`). Invalid values do NOT abort the session — they just log a warning and fall through to triage default, preserving the user's ability to run the pipeline even with a typo.
+
 ### 0e. Manifest Validation
 
 Verify that `~/.claude/manifest.json` exists and contains the `orchestrator` agent definition:
@@ -1033,6 +1086,91 @@ cross_team_impact:
 Log: `[TRIAGE] Complexity: <classification> | T-shirt: <tshirt_size> | Risk: <risk_score>/5 (trivial: <N>, medium: <N>, complex: <N> signals). Planning: <SKIP|REQUIRE>.`
 Log: `[PROCESS-SCOPE] Tier: <tier>. Domain flags: <flags>. Active categories: <N>. Domain guides: <guides>. Total processes: <count>.`
 
+**Research Depth Resolution (RESEARCH-DEPTH-001)**:
+
+After triage classification and process scope are computed, resolve the research depth tier for Stage 0 (and planning P1/P2 research). Depth controls the researcher agent's query budget, synthesis breadth, and output contract.
+
+**Tier definitions** (authoritative):
+
+| Tier | Intent | Typical use |
+|------|--------|-------------|
+| `minimal` | Cache-first, CVE check only, single-page output | Trivial tasks, fast-path |
+| `normal` | Current default — 3+ WebSearch queries, full RES-* contract | Medium tasks |
+| `deep` | 10+ queries, multi-topic, cross-reference 2+ sources per HIGH finding | Complex tasks |
+| `exhaustive` | Domain-partitioned sub-research (security/perf/ops/UX), parallel findings | Regulated/high-risk work, opt-in only |
+
+**Precedence order** (first match wins):
+
+```
+# 1. Explicit CLI flag (highest precedence)
+# Populated by Step 0d-bis after validation (invalid values already fell through to None there)
+IF command_args.research_depth is not None:
+    research_depth.tier = command_args.research_depth
+    research_depth.source = "explicit"
+
+# 2. Handoff receipt pre-configuration
+ELSE IF handoff_receipt is present AND handoff_receipt.research_depth is non-empty:
+    research_depth.tier = handoff_receipt.research_depth
+    research_depth.source = "handoff"
+
+# 3. Triage-derived default
+ELSE IF checkpoint.triage is not null:
+    IF checkpoint.triage.complexity == "trivial":
+        base_tier = "minimal"
+    ELSE IF checkpoint.triage.complexity == "medium":
+        base_tier = "normal"
+    ELSE IF checkpoint.triage.complexity == "complex":
+        base_tier = "deep"
+
+    # 3a. Domain escalation — bump up one tier for security/risk/regulated work
+    escalated_by = []
+    IF "security" in checkpoint.triage.process_scope.domain_flags OR "risk" in checkpoint.triage.process_scope.domain_flags:
+        base_tier = bump_up(base_tier)    # minimal→normal, normal→deep, deep→exhaustive, exhaustive→exhaustive (capped)
+        escalated_by = [flag for flag in ("security", "risk") if flag in checkpoint.triage.process_scope.domain_flags]
+
+    research_depth.tier = base_tier
+    research_depth.source = "escalated" IF escalated_by else "triage-default"
+    research_depth.escalated_by = escalated_by
+
+# 4. Fallback — preserves pre-RESEARCH-DEPTH-001 behavior
+ELSE:
+    research_depth.tier = "normal"
+    research_depth.source = "fallback"
+
+research_depth.resolved_at = now_iso8601()
+```
+
+**Bump-up table** (domain escalation):
+
+| Base tier | After escalation |
+|-----------|------------------|
+| `minimal` | `normal` |
+| `normal` | `deep` |
+| `deep` | `exhaustive` |
+| `exhaustive` | `exhaustive` (capped — no higher tier exists) |
+
+**Validation** (when source is `explicit` or `handoff`):
+- Tier MUST be one of `minimal`, `normal`, `deep`, `exhaustive`
+- If invalid: fall through to triage default and log `[RESEARCH-DEPTH-WARN] Invalid depth "<value>" from <source> — falling back to triage default`
+
+**Store in checkpoint**:
+```json
+{
+  "research_depth": {
+    "tier": "minimal|normal|deep|exhaustive",
+    "source": "explicit|handoff|triage-default|escalated|fallback",
+    "escalated_by": [],
+    "resolved_at": "<ISO-8601>"
+  }
+}
+```
+
+Log (exactly once at resolution): `[RESEARCH-DEPTH] Depth: <tier> | Source: <source> | Triage: <complexity> | Domain flags: <flags> | Escalated by: <escalated_by or "none">`
+
+> **Scope unification**: The resolved `research_depth.tier` is the SAME tier used for P1/P2 planning research (Step 0h) AND Stage 0 execution research. A complex greenfield project thus gets `deep` research consistently across planning and execution. See Step 0h "P1 and P2 Research Sub-Step" for the planning consumer and Appendix C for the Stage 0 consumer.
+
+> **Fast-path interaction**: When `fast_path: true` AND tier resolves to `minimal`, the Stage 0 researcher in Step 2a MAY satisfy RES-008 via cache hit alone (SHARED-003). For all other tiers, RES-008 binds normally — WebSearch is mandatory.
+
 ### 0h. Planning Phase Gate (PRE-RESEARCH-GATE)
 
 Before proceeding to Step 1 (Enhance User Input) and the execution pipeline, verify that all four planning stages have been completed.
@@ -1107,20 +1245,23 @@ ELSE:
 
         ## P1 and P2 Research Sub-Step
         IF stage is P1 OR stage is P2:
-            Log: "[P{N}:RESEARCH] Spawning researcher for planning research"
-            Spawn researcher agent with prompt:
+            Log: "[P{N}:RESEARCH] Spawning researcher for planning research (depth: {checkpoint.research_depth.tier})"
+            # RESEARCH-DEPTH-001 unification: planning research uses the SAME resolved tier
+            # as Stage 0 execution research. Planning only runs when complexity == "complex"
+            # (per Step 0h-pre triage routing), so the tier will typically be `deep` or
+            # `exhaustive` (if domain-escalated). Legacy sessions with null tier use `normal`.
+            planning_depth = checkpoint.research_depth.tier OR "normal"
+            Spawn researcher agent with prompt (pass RESEARCH_DEPTH: planning_depth):
               - P1 research: Investigate the project domain, existing codebase structure,
                 stakeholder needs, competitive landscape, and technical constraints.
-                Use WebSearch (3+ queries) for domain best practices, market context,
-                and similar project approaches. Output findings that will inform
-                the Intent Brief.
+                Query budget and output contract are set by RESEARCH_DEPTH (see Appendix C
+                researcher depth directives). Output findings that will inform the
+                Intent Brief.
               - P2 research: Investigate technical feasibility, effort estimation patterns,
-                dependency risks, and scope precedents. Use WebSearch (3+ queries)
-                for effort estimation baselines, scope management best practices,
-                and risk quantification approaches. Output findings that will inform
-                the Scope Contract.
+                dependency risks, and scope precedents. Query budget and output contract
+                are set by RESEARCH_DEPTH. Output findings that will inform the Scope Contract.
             Output: .orchestrate/<session>/planning/P{N}-research.md
-            Log: "[P{N}:RESEARCH-DONE] Research complete -- feeding into {stage_name}"
+            Log: "[P{N}:RESEARCH-DONE] Research complete (depth: {planning_depth}) -- feeding into {stage_name}"
 
         ## Agent Spawn
         Spawn the stage's designated agent (via orchestrator with PHASE: HUMAN_PLANNING):
@@ -1399,7 +1540,7 @@ If `.gate-state.json` exists at the project root (written by `/gate-review`):
 
 ```json
 {
-  "schema_version": "1.4.0",
+  "schema_version": "1.6.0",
   "session_id": "<session-id>",
   "created_at": "<ISO-8601>",
   "updated_at": "<ISO-8601>",
@@ -1449,7 +1590,13 @@ If `.gate-state.json` exists at the project root (written by `/gate-review`):
   "dispatch_summary": null,
   "release_flag": false,
   "domain_activations": [],
-  "domain_reviews": { "0": [], "1": [], "2": [], "3": [], "4": [], "4.5": [], "5": [], "6": [] }
+  "domain_reviews": { "0": [], "1": [], "2": [], "3": [], "4": [], "4.5": [], "5": [], "6": [] },
+  "research_depth": {
+    "tier": null,
+    "source": null,
+    "escalated_by": [],
+    "resolved_at": null
+  }
 }
 ```
 
@@ -1510,6 +1657,23 @@ Update `schema_version` to `"1.4.0"` after migration.
 Log: `[MIGRATE] Added tshirt_size/risk_score/files_touched_estimate/cross_team_impact to triage (1.4.0 → 1.5.0). Defaulting to medium estimates.`
 
 Update `schema_version` to `"1.5.0"` after migration.
+
+**Research depth migration (1.5.0 → 1.6.0)**: When resuming a session that lacks `research_depth`, add the field with safe defaults. The tier remains `null` until the next Step 0h-pre pass re-resolves it via RESEARCH-DEPTH-001:
+```json
+{
+  "research_depth": {
+    "tier": null,
+    "source": null,
+    "escalated_by": [],
+    "resolved_at": null
+  }
+}
+```
+Log: `[MIGRATE] Added research_depth field to checkpoint (1.5.0 → 1.6.0). Tier will be resolved on next Step 0h-pre pass.`
+
+**Resolution behavior on resume**: If `research_depth.tier` is `null` when the orchestrator spawn prompt is built (Step 3/Appendix C), fall back to `"normal"` for that spawn and log `[RESEARCH-DEPTH-RESUME] research_depth.tier was null on resume — using "normal" fallback`. This preserves pre-RESEARCH-DEPTH-001 behavior for legacy sessions.
+
+Update `schema_version` to `"1.6.0"` after migration.
 
 ---
 
@@ -2677,6 +2841,17 @@ PROCESS_SCOPE_TIER: <trivial|medium|complex>
 PROCESS_DOMAIN_FLAGS: <domain flags array>
 PROCESS_ACTIVE_CATEGORIES: <active category numbers>
 PROCESS_DOMAIN_GUIDES: <enabled domain guide commands>
+RESEARCH_DEPTH: <minimal|normal|deep|exhaustive>
+RESEARCH_DEPTH_SOURCE: <explicit|handoff|triage-default|escalated|fallback>
+RESEARCH_DEPTH_ESCALATED_BY: <list or "none">
+
+**RESEARCH_DEPTH values** (resolved via RESEARCH-DEPTH-001, Step 0h-pre):
+- `"minimal"` — Cache-first; single CVE query; 1-page summary. Fast-path trivial only.
+- `"normal"` — 3+ WebSearch queries; full RES-* contract (CVEs, Versions, Risks & Remedies). Current default.
+- `"deep"` — 10+ queries clustered by sub-topic; 2+ independent sources per HIGH finding; production incident patterns.
+- `"exhaustive"` — Domain-partitioned research (security / perf / ops / UX); opt-in for regulated/high-risk work.
+
+If `RESEARCH_DEPTH` is `null` (legacy session on resume), substitute `"normal"` and log `[RESEARCH-DEPTH-RESUME]`.
 
 **GATE_STATE values**:
 - `"not_enforced"` — No `.gate-state.json` found; organizational gates not active
@@ -2887,7 +3062,12 @@ SESSION_ID: <session_id>. Pass to ALL subagent spawns and file paths.
 
 **researcher** (Stage 0 — mandatory, always first):
 - You MUST spawn a `researcher` subagent via `Agent(subagent_type: "researcher")`. Do NOT do research yourself — no reading project files, no WebSearch, no codebase analysis. The researcher AGENT does all of this.
-- Include in the researcher's prompt: MUST use WebSearch+WebFetch (RES-008). Codebase-only analysis = VIOLATION. At least 3 WebSearch queries. If unavailable: status "partial".
+- **RESEARCH-DEPTH-001**: Pass `RESEARCH_DEPTH: <tier>` verbatim into the researcher's spawn prompt as a top-level input, alongside TOPIC and RESEARCH_QUESTIONS. The researcher uses this to pick its query budget and output contract. If the orchestrator has no resolved depth (legacy session), pass `"normal"`. Depth-specific directives to include in the researcher prompt:
+    - `minimal` — Cache-first. Check `.pipeline-state/research-cache.jsonl` before any WebSearch. If cache-hit within TTL, produce a 1-page summary citing cached entries. RES-008 is satisfied by cache hit in this tier. Skip the "Risks & Remedies" and "Recommended Versions" tables — emit CVE findings only.
+    - `normal` — Current default. Full RES-* contract binds: ≥3 WebSearch queries, CVE check, Risks & Remedies, Recommended Versions table. No changes from pre-RESEARCH-DEPTH-001 behavior.
+    - `deep` — ≥10 WebSearch queries clustered into sub-topics (architecture / security / performance / operational). Every HIGH recommendation MUST cite 2+ independent sources. Include a "Production Incident Patterns" section covering known failure modes with source references. Include benchmark/comparison data where applicable.
+    - `exhaustive` — Partition research by domain (security, performance, operational, UX). Produce per-domain findings sections. Cross-reference 3+ independent sources per HIGH finding. Include architectural precedents ("who runs this in production and how") and alternative-approach analysis. Reserved for regulated/high-risk work — opt-in only.
+- Include in the researcher's prompt: MUST use WebSearch+WebFetch (RES-008). Codebase-only analysis = VIOLATION. Query floor is set by RESEARCH_DEPTH tier (minimal cache-hit exempt; normal ≥3; deep ≥10; exhaustive domain-partitioned). If WebSearch unavailable: status "partial".
 - Check CVEs (RES-005), latest stable versions.
 - MUST research implementation risks and produce Risks & Remedies (RES-009).
 - Packages with unpatched HIGH/CRITICAL CVEs = BLOCKED — list alternatives (RES-010).

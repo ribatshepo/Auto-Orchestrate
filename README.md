@@ -73,6 +73,77 @@ Launch a fully autonomous pipeline with a single command:
 | `S`/`s` | Fullstack | Both backend and frontend, production-ready end-to-end |
 | *(omitted)* | Custom | No scope injection — follows user input as-is |
 
+**Advanced flags** tune pipeline behavior beyond scope:
+
+| Flag | Values | Description |
+|------|--------|-------------|
+| `--research-depth` | `minimal` \| `normal` \| `deep` \| `exhaustive` | Override auto-resolved research tier. Controls WebSearch query budget, cache-first behavior, source count per HIGH finding, and output shape. Auto-resolves from triage complexity when omitted (trivial→minimal, medium→normal, complex→deep) with a one-tier bump for security/risk domain flags. See `RESEARCH-DEPTH-001` in `commands/auto-orchestrate.md` Step 0h-pre. |
+| `--skip-planning` | *(boolean)* | Bypass P1-P4 planning stages. Use when planning artifacts already exist or for tasks that do not require formal planning. |
+| `--fast-path` | *(boolean)* | Enable 3-stage bypass (researcher → software-engineer → validator) for trivial tasks. Requires `--skip-planning` and trivial triage; auto-disables on complexity upgrade. |
+| `--human-gates` | `"2,5"` \| `"all"` | Comma-separated stage numbers where pipeline pauses for human review. Empty default applies triage-linked gates (medium→"2", complex→"2,5"). |
+| `--release` | *(boolean)* | Mark session as release-targeted. Triggers `/release-prep` dispatch suggestion at successful completion. |
+
+### Research depth examples
+
+The `--research-depth` flag controls how much investigative work the Stage 0 researcher (and P1/P2 planning research) performs. Depth auto-resolves from task complexity when omitted; pass the flag only when you want to override the default.
+
+**Auto-resolved (no flag)** — triage picks the tier for you:
+
+```
+/auto-orchestrate Fix typo in login button label
+# → trivial complexity → minimal research (cache-first, single CVE check)
+
+/auto-orchestrate Add pagination to the users list
+# → medium complexity → normal research (≥3 WebSearch queries, full RES-* contract)
+
+/auto-orchestrate B build a multi-tenant analytics platform with real-time dashboards
+# → complex + fullstack signals → deep research (≥10 queries, 2+ sources per HIGH finding)
+
+/auto-orchestrate Implement OAuth2 authentication with audit logging for compliance
+# → complex + security/risk domain flags → exhaustive research (auto-bump one tier)
+```
+
+**Explicit override** — force a specific tier:
+
+```
+# minimal — cheapest, fastest, cache-preferred
+/auto-orchestrate --research-depth=minimal Bump Django from 5.0 to 5.0.1
+
+# normal — current default behavior
+/auto-orchestrate --research-depth=normal Add Redis caching to the product catalog
+
+# deep — 10+ queries clustered by sub-topic, production-incident patterns
+/auto-orchestrate --research-depth=deep B Migrate session store from in-memory to Postgres
+
+# exhaustive — domain-partitioned research (security / performance / operational / UX)
+/auto-orchestrate --research-depth=exhaustive S Build HIPAA-compliant patient portal
+```
+
+**Combined with other flags**:
+
+```
+# Scope + depth override
+/auto-orchestrate F --research-depth=deep redesign the admin console with accessibility focus
+
+# Skip planning + minimal depth for a documented trivial fix
+/auto-orchestrate --skip-planning --research-depth=minimal Fix broken link in footer
+
+# Release-ready with exhaustive research, human gates at spec and validation
+/auto-orchestrate --research-depth=exhaustive --human-gates="2,5" --release \
+    S Ship v2.0 with new billing integration
+```
+
+**Tier characteristics** (authoritative per `agents/researcher.md` RES-014):
+
+| Tier | WebSearch queries | Sources per HIGH finding | Output shape | Best for |
+|------|-------------------|-------------------------|--------------|----------|
+| `minimal` | 0-1 (cache-first) | 1 | 1-page summary, CVE-only | Trivial fixes, fast-path |
+| `normal` | ≥3 | 1 | Full template (CVEs, Risks & Remedies, Versions) | Most medium tasks |
+| `deep` | ≥10 clustered | ≥2 independent | Full template + Production Incident Patterns | Complex tasks, unfamiliar stacks |
+| `exhaustive` | ≥30 across domains | ≥3 independent | Domain-partitioned (security / perf / ops / UX) + synthesis | Regulated work, high-risk changes |
+
+The tier propagates through the orchestrator into the researcher's spawn prompt as `RESEARCH_DEPTH`. The researcher self-checks output against the tier contract via `~/.claude/skills/researcher/scripts/depth_check.py` before finalizing the manifest entry. Shortfalls emit `status: "partial"` with a `depth_shortfall` array rather than silently shipping below-contract output.
+
 The system will:
 
 **Planning phase (P1-P4):**
@@ -112,23 +183,138 @@ You can also use the shorthand `/auto-orchestrate c` to quickly resume the most 
 
 ### Autonomous debugging
 
-Debug errors autonomously with a cyclic triage-fix-verify loop:
+Debug errors autonomously with a cyclic triage-research-fix-verify loop. The debugger collects error context, classifies the error, researches the fix if unknown, applies it, verifies, and escalates to the user if iterations are exhausted.
+
+**Basic invocations**:
 
 ```
-/auto-debug paste-error-here
-/auto-debug debug docker           # Docker-specific debugging
-/auto-debug c                      # Resume most recent debug session
+/auto-debug TypeError: Cannot read property 'foo' of undefined at src/users.ts:42
+/auto-debug Tests failing after upgrade — jest reports 14 failures in api/handlers
+/auto-debug build broken with "Cannot find module '@prisma/client'"
+```
+
+**Docker-specific debugging** (container/compose lifecycle, logs, exec):
+
+```
+/auto-debug debug docker                       # Auto-detect failing containers
+/auto-debug docker-compose up exits code 125
+/auto-debug --docker postgres container stuck restarting
+```
+
+**Batch/scope debugging** — fix multiple issues in one session:
+
+```
+/auto-debug debug all                          # Fix every currently-failing check
+/auto-debug fix failing tests                  # Target only test failures
+/auto-debug troubleshoot CI pipeline           # Target CI-specific issues
+```
+
+**Tuning flags** — override iteration limits for thorny bugs:
+
+```
+# More fix-verify cycles per error (default 5) for flaky/intermittent bugs
+/auto-debug --fix_verify_cycles=10 Race condition in websocket handler
+
+# Higher iteration ceiling for multi-error cascades
+/auto-debug --max_iterations=100 Migration failures after schema change
+
+# Loosen stall threshold (default 3) for environments with slow feedback
+/auto-debug --stall_threshold=5 Intermittent network test failures
+```
+
+**Resume an in-progress debug session**:
+
+```
+/auto-debug c                                  # Resume most recent
 ```
 
 ### Autonomous audit
 
-Verify a codebase against a specification document:
+Verify a codebase against a specification document, then automatically remediate gaps via orchestrator handoff until the codebase complies. The loop runs audit → identify gaps → spawn orchestrator → re-audit.
+
+**Basic invocations**:
 
 ```
-/auto-audit path/to/spec.md
-/auto-audit path/to/spec.md scope=B    # Backend scope
-/auto-audit c                          # Resume most recent audit session
+/auto-audit docs/spec.md                       # Audit against a spec file
+/auto-audit requirements.md                    # Any markdown requirements doc
+/auto-audit .orchestrate/auto-orc-2026-04-19-billing/stage-2/2026-04-19_billing-spec.md
 ```
+
+**Scope-targeted audits** — limit remediation to one stack layer:
+
+```
+/auto-audit docs/spec.md scope=B               # Backend only
+/auto-audit docs/spec.md scope=F               # Frontend only
+/auto-audit docs/spec.md scope=S               # Full-stack (default for most specs)
+```
+
+**Docker-aware audits** — include container services in compliance check:
+
+```
+/auto-audit docs/spec.md --docker              # Check docker-compose services
+/auto-audit spec.md --docker scope=B           # Backend + container compliance
+```
+
+**Tuning flags** — control remediation aggressiveness:
+
+```
+# More audit-remediate cycles (default 5) for large specs
+/auto-audit --max_audit_cycles=10 docs/large-spec.md
+
+# Cap remediation orchestrator spawns per cycle (default 100)
+/auto-audit --max_orchestrate_iterations=50 docs/spec.md
+
+# Threshold-based pass (default 90% compliance)
+/auto-audit --compliance_threshold=95 docs/strict-spec.md
+```
+
+**Resume an in-progress audit session**:
+
+```
+/auto-audit c                                  # Resume most recent
+```
+
+### Pipeline composition
+
+The three Big Three commands compose into a full build-verify-fix workflow. Each writes checkpoints and receipts so the next command can consume prior context.
+
+**Typical greenfield project flow**:
+
+```
+# 1. Create planning artifacts (Intent Brief, Scope Contract, Dependency Charter, Sprint Kickoff Brief)
+/new-project Build a patient records platform with HIPAA compliance
+
+# 2. Build it — consumes the handoff receipt from /new-project
+/auto-orchestrate S  # Fullstack, auto-resolves to deep/exhaustive research via triage
+
+# 3. Verify against the scope contract once build completes
+/auto-audit .orchestrate/<session-id>/planning/P2-scope-contract.md scope=S
+
+# 4. Debug any validation failures that surfaced (optional — auto-orchestrate escalates here automatically)
+/auto-debug c  # Resume into the prior debug session if auto-orchestrate escalated
+```
+
+**Existing project iteration flow**:
+
+```
+# Add a feature to an existing codebase
+/auto-orchestrate F Add dark-mode toggle with user preference persistence
+
+# Hit an issue mid-pipeline? Resume with the shorthand
+/auto-orchestrate c
+
+# After success, audit the shipped work against a spec for regression
+/auto-audit docs/dark-mode-spec.md
+```
+
+**Fast-path for trivial fixes** (no planning, single-stage):
+
+```
+/auto-orchestrate --skip-planning --fast-path --research-depth=minimal \
+    Bump axios from 1.6.0 to 1.7.2
+```
+
+**Cross-pipeline state**: All three commands share `.pipeline-state/` (escalation log, research cache, codebase analysis, fix registry). This means `/auto-debug` findings feed back into the next `/auto-orchestrate` session, and `/auto-audit` consumes prior research without re-running WebSearch.
 
 ## Architecture Overview
 
