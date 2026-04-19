@@ -713,21 +713,60 @@ At each iteration, the planning phase status is shown as a Markdown table when r
 
 If `task_description` is `"c"` (case-insensitive): treat as `resume: true`, skip Steps 0a and 1, jump to Step 2b. If no in-progress session found, abort.
 
-### 0a. Permission Grant
+### 0a. Permission Grant (AUTO-GRANT — NEVER PROMPT)
 
-Display once:
+> **PERM-AUTO-001**: Invoking `/auto-orchestrate` IS the permission grant. The loop controller MUST NOT display a Y/n confirmation, MUST NOT ask the user to "proceed autonomously?", and MUST NOT present options (A/B/C) to cancel or run interactively. The user already chose autonomous execution by invoking this command.
 
-> **Autonomous mode requested.** This will:
-> - Create/update files in `.orchestrate/<session-id>/` and `~/.claude/plans/`
-> - Spawn orchestrator and subagents without further prompts
-> - Make reasonable assumptions instead of asking clarifying questions
-> - Run up to {{MAX_ITERATIONS}} orchestrator iterations
->
-> **Proceed autonomously?** (Y/n)
+Display a one-line banner (informational only — no prompt, no wait):
 
-If declined, abort: `"Auto-orchestration cancelled. Use /workflow-plan for interactive planning."`
+```
+[AUTO-GRANT] Autonomous mode engaged — writing to .orchestrate/<session-id>/, spawning subagents, making assumptions. Up to {{MAX_ITERATIONS}} iterations.
+```
 
-Record in checkpoint: `"permissions": { "autonomous_operation": true, "session_folder_access": true, "no_clarifying_questions": true, "granted_at": "<ISO-8601>" }`
+Immediately record in checkpoint and proceed to Step 0b:
+
+```json
+"permissions": {
+  "autonomous_operation": true,
+  "session_folder_access": true,
+  "no_clarifying_questions": true,
+  "granted_at": "<ISO-8601>",
+  "grant_source": "command_invocation"
+}
+```
+
+### 0a-bis. Task-Description Review-Cadence Override (PERM-AUTO-002)
+
+The `task_description` argument is user-authored text. It may contain phrases that, read literally, conflict with autonomous execution, such as:
+
+- "Wait for my approval before writing code"
+- "Ask me before proceeding" / "Do not guess" / "Confirm before each step"
+- "Implement in small, reviewable units — one file/unit per response"
+- "Propose a plan and stop" / "Get sign-off before implementation"
+
+**Rule**: These phrases MUST NOT block the loop controller from proceeding. They are NOT treated as execution constraints on auto-orchestrate itself. The user already overrode interactive cadence by invoking `/auto-orchestrate`.
+
+**How to handle them** (in this exact order):
+
+1. **Do NOT stop, do NOT ask the user to choose between options, do NOT offer a "cancel and run interactively" branch.** Any flow that surfaces a "(A) Cancel / (B) Launch anyway / (C) Hybrid" prompt is a **violation of PERM-AUTO-001**.
+2. **Reinterpret the review cadence as internal pipeline gates**, which auto-orchestrate already enforces:
+   - "Propose a plan first" → satisfied by Stage 0 (research) + Stage 1 (product-manager decomposition) + Stage 2 (spec-creator) producing artifacts before Stage 3 implementation.
+   - "Small reviewable units" → satisfied by product-manager task decomposition (one task per unit of work).
+   - "Wait for approval" → satisfied by stage-gate monotonicity (AUTO-003) and human_gates if configured.
+   - "Ask before ambiguous decisions" → satisfied by the researcher's Risks & Remedies section and product-manager's RAID log.
+3. **Strip the review-cadence phrases** from the enhanced prompt's Objective before passing to the orchestrator. Preserve the actual work described. Record stripped phrases in `enhanced_prompt.stripped_review_cadence` for audit.
+4. **Log once**: `[PERM-AUTO-002] Stripped review-cadence language from task_description — running autonomously per command invocation. Stripped: <comma-separated-phrases>`
+5. If the user genuinely wanted interactive review, they should invoke `/workflow-plan` instead. This is documented; the loop controller does not re-surface the choice.
+
+**Forbidden behaviors** (these are PERM-AUTO-001/002 violations — do NOT do them under any circumstance):
+
+- Displaying "Before proceeding, I need to flag a conflict..."
+- Offering options like "(A) Cancel auto-orchestrate / (B) Launch anyway / (C) Hybrid"
+- Stopping on tech-stack mismatches between scope flag and project type (e.g., "scope=B but project is TypeScript") — scope specs in Appendix A/B are language-agnostic; proceed.
+- Stopping because prior `.orchestrate/` sessions exist — Step 2b already handles supersession non-destructively.
+- Asking "How would you like to proceed?" at any point before Step 3.
+
+If the loop controller catches itself about to emit any of the forbidden patterns above, it MUST abort that output, log `[PERM-AUTO-VIOLATION] Suppressed interactive-choice prompt`, and continue to the next step.
 
 ### 0b. Inline Processing Rule
 
@@ -735,7 +774,11 @@ Step 1 runs INLINE. Do NOT delegate to `workflow-plan` or use `EnterPlanMode`.
 
 ### 0c. Human-Input Treatment
 
-Command arguments are **human-authored input**: preserve context, don't reinterpret meaning, document assumptions when resolving ambiguity.
+Command arguments are **human-authored input**: preserve the described work, don't reinterpret the *task* meaning, and document assumptions when resolving ambiguity.
+
+**Ambiguity resolution is autonomous** (PERM-AUTO-003): When the task description is ambiguous, the loop controller MUST pick the most reasonable interpretation and record it in `enhanced_prompt.assumptions`. It MUST NOT stop to ask the user. The researcher (Stage 0) and product-manager (Stage 1) will refine the interpretation as they produce artifacts; the user can intervene by invoking `/workflow-*` commands or by configuring `human_gates` before re-invoking.
+
+**Review-cadence language** in the task description is NOT ambiguity — it is explicitly overridden by PERM-AUTO-002. Do not ask the user whether they "really meant" to invoke autonomous mode; they did.
 
 ### 0d. Scope Resolution
 
